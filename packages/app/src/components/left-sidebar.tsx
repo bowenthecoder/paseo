@@ -1,4 +1,5 @@
 import { router, usePathname } from "expo-router";
+import { useSidebarChatGroupsStore } from "@/stores/sidebar-chat-groups-store";
 import {
   CalendarClock,
   FolderPlus,
@@ -176,13 +177,17 @@ export const LeftSidebar = memo(function LeftSidebar({ active }: { active: boole
   const openProjectPicker = useOpenAddProject();
 
   const handleOpenProjectMobile = useCallback(() => {
-    showMobileAgent();
-    void openProjectPicker();
-  }, [showMobileAgent, openProjectPicker]);
+    if (groupMode === "manual") useSidebarChatGroupsStore.getState().openEditor();
+    else {
+      showMobileAgent();
+      void openProjectPicker();
+    }
+  }, [groupMode, showMobileAgent, openProjectPicker]);
 
   const handleOpenProjectDesktop = useCallback(() => {
-    void openProjectPicker();
-  }, [openProjectPicker]);
+    if (groupMode === "manual") useSidebarChatGroupsStore.getState().openEditor();
+    else void openProjectPicker();
+  }, [groupMode, openProjectPicker]);
 
   const handleSettingsMobile = useCallback(() => {
     showMobileAgent();
@@ -234,8 +239,8 @@ export const LeftSidebar = memo(function LeftSidebar({ active }: { active: boole
   const newWorkspaceKeys = useShortcutKeys("new-workspace");
   const labels = useMemo(
     (): SidebarLabels => ({
-      addProject: t("sidebar.actions.addProject"),
-      newWorkspace: t("sidebar.actions.newWorkspace"),
+      addProject: groupMode === "manual" ? "New group" : t("sidebar.actions.addProject"),
+      newWorkspace: groupMode === "manual" ? "New chat" : t("sidebar.actions.newWorkspace"),
       hosts: t("sidebar.actions.hosts"),
       home: t("sidebar.actions.home"),
       settings: t("sidebar.actions.settings"),
@@ -244,7 +249,7 @@ export const LeftSidebar = memo(function LeftSidebar({ active }: { active: boole
       schedules: t("sidebar.sections.schedules"),
       closeSidebar: t("sidebar.actions.closeSidebar"),
     }),
-    [t],
+    [groupMode, t],
   );
 
   const sharedProps = {
@@ -515,6 +520,10 @@ const SidebarNewWorkspaceHeaderRow = memo(function SidebarNewWorkspaceHeaderRow(
 
   const handlePress = useCallback(() => {
     onBeforeNavigate?.();
+    if (useSidebarViewStore.getState().groupMode === "manual") {
+      router.push(buildNewWorkspaceRoute());
+      return;
+    }
     router.push(
       activeWorkspaceServerId
         ? buildNewWorkspaceRoute(
@@ -970,8 +979,13 @@ function DesktopSidebar({
   );
 }
 
+function openNewChatGroup() {
+  useSidebarChatGroupsStore.getState().openEditor();
+}
+
 function WorkspacesSectionHeader() {
   const { theme } = useUnistyles();
+  const manual = useSidebarViewStore((state) => state.groupMode === "manual");
   const setCommandCenterOpen = useKeyboardShortcutsStore((state) => state.setCommandCenterOpen);
   const commandCenterKeys = useShortcutKeys("toggle-command-center");
   const handleSearchPress = useCallback(() => setCommandCenterOpen(true), [setCommandCenterOpen]);
@@ -985,8 +999,19 @@ function WorkspacesSectionHeader() {
 
   return (
     <View style={styles.workspacesSectionHeader}>
-      <Text style={styles.workspacesSectionTitle}>Workspaces</Text>
+      <Text style={styles.workspacesSectionTitle}>{manual ? "Chats" : "Workspaces"}</Text>
       <View style={styles.workspacesSectionActions}>
+        {manual ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="New group"
+            testID="sidebar-new-group"
+            style={searchButtonStyle}
+            onPress={openNewChatGroup}
+          >
+            <Plus size={16} color={theme.colors.foregroundMuted} />
+          </Pressable>
+        ) : null}
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
             <Pressable

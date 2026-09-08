@@ -410,6 +410,21 @@ export type ACPCatalogModelResolver = (
   context: ACPCatalogModelResolverContext,
 ) => Promise<AgentModelDefinition[]>;
 
+export interface ACPNotificationContext {
+  sessionId: string | null;
+  modelMetadata?: unknown;
+}
+
+/** A fresh adapter belongs to one session; provider child routing must never leak between chats. */
+export interface ACPNotificationAdapter {
+  sessionUpdate(params: SessionNotification, context: ACPNotificationContext): AgentStreamEvent[];
+  extensionNotification(
+    method: string,
+    params: Record<string, unknown>,
+    context: ACPNotificationContext,
+  ): AgentStreamEvent[];
+}
+
 interface ACPAgentClientOptions {
   provider: string;
   logger: Logger;
@@ -433,8 +448,10 @@ interface ACPAgentClientOptions {
     connection: ClientSideConnection,
     sessionId: string,
     thinkingOptionId: string,
+    modelId: string | null,
   ) => Promise<void>;
   capabilities?: AgentCapabilityFlags;
+  notificationAdapterFactory?: () => ACPNotificationAdapter;
   extensionCommandsParser?: ACPExtensionCommandsParser;
   waitForInitialCommands?: boolean;
   initialCommandsWaitTimeoutMs?: number;
@@ -463,8 +480,10 @@ interface ACPAgentSessionOptions {
     connection: ClientSideConnection,
     sessionId: string,
     thinkingOptionId: string,
+    modelId: string | null,
   ) => Promise<void>;
   capabilities: AgentCapabilityFlags;
+  notificationAdapterFactory?: () => ACPNotificationAdapter;
   extensionCommandsParser?: ACPExtensionCommandsParser;
   handle?: AgentPersistenceHandle;
   agentId?: string;
@@ -695,6 +714,7 @@ export function deriveModelDefinitionsFromACP(
       id: model.modelId,
       label: model.name,
       description: model.description ?? undefined,
+      metadata: model._meta ?? undefined,
       isDefault: model.modelId === models.currentModelId,
       thinkingOptions: thinkingOptions.length > 0 ? thinkingOptions : undefined,
       defaultThinkingOptionId: defaultThinkingOptionId ?? undefined,
@@ -822,9 +842,11 @@ export class ACPAgentClient implements AgentClient {
     connection: ClientSideConnection,
     sessionId: string,
     thinkingOptionId: string,
+    modelId: string | null,
   ) => Promise<void>;
   private readonly waitForInitialCommands: boolean;
   private readonly initialCommandsWaitTimeoutMs: number;
+  private readonly notificationAdapterFactory?: () => ACPNotificationAdapter;
   private readonly extensionCommandsParser?: ACPExtensionCommandsParser;
   protected readonly terminateProcess: ProcessTerminator;
 
@@ -853,6 +875,7 @@ export class ACPAgentClient implements AgentClient {
     this.thinkingOptionWriter = options.thinkingOptionWriter;
     this.waitForInitialCommands = options.waitForInitialCommands ?? false;
     this.initialCommandsWaitTimeoutMs = options.initialCommandsWaitTimeoutMs ?? 1500;
+    this.notificationAdapterFactory = options.notificationAdapterFactory;
     this.extensionCommandsParser = options.extensionCommandsParser;
   }
 
@@ -883,6 +906,7 @@ export class ACPAgentClient implements AgentClient {
         capabilities: this.capabilities,
         agentId: launchContext?.agentId,
         launchEnv: launchContext?.env,
+        notificationAdapterFactory: this.notificationAdapterFactory,
         extensionCommandsParser: this.extensionCommandsParser,
         waitForInitialCommands: this.waitForInitialCommands,
         initialCommandsWaitTimeoutMs: this.initialCommandsWaitTimeoutMs,
@@ -934,6 +958,7 @@ export class ACPAgentClient implements AgentClient {
       handle,
       agentId: launchContext?.agentId,
       launchEnv: launchContext?.env,
+      notificationAdapterFactory: this.notificationAdapterFactory,
       extensionCommandsParser: this.extensionCommandsParser,
       waitForInitialCommands: this.waitForInitialCommands,
       initialCommandsWaitTimeoutMs: this.initialCommandsWaitTimeoutMs,
@@ -1421,6 +1446,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     connection: ClientSideConnection,
     sessionId: string,
     thinkingOptionId: string,
+    modelId: string | null,
   ) => Promise<void>;
   private readonly agentId?: string;
   private readonly launchEnv?: Record<string, string>;
@@ -1430,7 +1456,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
   private submittedUserMessageTurnId: string | null = null;
   private readonly toolCalls = new Map<string, ACPToolSnapshot>();
   private readonly terminalEntries = new Map<string, TerminalEntry>();
-  private readonly persistedHistory: AgentTimelineItem[] = [];
+  private readonly persistedHistory: AgentStreamEvent[] = [];
   private readonly initialHandle?: AgentPersistenceHandle;
 
   private readonly config: AgentSessionConfig;
@@ -1451,6 +1477,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
   private commandsReadySettled = false;
   private waitForInitialCommands: boolean;
   private initialCommandsWaitTimeoutMs: number;
+  private readonly notificationAdapter?: ACPNotificationAdapter;
   private readonly extensionCommandsParser?: ACPExtensionCommandsParser;
   private currentTurnUsage: AgentUsage | undefined;
   private activeForegroundTurnId: string | null = null;
@@ -1491,6 +1518,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     this.currentTitle = config.title ?? null;
     this.waitForInitialCommands = options.waitForInitialCommands ?? false;
     this.initialCommandsWaitTimeoutMs = options.initialCommandsWaitTimeoutMs ?? 1500;
+    this.notificationAdapter = options.notificationAdapterFactory?.();
     this.extensionCommandsParser = options.extensionCommandsParser;
   }
 
@@ -1673,8 +1701,8 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     const history = [...this.persistedHistory];
     this.persistedHistory.length = 0;
     this.historyPending = false;
-    for (const item of history) {
-      yield { type: "timeline", provider: this.provider, item };
+    for (const event of history) {
+      yield event;
     }
   }
 
@@ -1993,7 +2021,12 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     }
 
     if (this.thinkingOptionWriter) {
-      await this.thinkingOptionWriter(this.connection, this.sessionId, thinkingOptionId);
+      await this.thinkingOptionWriter(
+        this.connection,
+        this.sessionId,
+        thinkingOptionId,
+        this.currentModel,
+      );
       this.thinkingOptionId = thinkingOptionId;
       this.pushEvent({
         type: "thinking_option_changed",
@@ -2283,11 +2316,14 @@ export class ACPAgentSession implements AgentSession, ACPClient {
       },
       "provider.acp.raw_event",
     );
+    const providerEvents =
+      this.notificationAdapter?.sessionUpdate(params, this.notificationContext()) ?? [];
     if (params.sessionId !== this.sessionId) {
+      this.deliverTranslatedEvents(providerEvents);
       return;
     }
 
-    const events = this.translateSessionUpdate(params.update);
+    const events = [...providerEvents, ...this.translateSessionUpdate(params.update)];
     this.logger.trace(
       {
         agentId: this.agentId,
@@ -2305,16 +2341,26 @@ export class ACPAgentSession implements AgentSession, ACPClient {
   private deliverTranslatedEvents(events: AgentStreamEvent[]): void {
     if (this.replayingHistory) {
       for (const event of events) {
-        if (event.type === "timeline") {
-          this.persistedHistory.push(event.item);
+        if (event.type === "timeline" || event.type === "provider_subagent") {
+          this.persistedHistory.push(event);
         }
       }
       return;
     }
 
     for (const event of events) {
+      if (event.type === "usage_updated")
+        this.currentTurnUsage = { ...this.currentTurnUsage, ...event.usage };
       this.pushEvent(event);
     }
+  }
+
+  private notificationContext(): ACPNotificationContext {
+    return {
+      sessionId: this.sessionId,
+      modelMetadata: this.availableModels?.find((model) => model.modelId === this.currentModel)
+        ?._meta,
+    };
   }
 
   async extNotification(method: string, params: Record<string, unknown>): Promise<void> {
@@ -2329,6 +2375,10 @@ export class ACPAgentSession implements AgentSession, ACPClient {
       "provider.acp.extension_notification",
     );
 
+    this.deliverTranslatedEvents(
+      this.notificationAdapter?.extensionNotification(method, params, this.notificationContext()) ??
+        [],
+    );
     const parsedCommands = this.extensionCommandsParser?.(method, params);
     if (parsedCommands) {
       this.applyResolvedCommands(parsedCommands, {
@@ -2841,11 +2891,20 @@ export class ACPAgentSession implements AgentSession, ACPClient {
   }
 
   private handleUsageUpdate(update: UsageUpdate): void {
-    void update;
+    this.currentTurnUsage = {
+      ...this.currentTurnUsage,
+      contextWindowUsedTokens: update.used,
+      contextWindowMaxTokens: update.size,
+    };
+    this.pushEvent({
+      type: "usage_updated",
+      provider: this.provider,
+      usage: this.currentTurnUsage,
+    });
   }
 
   private handlePromptResponse(response: PromptResponse, turnId: string): void {
-    this.currentTurnUsage = mapACPUsage(response.usage) ?? this.currentTurnUsage;
+    this.currentTurnUsage = { ...this.currentTurnUsage, ...mapACPUsage(response.usage) };
 
     switch (response.stopReason) {
       case "cancelled":
@@ -3205,7 +3264,7 @@ function extractPromptText(prompt: AgentPromptInput): string {
     .join("");
 }
 
-function contentBlockToText(content: ContentBlock): string {
+export function contentBlockToText(content: ContentBlock): string {
   switch (content.type) {
     case "text":
       return content.text;
@@ -3234,7 +3293,7 @@ function coalesceDefined<T>(next: T | undefined, previous: T | undefined, fallba
   return fallback;
 }
 
-function mergeToolSnapshot(
+export function mergeToolSnapshot(
   toolCallId: string,
   update: ToolCall | ToolCallUpdate,
   previous?: ACPToolSnapshot,
@@ -3261,9 +3320,9 @@ function mapPlanToTimeline(plan: Plan): AgentTimelineItem {
   };
 }
 
-function mapToolSnapshotToTimeline(
+export function mapToolSnapshotToTimeline(
   snapshot: ACPToolSnapshot,
-  terminals: Map<string, TerminalEntry>,
+  terminals: Map<string, TerminalEntry> = new Map(),
 ): ToolCallTimelineItem {
   const status = mapToolStatus(snapshot.status);
   const detail = mapToolDetail(snapshot, terminals);

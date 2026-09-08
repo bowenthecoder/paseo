@@ -3500,7 +3500,7 @@ export class Session {
         throw new Error(`Working directory does not exist or is not a directory: ${requestedCwd}`);
       }
       const trimmedPrompt = initialPrompt?.trim();
-      const { provisionalTitle } = resolveCreateAgentTitles({
+      const { provisionalTitle, explicitTitle } = resolveCreateAgentTitles({
         configTitle: config.title,
         initialPrompt: trimmedPrompt,
       });
@@ -3567,6 +3567,17 @@ export class Session {
           { currentSelection: this.getFocusedAgentSelectionForCwd(resolvedIntent.config.cwd) },
         );
       }
+      this.workspaceAutoName.scheduleForAgent({
+        agentId: snapshot.id,
+        expectedTitle: explicitTitle ? null : provisionalTitle,
+        cwd: resolvedCwd,
+        firstAgentContext,
+        currentSelection: {
+          provider: config.provider,
+          model: config.model,
+          thinkingOptionId: config.thinkingOptionId,
+        },
+      });
       this.createAgentLifecycleDispatch.registerAutoArchiveIfRequested({
         autoArchive,
         agentId: snapshot.id,

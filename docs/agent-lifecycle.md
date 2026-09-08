@@ -146,7 +146,7 @@ Running provider-native subagents contribute `running` to the workspace owned by
 
 ## The subagents track
 
-The track is a pill at the foot of an agent's pane (`packages/app/src/subagents/track.tsx`): a count you can read at a glance, and a panel behind it — a popover on wide screens, a sheet on compact ones — holding the rows. It floats over the transcript rather than sitting in a band above the composer, so the timeline scrolls underneath it; `packages/app/src/panels/agent-tracks.tsx` owns that placement, and the pill frame is shared with the task list in `packages/app/src/composer/tracks.tsx`.
+The track is a pill at the foot of an agent's pane (`packages/app/src/subagents/track.tsx`). It reports the number of running tasks and preserves separate counts for failed or waiting children. On desktop, it opens the Tasks panel in the ordinary right side pane, keeping the parent chat visible. Compact screens use a sheet; wide native screens retain the popover. It floats over the transcript; `packages/app/src/panels/agent-tracks.tsx` owns placement, and the pill frame is shared with the task list in `packages/app/src/composer/tracks.tsx`.
 
 The rows combine two kinds of children:
 
@@ -156,13 +156,27 @@ The rows combine two kinds of children:
 parentAgentId === thisAgent.id  AND  !archivedAt
 ```
 
-- **Provider subagents** are child executions owned by Claude, Codex, or OpenCode. They are not inserted into `AgentManager` as managed agents. Providers emit a separate descriptor and timeline stream through `agent.provider_subagents.*`; the client keeps that state outside the normal agent store and merges only the presentation rows into the track.
+- **Provider subagents** are child executions owned by Claude, Codex, Grok, or OpenCode. They are not inserted into `AgentManager` as managed agents. Providers emit a separate descriptor and timeline stream through `agent.provider_subagents.*`; the client keeps that state outside the normal agent store and merges only the presentation rows into the track.
 
-Clicking either kind opens a workspace tab. A Paseo subagent tab is a normal interactive agent pane. A provider subagent tab is a read-only timeline pane with no composer, archive, detach, rewind, or fork actions. Both panes use `AgentStreamView`, so message, reasoning, tool-call, and layout rendering stay identical.
+Clicking either kind opens a workspace tab. In the desktop Tasks panel, the child opens in that pane and its list remains available as a tab. A Paseo subagent tab is a normal interactive agent pane. A provider subagent tab is a read-only timeline pane with no composer, archive, detach, rewind, or fork actions. Both panes use `AgentStreamView`, so message, reasoning, tool-call, and layout rendering stay identical. Closing the Tasks panel only changes the client's layout; it does not archive the parent or its children.
 
 Provider timelines use the same structural timeline item format but deliberately have a separate lifecycle and transport. A provider thread/session identifier is not a Paseo agent identifier, and closing its tab is always layout-only.
 
-Provider descriptors may include one compact subtitle. The provider owns its contents and formatting; clients display and truncate it without interpreting provider-specific model, thinking, or usage fields.
+Provider descriptors may include one compact subtitle. The provider owns its contents and formatting; clients display it without interpreting provider-specific model, thinking, or usage fields. The Tasks panel and child view allow this metadata to wrap so reported token counts remain readable. Managed child rows show the provider’s reported context token count, explicitly labeled as context. Unknown usage stays absent, and the app does not invent a cumulative total across providers with different token accounting.
+
+### Grok provider subagents: ACP child channels
+
+Grok Build announces child lifecycle through `_x.ai/session_notification` and streams child content
+on separate ACP session IDs. Retain provider events during history replay as well as live turns;
+filtering every notification to the root session loses the child transcript.
+`providers/grok-subagents.ts` owns that projection. Token subtitles use Grok's reported context
+tokens. Codex uses its native cumulative child token total. Neither substitutes the parent's usage
+for an unknown child.
+
+An explicit Grok `[subagents.models]`, roles, or personas table also creates the parent
+`[subagents]` table. Grok treats an omitted `enabled` in that table as false. Set
+`enabled = true` under `[subagents]` when configuring native children, even though a completely
+absent subagents configuration enables them by default.
 
 ### Claude provider subagents: the task protocol
 

@@ -211,6 +211,7 @@ export interface LightThemeConfig {
   surface4: string;
   surfaceDiffEmpty: string;
   surfaceSidebar: string;
+  foregroundSidebar?: string;
   foreground: string;
   foregroundMuted: string;
   foregroundExtraMuted: string;
@@ -259,6 +260,7 @@ export function buildLightSemanticColors(tint: LightThemeConfig) {
     interactionHighlight: "rgba(0, 0, 0, 0.06)",
 
     foreground: tint.foreground,
+    foregroundSidebar: tint.foregroundSidebar ?? null,
     foregroundMuted: tint.foregroundMuted,
     foregroundExtraMuted: tint.foregroundExtraMuted,
 
@@ -341,6 +343,8 @@ export interface DarkThemeConfig {
   surface4: string;
   surfaceDiffEmpty: string;
   surfaceSidebar: string;
+  surfaceSidebarSelected?: string;
+  foregroundSidebar?: string;
   foregroundMuted: string;
   foregroundExtraMuted: string;
   border: string;
@@ -384,11 +388,12 @@ export function buildDarkSemanticColors(tint: DarkThemeConfig) {
     surfaceDiffEmpty: tint.surfaceDiffEmpty,
     surfaceSidebar: tint.surfaceSidebar,
     surfaceSidebarHover: tint.surface1,
-    surfaceSidebarSelected: tint.surface2,
+    surfaceSidebarSelected: tint.surfaceSidebarSelected ?? tint.surface2,
     surfaceWorkspace: tint.surface1,
     interactionHighlight: "rgba(255, 255, 255, 0.08)",
 
     foreground,
+    foregroundSidebar: tint.foregroundSidebar ?? null,
     foregroundMuted: tint.foregroundMuted,
     foregroundExtraMuted: tint.foregroundExtraMuted,
 
@@ -501,23 +506,26 @@ const midnightDarkColors = buildDarkSemanticColors({
   terminalBrightBlack: "#3c3e4c",
 });
 
-// Claude — warm neutral with subtle orange undertone
+// Claude — neutral surfaces and warm text, matched to the desktop sidebar reference.
 const claudeDarkColors = buildDarkSemanticColors({
-  surface0: "#1f1f1e",
-  surface1: "#262523",
-  surface2: "#2f2d2b",
+  surface0: "#151515",
+  surface1: "#222221",
+  surface2: "#2b2b29",
   surface3: "#4a4745",
   surface4: "#605d5b",
   surfaceDiffEmpty: "#2a2826",
-  surfaceSidebar: "#1a1918",
-  foregroundMuted: "#ada9a5",
-  foregroundExtraMuted: "#78746f",
-  border: "#2c2a27",
-  borderAccent: "#36332f",
+  surfaceSidebar: "#111111",
+  surfaceSidebarSelected: "#343434",
+  foreground: "#f0efec",
+  foregroundSidebar: "#c3c2b8",
+  foregroundMuted: "#898782",
+  foregroundExtraMuted: "#5a5956",
+  border: "#30302e",
+  borderAccent: "#414141",
   accent: "#d97757",
   accentBright: "#e89a7f",
   destructive: "#cf513e", // warm orange-red, hue ~10 — sits with the Claude orange accent
-  terminalBlack: "#1a1918",
+  terminalBlack: "#111111",
   terminalBrightBlack: "#4a4745",
 });
 

@@ -25,7 +25,7 @@ export type ShortcutCallbackName = "toggle-agent-list" | "toggle-both-sidebars" 
 export type ShortcutAction =
   | { kind: "none" }
   | { kind: "dispatch"; action: KeyboardActionDefinition }
-  | { kind: "navigate-workspace"; serverId: string; workspaceId: string }
+  | { kind: "navigate-workspace"; serverId: string; workspaceId: string; agentId?: string }
   | { kind: "navigate-last-workspace" }
   | { kind: "router-replace"; route: string }
   | { kind: "router-back" }
@@ -127,6 +127,7 @@ function routeWorkspaceNavigateIndex(
     kind: "navigate-workspace",
     serverId: target.serverId,
     workspaceId: target.workspaceId,
+    ...(target.agentId ? { agentId: target.agentId } : {}),
   };
 }
 
@@ -141,9 +142,7 @@ function routeWorkspaceNavigateRelative(
     ctx.navigationActiveWorkspace ?? parseHostWorkspaceRouteFromPathname(ctx.pathname);
   const target = getRelativeSidebarShortcutTarget({
     targets: ctx.sidebarShortcutTargets,
-    currentTarget: currentWorkspace
-      ? { serverId: currentWorkspace.serverId, workspaceId: currentWorkspace.workspaceId }
-      : null,
+    currentTarget: currentWorkspace,
     delta: payload.delta,
   });
   if (!target) return NONE;
@@ -151,6 +150,7 @@ function routeWorkspaceNavigateRelative(
     kind: "navigate-workspace",
     serverId: target.serverId,
     workspaceId: target.workspaceId,
+    ...(target.agentId ? { agentId: target.agentId } : {}),
   };
 }
 

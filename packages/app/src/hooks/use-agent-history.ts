@@ -130,6 +130,7 @@ export async function fetchAgentHistoryPage(input: {
     isSearchTruncated: payload.searchTruncated === true,
     agents: Array.from(agents.values(), (agent) => ({
       id: agent.id,
+      parentAgentId: agent.parentAgentId,
       serverId: input.serverId,
       serverLabel: input.serverId,
       title: agent.title ?? null,

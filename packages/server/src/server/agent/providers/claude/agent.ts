@@ -3125,6 +3125,9 @@ class ClaudeAgentSession implements AgentSession {
     // resume: sessionId and the new query continues the existing conversation.
     this.persistence = null;
 
+    // A setting chosen before the first query is already included in buildOptions.
+    // Consume its restart request before the pump calls ensureQuery again.
+    this.queryRestartNeeded = false;
     const input = createAsyncMessageInput<SDKUserMessage>();
     const options = await this.buildOptions();
     this.logger.debug({ options: summarizeClaudeOptionsForLog(options) }, "claude query");

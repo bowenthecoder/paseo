@@ -42,6 +42,7 @@ import {
   writeCopilotProviderMode,
 } from "./copilot-acp-agent.js";
 import { GenericACPAgentClient } from "./generic-acp-agent.js";
+import { GrokSubagentAdapter } from "./grok-subagents.js";
 import { parseKiroExtensionCommands } from "./kiro-acp-agent.js";
 import { transformPiModels } from "./pi/agent.js";
 import type { AgentStreamEvent } from "../agent-sdk-types.js";
@@ -2758,6 +2759,36 @@ describe("ACPAgentSession", () => {
     ]);
   });
 
+  test("streams ACP context usage and preserves it when a turn returns token usage", async () => {
+    const session = createSession();
+    asInternals<ACPSessionInternals>(session).sessionId = "session-1";
+    const events: AgentStreamEvent[] = [];
+    session.subscribe((event) => events.push(event));
+    await session.sessionUpdate({
+      sessionId: "session-1",
+      update: { sessionUpdate: "usage_update", size: 500000, used: 22043 },
+    });
+    expect(events.at(-1)).toMatchObject({
+      type: "usage_updated",
+      usage: { contextWindowMaxTokens: 500000, contextWindowUsedTokens: 22043 },
+    });
+    asInternals<ACPSessionInternals>(session).connection = {
+      prompt: vi.fn().mockResolvedValue({
+        stopReason: "end_turn",
+        usage: { inputTokens: 22043, outputTokens: 5 },
+      }),
+    };
+    await session.run("hello");
+    expect(events.findLast((event) => event.type === "turn_completed")).toMatchObject({
+      usage: {
+        contextWindowMaxTokens: 500000,
+        contextWindowUsedTokens: 22043,
+        inputTokens: 22043,
+        outputTokens: 5,
+      },
+    });
+  });
+
   test("startTurn returns before the ACP prompt settles and completes later via subscribers", async () => {
     const session = createSession();
     const events: Array<{ type: string; turnId?: string }> = [];
@@ -3529,6 +3560,7 @@ describe("ACP session/load invariant — cwd and mcpServers always passed", () =
     handle: AgentPersistenceHandle;
     loadSession?: ReturnType<typeof vi.fn>;
     unstableResumeSession?: ReturnType<typeof vi.fn>;
+    notificationAdapterFactory?: () => GrokSubagentAdapter;
   }) {
     const loadSession =
       args.loadSession ??
@@ -3579,6 +3611,7 @@ describe("ACP session/load invariant — cwd and mcpServers always passed", () =
           ...args.capabilities,
         },
         handle: args.handle,
+        notificationAdapterFactory: args.notificationAdapterFactory,
       },
     );
 
@@ -3641,6 +3674,58 @@ describe("ACP session/load invariant — cwd and mcpServers always passed", () =
         },
       },
     ]);
+  });
+
+  test("preserves native subagent replay alongside its separate child transcript", async () => {
+    let session!: ACPAgentSession;
+    const loadSession = async () => {
+      await session.extNotification("_x.ai/session_notification", {
+        sessionId: "session-1",
+        update: {
+          sessionUpdate: "subagent_spawned",
+          subagent_id: "child",
+          parent_session_id: "session-1",
+          child_session_id: "child",
+          subagent_type: "explore",
+          description: "Find the answer",
+        },
+      });
+      await session.sessionUpdate({
+        sessionId: "child",
+        update: {
+          sessionUpdate: "agent_message_chunk",
+          messageId: "child-answer",
+          content: { type: "text", text: "Found it" },
+        },
+      });
+      return { sessionId: "session-1", modes: null, models: null, configOptions: [] };
+    };
+    ({ session } = makeTestSession({
+      capabilities: { loadSession: true },
+      handle: { sessionId: "session-1", provider: "claude-acp" },
+      loadSession,
+      notificationAdapterFactory: () => new GrokSubagentAdapter(),
+    }));
+    await session.initializeResumedSession();
+    const events: AgentStreamEvent[] = [];
+    for await (const event of session.streamHistory()) events.push(event);
+    expect(events).toMatchObject([
+      {
+        type: "provider_subagent",
+        event: { type: "upsert", id: "child", title: "Find the answer", status: "running" },
+      },
+      {
+        type: "provider_subagent",
+        event: {
+          type: "timeline",
+          id: "child",
+          item: { type: "assistant_message", messageId: "child-answer", text: "Found it" },
+        },
+      },
+    ]);
+    const repeated: AgentStreamEvent[] = [];
+    for await (const event of session.streamHistory()) repeated.push(event);
+    expect(repeated).toEqual([]);
   });
 
   test("coalesces an ID-less text and image user message during loadSession replay", async () => {

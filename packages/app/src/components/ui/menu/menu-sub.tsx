@@ -34,6 +34,7 @@ export function MenuSubTrigger({
   leading,
   disabled,
   testID,
+  shortcut,
   children,
 }: PropsWithChildren<{
   /** Matches the `id` of a `MenuPageDefinition` passed to the surface. */
@@ -50,6 +51,7 @@ export function MenuSubTrigger({
   leading?: ReactElement | null;
   disabled?: boolean;
   testID?: string;
+  shortcut?: string;
 }>): ReactElement {
   const menu = useMenuContext("MenuSubTrigger");
   const depth = useMenuDepth();
@@ -78,8 +80,8 @@ export function MenuSubTrigger({
   }, [hoverClose, depth]);
 
   const trailing = useMemo(
-    () => <MenuSubTrailing value={value} indicator={indicator} />,
-    [value, indicator],
+    () => <MenuSubTrailing value={value ?? shortcut?.toUpperCase()} indicator={indicator} />,
+    [value, shortcut, indicator],
   );
 
   return (
@@ -90,6 +92,7 @@ export function MenuSubTrigger({
       onPointerLeave={isPopover && !disabled ? handlePointerLeave : undefined}
     >
       <MenuItem
+        shortcut={shortcut}
         active={isOpen}
         closeOnSelect={false}
         disabled={disabled}

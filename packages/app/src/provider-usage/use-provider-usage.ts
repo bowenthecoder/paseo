@@ -53,8 +53,9 @@ export function useProviderUsage(
     enabled,
     staleTime: PROVIDER_USAGE_STALE_TIME_MS,
     refetchOnMount: true,
-    refetchOnReconnect: false,
-    refetchOnWindowFocus: false,
+    refetchInterval: enabled ? PROVIDER_USAGE_STALE_TIME_MS : false,
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: true,
   });
 
   const refresh = useCallback(async () => {

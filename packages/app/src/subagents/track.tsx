@@ -4,7 +4,12 @@ import { useTranslation } from "react-i18next";
 import { Archive, Unlink } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { getProviderIcon } from "@/components/provider-icons";
-import { ComposerTrackActions, ComposerTrackPill, ComposerTrackRow } from "@/composer/tracks";
+import {
+  ComposerTrackActions,
+  ComposerTrackPill,
+  ComposerTrackRow,
+  ComposerTrackListRow,
+} from "@/composer/tracks";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { isNative } from "@/constants/platform";
@@ -37,6 +42,7 @@ export interface SubagentsTrackProps {
   onArchiveFinished?: () => void;
   archiveFinishedStatus?: ArchiveFinishedStatus;
   onDetachSubagent?: (id: string) => void;
+  onOpenPanel?: () => void;
 }
 
 const IDLE_ARCHIVE_FINISHED_STATUS: ArchiveFinishedStatus = { kind: "idle" };
@@ -62,6 +68,7 @@ export function SubagentsTrack({
   onArchiveFinished,
   archiveFinishedStatus = IDLE_ARCHIVE_FINISHED_STATUS,
   onDetachSubagent,
+  onOpenPanel,
 }: SubagentsTrackProps): ReactElement | null {
   const { t } = useTranslation();
 
@@ -72,22 +79,49 @@ export function SubagentsTrack({
   }
 
   const pill = buildSubagentPillPresentation(t, rows);
-  const finishedCount = countFinishedSubagents(rows);
-  const showArchiveFinished = finishedCount > 0 || isArchivingFinished || isArchiveFinishedFailed;
-
   return (
     <ComposerTrackPill
       testID="subagents-track-header"
       segments={pill.segments}
       accessibilityLabel={pill.accessibilityLabel}
       panelTitle={t("subagents.title")}
+      onOpenPanel={onOpenPanel}
     >
+      <SubagentsList
+        rows={rows}
+        onOpenSubagent={onOpenSubagent}
+        onOpenProviderSubagent={onOpenProviderSubagent}
+        onArchiveSubagent={onArchiveSubagent}
+        onArchiveFinished={onArchiveFinished}
+        archiveFinishedStatus={archiveFinishedStatus}
+        onDetachSubagent={onDetachSubagent}
+      />
+    </ComposerTrackPill>
+  );
+}
+
+export function SubagentsList({
+  rows,
+  onOpenSubagent,
+  onOpenProviderSubagent,
+  onArchiveSubagent,
+  onArchiveFinished,
+  archiveFinishedStatus = IDLE_ARCHIVE_FINISHED_STATUS,
+  onDetachSubagent,
+  layout = "menu",
+}: SubagentsTrackProps & { layout?: "menu" | "sidebar" }): ReactElement {
+  const isArchivingFinished = archiveFinishedStatus.kind === "archiving";
+  const showArchiveFinished =
+    countFinishedSubagents(rows) > 0 || archiveFinishedStatus.kind !== "idle";
+  return (
+    <>
       {showArchiveFinished && onArchiveFinished ? (
         <ComposerTrackActions divided={rows.length > 0}>
           <ArchiveFinishedRow
             status={archiveFinishedStatus}
             disabled={isArchivingFinished}
             onPress={onArchiveFinished}
+            layout={layout}
           />
         </ComposerTrackActions>
       ) : null}
@@ -99,9 +133,10 @@ export function SubagentsTrack({
           onOpenProviderSubagent={onOpenProviderSubagent}
           onArchiveSubagent={onArchiveSubagent}
           onDetachSubagent={onDetachSubagent}
+          layout={layout}
         />
       ))}
-    </ComposerTrackPill>
+    </>
   );
 }
 
@@ -113,10 +148,12 @@ function ArchiveFinishedRow({
   status,
   disabled,
   onPress,
+  layout,
 }: {
   status: ArchiveFinishedStatus;
   disabled: boolean;
   onPress: () => void;
+  layout: "menu" | "sidebar";
 }): ReactElement {
   const { t } = useTranslation();
 
@@ -148,8 +185,9 @@ function ArchiveFinishedRow({
     [status, t],
   );
 
+  const Row = layout === "sidebar" ? ComposerTrackListRow : ComposerTrackRow;
   return (
-    <ComposerTrackRow
+    <Row
       accessibilityLabel={t("subagents.archiveFinishedAction")}
       testID="subagents-track-archive-finished"
       disabled={disabled}
@@ -159,7 +197,7 @@ function ArchiveFinishedRow({
       onPress={onPress}
     >
       {renderRow}
-    </ComposerTrackRow>
+    </Row>
   );
 }
 
@@ -169,6 +207,7 @@ interface SubagentsTrackRowProps {
   onOpenProviderSubagent: (parentAgentId: string, subagentId: string) => void;
   onArchiveSubagent: (id: string) => void;
   onDetachSubagent?: (id: string) => void;
+  layout: "menu" | "sidebar";
 }
 
 function SubagentsTrackRow({
@@ -177,6 +216,7 @@ function SubagentsTrackRow({
   onOpenProviderSubagent,
   onArchiveSubagent,
   onDetachSubagent,
+  layout,
 }: SubagentsTrackRowProps): ReactElement {
   const { t } = useTranslation();
   const isCompact = useIsCompactFormFactor();
@@ -202,14 +242,20 @@ function SubagentsTrackRow({
     ({ active }: { active: boolean }) => (
       <>
         <WorkspaceTabIcon presentation={presentation} backdrop={active ? "surface2" : "surface1"} />
-        <Text style={styles.rowLabel} numberOfLines={1}>
-          {displayLabel}
-        </Text>
-        {presentation.subtitle ? (
-          <Text style={styles.rowTrailing} numberOfLines={1}>
-            {presentation.subtitle}
+        <View style={layout === "sidebar" ? styles.rowTextStack : styles.rowTextLine}>
+          <Text style={styles.rowLabel} numberOfLines={layout === "sidebar" ? 2 : 1}>
+            {displayLabel}
           </Text>
-        ) : null}
+          {presentation.subtitle ? (
+            <Text
+              style={styles.rowTrailing}
+              numberOfLines={layout === "sidebar" ? 3 : 1}
+              testID={`subagents-track-usage-${row.id}`}
+            >
+              {presentation.subtitle}
+            </Text>
+          ) : null}
+        </View>
         {row.kind === "paseo" ? (
           <SubagentRowActions
             rowId={row.id}
@@ -230,17 +276,19 @@ function SubagentsTrackRow({
       presentation,
       row.kind,
       row.id,
+      layout,
     ],
   );
 
+  const Row = layout === "sidebar" ? ComposerTrackListRow : ComposerTrackRow;
   return (
-    <ComposerTrackRow
+    <Row
       accessibilityLabel={displayLabel}
       testID={`subagents-track-row-${row.id}`}
       onPress={handlePress}
     >
       {renderRow}
-    </ComposerTrackRow>
+    </Row>
   );
 }
 
@@ -332,6 +380,19 @@ function SubagentActionButton({
 }
 
 const styles = StyleSheet.create((theme) => ({
+  rowTextStack: {
+    flex: 1,
+    minWidth: 0,
+    gap: theme.spacing[1],
+    paddingVertical: theme.spacing[2],
+  },
+  rowTextLine: {
+    flexDirection: "row",
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    gap: theme.spacing[2],
+  },
   // `flexBasis: "auto"` rather than `flex: 1`: a zero-basis label contributes nothing to the row's
   // intrinsic width, so the panel measures itself at its floor and truncates every label at once.
   rowLabel: {

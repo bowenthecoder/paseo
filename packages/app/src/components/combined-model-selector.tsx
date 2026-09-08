@@ -1,5 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, Text, View, type PressableStateCallbackType } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Pressable,
+  Text,
+  View,
+  useWindowDimensions,
+  type PressableStateCallbackType,
+} from "react-native";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import type { AgentProvider } from "@getpaseo/protocol/agent-types";
@@ -12,6 +18,7 @@ import { resolveModelBrowserScrolling } from "@/components/model-browser-view";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { isNative, isWeb } from "@/constants/platform";
 import type { ProviderSelectorProvider } from "@/provider-selection/provider-selection";
+import { ModelPickerDetails, type ModelPickerEffort } from "@/components/model-picker-details";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
 
 const EMPTY_COMBOBOX_OPTIONS: ComboboxOption[] = [];
@@ -42,6 +49,7 @@ interface CombinedModelSelectorProps {
     hovered: boolean;
     pressed: boolean;
   }) => React.ReactNode;
+  effort?: ModelPickerEffort;
   onOpen?: () => void;
   onClose?: () => void;
   onRetryProvider?: (provider: AgentProvider) => void;
@@ -87,9 +95,12 @@ export function CombinedModelSelector({
   desktopMinWidth,
   triggerFill = false,
   toolbar,
+  effort,
 }: CombinedModelSelectorProps) {
   const { t } = useTranslation();
   const isCompact = useIsCompactFormFactor();
+  const { height: viewportHeight } = useWindowDimensions();
+  const pickerHeight = Math.max(240, Math.min(600, viewportHeight - 140));
   const modelBrowserScrolling = resolveModelBrowserScrolling({ isNative, isCompact });
   const anchorRef = useRef<View>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -103,6 +114,8 @@ export function CombinedModelSelector({
     serverId,
   });
   const { prepareToOpen, reset } = browser;
+  const usageProvider =
+    browser.view.kind === "provider" ? browser.view.providerId : selectedProvider;
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
@@ -211,6 +224,19 @@ export function CombinedModelSelector({
     </View>
   );
 
+  const pickerFooter = useMemo(
+    () => (
+      <ModelPickerDetails
+        serverId={serverId}
+        providerId={usageProvider}
+        activeProviderId={selectedProvider}
+        effort={effort}
+        enabled={isOpen}
+      />
+    ),
+    [serverId, usageProvider, selectedProvider, effort, isOpen],
+  );
+
   return (
     <>
       {renderTrigger ? (
@@ -274,8 +300,9 @@ export function CombinedModelSelector({
         desktopPlacement={desktopPlacement}
         desktopMinWidth={desktopMinWidth}
         desktopLockWidth
-        desktopFixedHeight={browser.desktopFixedHeight}
+        desktopFixedHeight={pickerHeight}
         desktopChildrenScrollEnabled={false}
+        footer={pickerFooter}
         header={browser.header}
         mobileChildrenScrollEnabled={!browser.isProviderView || !isNative}
         mobileChildrenContentContainerStyle={styles.mobileBrowserContent}
@@ -287,9 +314,7 @@ export function CombinedModelSelector({
 }
 
 const styles = StyleSheet.create((theme) => ({
-  mobileBrowserContent: {
-    paddingHorizontal: 0,
-  },
+  mobileBrowserContent: { paddingHorizontal: 0 },
   trigger: {
     height: 28,
     minWidth: 0,

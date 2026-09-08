@@ -1,4 +1,6 @@
 import { buildStatusGroups } from "@/hooks/sidebar-status-view-model";
+import { EMPTY_CHAT_GROUPS, type SidebarChatGroupState } from "@/stores/sidebar-chat-groups-store";
+import { buildManualChatSections, type ManualChatEntry } from "./manual-chat-groups";
 import {
   splitPinnedSidebarGroups,
   type PinnedSidebarGroups,
@@ -36,6 +38,8 @@ export interface SidebarProjection {
 }
 
 export interface SidebarProjectionInput {
+  manualGrouping?: SidebarChatGroupState;
+  manualChatEntries?: ManualChatEntry[];
   projects: SidebarProjectEntry[];
   pinnedKeys: PinnedSidebarKeys;
   pinnedWorkspaceOrder: string[];
@@ -63,7 +67,14 @@ export function buildSidebarProjection(input: SidebarProjectionInput): SidebarPr
   const workspaceGroups = buildWorkspaceGroups(input, unpinnedWorkspaces);
 
   const sections: SidebarShortcutSection[] = [];
-  if (!input.pinnedCollapsed) {
+  if (input.groupMode === "manual") {
+    sections.push(
+      ...buildManualChatSections(
+        input.manualChatEntries ?? [],
+        input.manualGrouping ?? EMPTY_CHAT_GROUPS,
+      ).map((section) => ({ workspaces: section.rows, collapsed: section.collapsed })),
+    );
+  } else if (!input.pinnedCollapsed) {
     sections.push({ workspaces: pinnedGroups.pinnedChats });
   }
   if (input.groupMode === "project") {
@@ -73,7 +84,7 @@ export function buildSidebarProjection(input: SidebarProjectionInput): SidebarPr
         collapsed: input.collapsedProjectKeys.has(project.viewKey),
       })),
     );
-  } else {
+  } else if (input.groupMode === "status") {
     sections.push(
       ...workspaceGroups.map((group) => ({
         workspaces: group.rows,
@@ -96,6 +107,8 @@ function buildWorkspaceGroups(
   unpinnedWorkspaces: SidebarWorkspaceEntry[],
 ): SidebarWorkspaceGroup[] {
   switch (input.groupMode) {
+    case "manual":
+      return [];
     case "project":
       return [];
     case "status":

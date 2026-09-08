@@ -222,6 +222,8 @@ function resolveItemLabel(input: {
 }
 
 export interface MenuItemProps {
+  /** Single letter action, active only on this menu page. */
+  shortcut?: string;
   description?: string;
   onSelect?: () => void;
   disabled?: boolean;
@@ -253,6 +255,16 @@ export interface MenuItemProps {
   tooltip?: string;
 }
 
+function shortcutHint(
+  shortcut: string | undefined,
+  trailing: ReactElement | null | undefined,
+): ReactElement | null {
+  return (
+    trailing ??
+    (shortcut ? <Text style={styles.itemDescription}>{shortcut.toUpperCase()}</Text> : null)
+  );
+}
+
 export function MenuItem({
   children,
   description,
@@ -272,6 +284,7 @@ export function MenuItem({
   closeOnSelect = true,
   testID,
   tooltip,
+  shortcut,
 }: PropsWithChildren<MenuItemProps>): ReactElement {
   const { selectItem } = useMenuContext("MenuItem");
   const isPending = status === "pending" || loading;
@@ -287,7 +300,7 @@ export function MenuItem({
   const label = resolveItemLabel({ children, isPending, isSuccess, pendingLabel, successLabel });
 
   const trailingContent =
-    trailing ??
+    shortcutHint(shortcut, trailing) ??
     (!showSelectedCheck && selected ? <ThemedCheck size={16} uniProps={mutedMapping} /> : null);
 
   const handleItemPress = useCallback(() => {
@@ -330,8 +343,12 @@ export function MenuItem({
     [destructive, isSuccess, muted, isDisabled],
   );
   const itemDataSet = useMemo(
-    () => ({ menuItem: "true", menuDisabled: isDisabled ? "true" : "false" }),
-    [isDisabled],
+    () => ({
+      menuItem: "true",
+      menuDisabled: isDisabled ? "true" : "false",
+      menuShortcut: shortcut?.toLowerCase(),
+    }),
+    [isDisabled, shortcut],
   );
 
   const content = (

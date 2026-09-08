@@ -7,6 +7,7 @@ import type { Agent } from "@/stores/session-store";
 import { getHostRuntimeStore, useHosts } from "@/runtime/host-runtime";
 
 export interface AggregatedAgent extends AgentDirectoryEntry {
+  parentAgentId: string | null;
   serverId: string;
   serverLabel: string;
 }
@@ -81,6 +82,7 @@ export function useAggregatedAgents(options?: {
         }
         const nextAgent: AggregatedAgent = {
           id: agent.id,
+          parentAgentId: agent.parentAgentId,
           serverId,
           serverLabel,
           title: agent.title ?? null,

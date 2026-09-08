@@ -10184,3 +10184,27 @@ test("onWorkspaceStateMayHaveChanged is not called for running shell tool calls"
 
   expect(onWorkspaceStateMayHaveChanged).not.toHaveBeenCalled();
 });
+
+test("generated chat titles replace provisional titles and preserve a manual rename", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-short-title-"));
+  const storage = new AgentStorage(join(workdir, "agents"), logger);
+  const manager = new AgentManager({
+    clients: { codex: new TestAgentClient() },
+    registry: storage,
+    logger,
+  });
+  const snapshot = await manager.createAgent(
+    { provider: "codex", cwd: workdir, title: "Investigate the order sync problem" },
+    undefined,
+    { workspaceId: undefined },
+  );
+  await manager.setGeneratedTitle(
+    snapshot.id,
+    "Investigate the order sync problem",
+    "Fix order sync",
+  );
+  expect((await storage.get(snapshot.id))?.title).toBe("Fix order sync");
+  await manager.setTitle(snapshot.id, "My release checklist");
+  await manager.setGeneratedTitle(snapshot.id, "Fix order sync", "Short generated title");
+  expect((await storage.get(snapshot.id))?.title).toBe("My release checklist");
+});

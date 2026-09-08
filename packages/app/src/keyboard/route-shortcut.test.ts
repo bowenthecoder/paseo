@@ -124,6 +124,25 @@ describe("routeKeyboardShortcut — workspace.tab.navigate", () => {
 });
 
 describe("routeKeyboardShortcut — workspace.navigate.index", () => {
+  it("opens the numbered chat when several targets share a workspace", () => {
+    const chatTargets = ["first", "second"].map((agentId) => ({
+      serverId: "srv",
+      workspaceId: "shared-folder",
+      agentId,
+    }));
+    expect(
+      routeKeyboardShortcut(
+        { action: "workspace.navigate.index", payload: { index: 2 } },
+        makeCtx({ sidebarShortcutTargets: chatTargets }),
+      ),
+    ).toEqual<ShortcutAction>({
+      kind: "navigate-workspace",
+      serverId: "srv",
+      workspaceId: "shared-folder",
+      agentId: "second",
+    });
+  });
+
   it("navigates to the sidebar target at index-1", () => {
     expect(
       routeKeyboardShortcut(
@@ -169,6 +188,29 @@ describe("routeKeyboardShortcut — workspace.navigate.relative", () => {
     { serverId: "srv", workspaceId: "running-old" },
     { serverId: "srv", workspaceId: "done" },
   ] as const;
+
+  it("uses the selected chat to choose the next chat in the same workspace", () => {
+    const chatTargets = ["first", "second", "third"].map((agentId) => ({
+      serverId: "srv",
+      workspaceId: "shared-folder",
+      agentId,
+    }));
+    expect(
+      routeKeyboardShortcut(
+        { action: "workspace.navigate.relative", payload: { delta: 1 } },
+        makeCtx({
+          pathname: "/h/srv/workspace/shared-folder",
+          sidebarShortcutTargets: chatTargets,
+          navigationActiveWorkspace: chatTargets[1],
+        }),
+      ),
+    ).toEqual<ShortcutAction>({
+      kind: "navigate-workspace",
+      serverId: "srv",
+      workspaceId: "shared-folder",
+      agentId: "third",
+    });
+  });
 
   it("uses the retained navigation workspace selection over a stale pathname", () => {
     expect(

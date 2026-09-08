@@ -6,6 +6,7 @@ import { useStableEvent } from "@/hooks/use-stable-event";
 import { useHostRuntimeClient } from "@/runtime/host-runtime";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { useWorkspaceFields } from "@/stores/session-store-hooks";
+import { useSidebarViewStore } from "@/stores/sidebar-view-store";
 import {
   buildWorktreeSetupCalloutPolicy,
   selectActiveGitWorkspaceProject,
@@ -13,13 +14,14 @@ import {
 } from "./worktree-setup-callout-policy";
 
 export function WorktreeSetupCalloutSource() {
+  const manualChats = useSidebarViewStore((state) => state.groupMode === "manual");
   const selection = useActiveWorkspaceSelection();
   const selectedWorkspaceProject = useWorkspaceFields(
     selection?.serverId ?? null,
     selection?.workspaceId ?? null,
     (workspace) => selectActiveGitWorkspaceProject(selection?.serverId ?? "", workspace),
   );
-  const activeProject = selectedWorkspaceProject;
+  const activeProject = manualChats ? null : selectedWorkspaceProject;
   const client = useHostRuntimeClient(activeProject?.serverId ?? "");
   const callouts = useSidebarCallouts();
   const router = useRouter();

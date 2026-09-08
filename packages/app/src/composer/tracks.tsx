@@ -10,6 +10,7 @@ import {
   type MenuTriggerState,
 } from "@/components/ui/menu";
 import { StatusRing } from "@/components/status-ring";
+import { Button } from "@/components/ui/button";
 import { STATUS_RING_HALO_INSET } from "@/components/status-ring/geometry";
 import { MAX_CONTENT_WIDTH } from "@/constants/layout";
 import { isWeb } from "@/constants/platform";
@@ -61,6 +62,8 @@ export interface ComposerTrackPillProps {
   accessibilityLabel?: string;
   /** Panel body. Rendered into a popover on wide screens and a sheet on compact ones. */
   children: ReactNode;
+  /** A persistent workspace panel can own the details instead of an anchored menu. */
+  onOpenPanel?: () => void;
 }
 
 /**
@@ -85,7 +88,35 @@ export function ComposerTrackPill({
   testID,
   accessibilityLabel,
   children,
+  onOpenPanel,
 }: ComposerTrackPillProps): ReactElement {
+  if (onOpenPanel) {
+    return (
+      <Button
+        variant="ghost"
+        size="xs"
+        testID={testID}
+        accessibilityLabel={accessibilityLabel}
+        onPress={onOpenPanel}
+        style={composerPillStyles.body}
+      >
+        <View style={styles.segments}>
+          {segments.map((segment, index) => (
+            <View
+              key={segment.bucket ?? "plain"}
+              style={styles.segment}
+              testID={`${testID}-segment-${index}`}
+            >
+              <ComposerTrackMark bucket={segment.bucket} />
+              <Text style={composerPillStyles.label} numberOfLines={1}>
+                {segment.text}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </Button>
+    );
+  }
   return (
     <MenuRoot compactMode="sheet">
       <ComposerTrackPillTrigger
@@ -217,21 +248,29 @@ export interface ComposerTrackRowProps {
  * to the engine that opened it. The row only decides whether choosing it ends the panel.
  */
 export function ComposerTrackRow({
-  children,
   onPress,
   closeOnSelect = true,
-  disabled = false,
-  accessibilityLabel,
-  testID,
+  ...props
 }: ComposerTrackRowProps): ReactElement {
   const { selectItem } = useMenuContext("ComposerTrackRow");
-  const [hovered, setHovered] = useState(false);
-  const handlePointerEnter = useCallback(() => setHovered(true), []);
-  const handlePointerLeave = useCallback(() => setHovered(false), []);
   const handleSelect = useCallback(
     () => selectItem(onPress, closeOnSelect),
     [closeOnSelect, onPress, selectItem],
   );
+  return <ComposerTrackListRow {...props} onPress={onPress ? handleSelect : undefined} />;
+}
+
+/** The same task row in a persistent panel, where selecting a row has no menu to dismiss. */
+export function ComposerTrackListRow({
+  children,
+  onPress,
+  disabled = false,
+  accessibilityLabel,
+  testID,
+}: ComposerTrackRowProps): ReactElement {
+  const [hovered, setHovered] = useState(false);
+  const handlePointerEnter = useCallback(() => setHovered(true), []);
+  const handlePointerLeave = useCallback(() => setHovered(false), []);
 
   const renderRow = useCallback(
     (active: boolean) => (
@@ -257,7 +296,7 @@ export function ComposerTrackRow({
         accessibilityLabel={accessibilityLabel}
         testID={testID}
         disabled={disabled}
-        onPress={handleSelect}
+        onPress={onPress}
       >
         {renderPressed}
       </Pressable>

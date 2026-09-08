@@ -18,7 +18,10 @@ import { SubagentsTrack } from "@/subagents/track";
 import type { TodoEntry } from "@/types/stream";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
-import { openPreferredWorkspaceTarget } from "@/workspace-tabs/open-beside";
+import {
+  openPreferredWorkspaceTarget,
+  openWorkspaceTargetBeside,
+} from "@/workspace-tabs/open-beside";
 import { openComposerChanges } from "@/workspace-tabs/open-supporting-view";
 
 /**
@@ -60,6 +63,13 @@ export const AgentTracks = memo(function AgentTracks({
   );
   const archiveSubagent = useArchiveSubagent({ serverId });
   const detachSubagent = useDetachSubagent({ serverId });
+  const handleOpenSubagentsPanel = useCallback(() => {
+    openWorkspaceTargetBeside({
+      workspaceKey,
+      target: { kind: "subagents", parentAgentId: agentId },
+      parentTabId: tabId,
+    });
+  }, [agentId, tabId, workspaceKey]);
   const handleOpenSubagent = useCallback(
     (subagentId: string) => {
       const session = useSessionStore.getState().sessions[serverId];
@@ -135,6 +145,7 @@ export const AgentTracks = memo(function AgentTracks({
         onArchiveFinished={onArchiveFinished}
         archiveFinishedStatus={archiveFinishedStatus}
         onDetachSubagent={canDetachSubagents ? detachSubagent : undefined}
+        onOpenPanel={canSplit && workspaceKey ? handleOpenSubagentsPanel : undefined}
       />
       <PluginComposerPills
         serverId={serverId}

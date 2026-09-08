@@ -38,6 +38,7 @@ import { ClaudeAgentClient } from "./providers/claude/agent.js";
 import { CodexAppServerAgentClient } from "./providers/codex-app-server-agent.js";
 import { CopilotACPAgentClient } from "./providers/copilot-acp-agent.js";
 import { CursorACPAgentClient } from "./providers/cursor-acp-agent.js";
+import { GrokACPAgentClient } from "./providers/grok-acp-agent.js";
 import { GenericACPAgentClient } from "./providers/generic-acp-agent.js";
 import { KimiACPAgentClient } from "./providers/kimi-acp-agent.js";
 import { KiroACPAgentClient } from "./providers/kiro-acp-agent.js";
@@ -379,18 +380,51 @@ function mergeModels(
   profileModels: ProviderProfileModel[],
   additionalModels: ProviderProfileModel[],
   runtimeModels: AgentModelDefinition[],
-  options?: { profileModelsAreAdditive?: boolean },
+  options?: {
+    profileModelsAreAdditive?: boolean;
+    profileModelsInheritCapabilities?: boolean;
+  },
 ): AgentModelDefinition[] {
   const baseModels = runtimeModels.map((model) => mapModel(provider, model));
   if (profileModels.length > 0 && options?.profileModelsAreAdditive !== true) {
-    return mergeModelAdditions(
+    const configuredModels = mergeModelAdditions(
       provider,
       profileModels.map((model) => mapModel(provider, model)),
       additionalModels,
     );
+    return configuredModels.map((configuredModel) => {
+      const runtimeModel = options?.profileModelsInheritCapabilities
+        ? baseModels.find((candidate) => candidate.id === configuredModel.id)
+        : undefined;
+      if (!runtimeModel) return configuredModel;
+      // Keep the curated list, labels and default model. Only absent capability fields
+      // inherit native metadata; an explicit thinkingOptions: [] disables effort.
+      return mapModel(provider, {
+        ...(runtimeModel.contextWindowMaxTokens !== undefined
+          ? { contextWindowMaxTokens: runtimeModel.contextWindowMaxTokens }
+          : {}),
+        ...(configuredModel.thinkingOptions === undefined && runtimeModel.thinkingOptions
+          ? {
+              thinkingOptions: runtimeModel.thinkingOptions,
+              ...(runtimeModel.defaultThinkingOptionId !== undefined
+                ? { defaultThinkingOptionId: runtimeModel.defaultThinkingOptionId }
+                : {}),
+            }
+          : {}),
+        ...configuredModel,
+      });
+    });
   }
 
   return mergeModelAdditions(provider, baseModels, [...profileModels, ...additionalModels]);
+}
+
+function profileModelsInheritNativeCapabilities(resolved: ResolvedProvider): boolean {
+  const isCodex = resolved.definition.id === "codex" || resolved.derivedFromProviderId === "codex";
+  // A Responses-compatible endpoint owns its model capabilities, even when its model IDs
+  // overlap with Codex's first-party catalog.
+  const hasCustomCodexEndpoint = Boolean(resolved.runtimeSettings?.env?.OPENAI_BASE_URL?.trim());
+  return isCodex && !hasCustomCodexEndpoint;
 }
 
 function mergeModelAdditions(
@@ -423,6 +457,12 @@ function mergeModelAdditions(
       ...additionalModel,
       ...(explicitlyEnablesCompatibilityModel ? { isSelectable: true } : {}),
     };
+    if (
+      additionalModel.thinkingOptions !== undefined &&
+      additionalModel.defaultThinkingOptionId === undefined
+    ) {
+      delete mergedModels[existingIndex].defaultThinkingOptionId;
+    }
   }
 
   if (!hasAdditionalDefault) {
@@ -480,6 +520,7 @@ function wrapClientProvider(
   profileModels: ProviderProfileModel[],
   additionalModels: ProviderProfileModel[],
   profileModelsAreAdditive: boolean,
+  profileModelsInheritCapabilities: boolean,
 ): AgentClient {
   const listImportableSessions = inner.listImportableSessions?.bind(inner);
   const importSession = inner.importSession?.bind(inner);
@@ -523,6 +564,7 @@ function wrapClientProvider(
         ...catalog,
         models: mergeModels(provider, profileModels, additionalModels, catalog.models, {
           profileModelsAreAdditive,
+          profileModelsInheritCapabilities,
         }),
         modes: catalog.modes,
       };
@@ -590,6 +632,7 @@ function createRegistryEntry(
     resolved.additionalModels,
   );
   const hasReplacementModels = profileModels.length > 0 && !resolved.profileModelsAreAdditive;
+  const profileModelsInheritCapabilities = profileModelsInheritNativeCapabilities(resolved);
   const replacementModels = hasReplacementModels
     ? profileModels.map((model) => mapModel(provider, model))
     : [];
@@ -639,11 +682,13 @@ function createRegistryEntry(
     ) => {
       const catalogClient = client ?? modelClient;
       if (hasReplacementModels) {
-        // Replacement models skip runtime model discovery, but additionalModels
-        // must still be merged on top. If modes are dynamic, probe for modes via
-        // the single catalog API; otherwise use static/empty modes with no runtime.
+        // Static catalogs skip discovery when capabilities are fully configured. Native
+        // Codex labels alone still need model/list for the actual supported effort levels.
         const models = mergeModelAdditions(provider, replacementModels, additionalModels);
-        if (hasStaticModes) {
+        const needsNativeCapabilities =
+          profileModelsInheritCapabilities &&
+          models.some((model) => model.thinkingOptions === undefined);
+        if (hasStaticModes && !needsNativeCapabilities) {
           const defaultModeId = await runProviderRefreshActivity(
             context,
             "default-mode",
@@ -663,7 +708,14 @@ function createRegistryEntry(
           };
         }
         const catalog = await catalogClient.fetchCatalog(options, context);
-        return { ...catalog, models, modes: decorateModes(catalog.modes) };
+        return {
+          ...catalog,
+          models: mergeModels(provider, profileModels, additionalModels, catalog.models, {
+            profileModelsAreAdditive: resolved.profileModelsAreAdditive,
+            profileModelsInheritCapabilities,
+          }),
+          modes: decorateModes(catalog.modes),
+        };
       }
 
       const catalog = await catalogClient.fetchCatalog(options, context);
@@ -671,6 +723,7 @@ function createRegistryEntry(
         ...catalog,
         models: mergeModels(provider, profileModels, additionalModels, catalog.models, {
           profileModelsAreAdditive: resolved.profileModelsAreAdditive,
+          profileModelsInheritCapabilities,
         }),
         modes: decorateModes(catalog.modes),
       };
@@ -696,6 +749,7 @@ function createResolvedProviderClient(
     profileModels,
     additionalModels,
     resolved.profileModelsAreAdditive,
+    profileModelsInheritNativeCapabilities(resolved),
   );
 }
 
@@ -795,6 +849,9 @@ function addDerivedProviders(
             label: override.label ?? providerId,
             providerParams: override.params,
           };
+          if (providerId === "grok") {
+            return new GrokACPAgentClient(acpOptions);
+          }
           if (providerId === "cursor") {
             return new CursorACPAgentClient(acpOptions);
           }

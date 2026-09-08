@@ -1,4 +1,10 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useSidebarChatGroupsStore } from "@/stores/sidebar-chat-groups-store";
+import { useLocalDaemonServerId } from "@/hooks/use-is-local-daemon";
+import { useSidebarViewStore } from "@/stores/sidebar-view-store";
+import { useAddProjectFlowStore } from "@/stores/add-project-flow-store";
+import { buildNewWorkspaceRoute } from "@/utils/host-routes";
+import { router } from "expo-router";
 import type { ReactElement, RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -56,7 +62,6 @@ import {
 import { normalizeWorkspaceDescriptor, useSessionStore } from "@/stores/session-store";
 import { useWorkspace } from "@/stores/session-store-hooks";
 import { buildNewWorkspaceDraftKey, generateDraftId } from "@/stores/draft-keys";
-import { useOpenAddProject } from "@/hooks/use-open-add-project";
 import { isActiveCreateFlowForDraft, useCreateFlowStore } from "@/stores/create-flow-store";
 import {
   useWorkspaceDraftSubmissionStore,
@@ -172,6 +177,7 @@ function buildFirstAgentContext(input: {
 }
 
 interface NewWorkspaceScreenProps {
+  chatGroupId?: string;
   serverId: string;
   sourceDirectory?: string;
   projectId?: string;
@@ -322,7 +328,7 @@ function ProjectPickerTrigger({
           disabled={disabled}
           style={badgePressableStyle}
           accessibilityRole="button"
-          accessibilityLabel="Workspace project"
+          accessibilityLabel="Working folder"
         >
           <View style={styles.badgeIconBox}>
             {projectViewKey ? (
@@ -598,7 +604,6 @@ function NewWorkspaceProjectPickerOption({
 }
 
 function AddProjectPickerAction({ onPress }: { onPress: () => void }) {
-  const { t } = useTranslation();
   const openProjectKeys = useShortcutKeys("new-agent");
   const shortcut = useMemo(
     () => (openProjectKeys ? <Shortcut chord={openProjectKeys} /> : null),
@@ -608,7 +613,7 @@ function AddProjectPickerAction({ onPress }: { onPress: () => void }) {
   return (
     <ComboboxItem
       testID="new-workspace-project-picker-add-project"
-      label={t("sidebar.actions.addProject")}
+      label="Choose another folder…"
       onPress={onPress}
       leadingSlot={addProjectIcon}
       trailingSlot={shortcut}
@@ -1213,6 +1218,8 @@ function useNewWorkspaceInitialContext({
   displayName: displayNameProp,
 }: NewWorkspaceScreenProps): NewWorkspaceInitialContextState {
   const allHosts = useHosts();
+  const localServerId = useLocalDaemonServerId();
+  const manualGroups = useSidebarViewStore((state) => state.groupMode === "manual");
   const allServerIds = useMemo(() => allHosts.map((h) => h.serverId), [allHosts]);
   const projects = useHostProjects(allServerIds);
   const routeDisplayName = displayNameProp?.trim() ?? "";
@@ -1262,7 +1269,7 @@ function useNewWorkspaceInitialContext({
     handleHostPickerOpenChange,
     openHostPicker,
   } = useNewWorkspaceHostSelector({
-    initialServerId: serverId,
+    initialServerId: serverId || (manualGroups ? (localServerId ?? "") : ""),
     allServerIds,
     projects,
     lastActiveProject,
@@ -1344,9 +1351,12 @@ function useNewWorkspaceFormStack(input: NewWorkspaceFormStackInput): ReactEleme
   const { t } = useTranslation();
   const { isCompact, isPending, project, host, isolation, base, launch } = input;
 
+  const localServerId = useLocalDaemonServerId();
   const selectedHostLabel =
-    host.allHosts.find((h) => h.serverId === host.selectedServerId)?.label ?? "Host";
-  const showHostControl = host.allHosts.length > 1;
+    host.selectedServerId === localServerId
+      ? "Local"
+      : (host.allHosts.find((h) => h.serverId === host.selectedServerId)?.label ?? "Local");
+  const showHostControl = true;
   const isolationTriggerLabel = isolationLabel(t, isolation.effectiveIsolation);
   const addProjectAction = useMemo(
     () => <AddProjectPickerAction onPress={project.onAddProject} />,
@@ -1373,7 +1383,7 @@ function useNewWorkspaceFormStack(input: NewWorkspaceFormStackInput): ReactEleme
         disabled={isPending}
         badgePressableStyle={badgePressableStyle}
         label={project.triggerLabel}
-        tooltipLabel={t("newWorkspace.tooltips.project")}
+        tooltipLabel="Working folder"
         projectViewKey={project.selectedProject?.viewKey ?? null}
         iconDataUri={
           project.selectedProject
@@ -1388,14 +1398,14 @@ function useNewWorkspaceFormStack(input: NewWorkspaceFormStackInput): ReactEleme
         value={project.selectedOptionId}
         onSelect={project.onSelect}
         searchable
-        searchPlaceholder="Search projects"
-        title="Project"
+        searchPlaceholder="Search folders"
+        title="Working folder"
         open={project.openState}
         onOpenChange={project.onOpenChange}
         desktopPlacement="bottom-start"
         desktopMinWidth={360}
         anchorRef={project.anchorRef}
-        emptyText="No projects available."
+        emptyText="Choose a folder to work in."
         renderOption={project.renderOption}
         footer={addProjectAction}
       />
@@ -1538,12 +1548,23 @@ function useNewWorkspaceFormStack(input: NewWorkspaceFormStackInput): ReactEleme
   );
 }
 
+function NewConversationHeading({ terminal }: { terminal: boolean }) {
+  const { t } = useTranslation();
+  const manualChats = useSidebarViewStore((state) => state.groupMode === "manual");
+  return (
+    <Text style={styles.composerTitle}>
+      {manualChats && !terminal ? "New chat" : t("newWorkspace.title")}
+    </Text>
+  );
+}
+
 export function NewWorkspaceScreen({
   serverId,
   sourceDirectory: sourceDirectoryProp,
   projectId,
   displayName: displayNameProp,
   draftId,
+  chatGroupId,
 }: NewWorkspaceScreenProps) {
   const queryClient = useQueryClient();
   const { theme } = useUnistyles();
@@ -1579,7 +1600,6 @@ export function NewWorkspaceScreen({
   const [pendingAction, setPendingAction] = useState<"chat" | "empty" | "terminal" | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
-  const openAddProjectPicker = useOpenAddProject();
   const [isolationPickerOpen, setIsolationPickerOpen] = useState(false);
   const [pickerSearchQuery, setPickerSearchQuery] = useState("");
   const [debouncedPickerSearchQuery, setDebouncedPickerSearchQuery] = useState("");
@@ -1838,8 +1858,20 @@ export function NewWorkspaceScreen({
 
   const handleAddProject = useCallback(() => {
     setProjectPickerOpen(false);
-    openAddProjectPicker(selectedServerId);
-  }, [openAddProjectPicker, selectedServerId]);
+    useAddProjectFlowStore
+      .getState()
+      .openForSelection(({ serverId: folderServerId, path, projectId: folderProjectId }) => {
+        router.push(
+          buildNewWorkspaceRoute({
+            serverId: folderServerId,
+            sourceDirectory: path,
+            projectId: folderProjectId,
+            chatGroupId,
+            draftId,
+          }),
+        );
+      }, selectedServerId);
+  }, [chatGroupId, draftId, selectedServerId]);
 
   const openPicker = useCallback(() => {
     setPickerOpen(true);
@@ -1940,10 +1972,10 @@ export function NewWorkspaceScreen({
       checkoutRequest: PickerCheckoutRequest | undefined;
     }): CreatePaseoWorktreeInput => {
       if (!selectedProject) {
-        throw new Error("Choose a project");
+        throw new Error("Choose a working folder");
       }
       if (!selectedSourceDirectory) {
-        throw new Error("Choose a host for this project");
+        throw new Error("Choose the machine for this folder");
       }
       const firstAgentContext = buildFirstAgentContext(input);
       const hostProjectId = getHostProjectId(selectedProject, selectedServerId);
@@ -2015,10 +2047,15 @@ export function NewWorkspaceScreen({
             createFailedMessage: t("newWorkspace.errors.createWorktreeFailed"),
           });
       setCreatedWorkspace(normalizedWorkspace);
+      if (chatGroupId)
+        useSidebarChatGroupsStore
+          .getState()
+          .setWorkspaceDefault(`${selectedServerId}:${normalizedWorkspace.id}`, chatGroupId);
       return normalizedWorkspace;
     },
     [
       buildCreateWorktreeInput,
+      chatGroupId,
       createdWorkspace,
       effectiveIsolation,
       mergeWorkspaces,
@@ -2274,7 +2311,7 @@ export function NewWorkspaceScreen({
         <TitlebarDragRegion />
         <ReanimatedAnimated.View style={centeredStyle}>
           <View style={styles.composerTitleContainer}>
-            <Text style={styles.composerTitle}>{t("newWorkspace.title")}</Text>
+            <NewConversationHeading terminal={isTerminalLaunch} />
           </View>
           {formStack}
           {isTerminalLaunch ? (

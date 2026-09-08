@@ -450,6 +450,14 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
   const openNewWorkspaceForProject = useCallback(
     (serverId: string, project: WorkspaceProjectDescriptorPayload) => {
       onClose();
+      if (request.onSelectFolder) {
+        request.onSelectFolder({
+          serverId,
+          path: project.projectRootPath,
+          projectId: project.projectId,
+        });
+        return;
+      }
       router.push(
         buildNewWorkspaceRoute({
           serverId,
@@ -459,7 +467,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
         }),
       );
     },
-    [onClose],
+    [onClose, request],
   );
 
   const openAddedProject = useCallback(

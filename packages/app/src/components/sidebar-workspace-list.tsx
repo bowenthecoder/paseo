@@ -1,4 +1,5 @@
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { SidebarManualChatList } from "@/components/sidebar/manual-chat-list";
 import {
   View,
   Text,
@@ -35,6 +36,7 @@ import type { SidebarSurfaceBackdrop } from "@/styles/surface-backdrop";
 import { getSidebarRowBackdrop } from "@/components/sidebar/sidebar-row-backdrop";
 import { type GestureType } from "react-native-gesture-handler";
 import { WorkspaceRenameModal } from "@/components/workspace-rename-modal";
+import { useSidebarUnreadStore } from "@/stores/sidebar-unread-store";
 import { useWorkspaceClipboardActions } from "@/hooks/use-workspace-clipboard-actions";
 import { ExternalLink, Settings, MoreVertical, Plus, Trash2 } from "lucide-react-native";
 import { NestableScrollContainer } from "react-native-draggable-flatlist";
@@ -1392,6 +1394,9 @@ function WorkspaceRowItem({
       return;
     }
     onWorkspacePress?.();
+    useSidebarUnreadStore
+      .getState()
+      .setUnread(`${workspace.serverId}:${workspace.workspaceId}`, false);
     navigateToWorkspace({ serverId: workspace.serverId, workspaceId: workspace.workspaceId });
   }, [onWorkspacePress, workspace.serverId, workspace.workspaceId]);
 
@@ -1863,7 +1868,15 @@ function areProjectBlockSelectionsEqual(
 
 const MemoProjectBlock = memo(ProjectBlock, areProjectBlockPropsEqual);
 
-export function SidebarWorkspaceList({
+export function SidebarWorkspaceList(props: SidebarWorkspaceListProps) {
+  return props.groupMode === "manual" ? (
+    <SidebarManualChatList {...props} />
+  ) : (
+    <LegacySidebarWorkspaceList {...props} />
+  );
+}
+
+function LegacySidebarWorkspaceList({
   workspaceGroups,
   projectIconTargets,
   pinnedGroups,
@@ -2496,7 +2509,7 @@ const styles = StyleSheet.create((theme) => ({
   // the rows underneath the header, so a collapsed project gives it back and a column of collapsed
   // headers closes up to the pitch of a list instead of staying spaced for content that is gone.
   projectBlockExpanded: {
-    paddingBottom: theme.spacing[3],
+    paddingBottom: theme.spacing[2],
   },
   workspaceListContainer: {},
   // Kept in step with `workspaceRow` above. It stands in a project's list where a workspace row
@@ -2506,12 +2519,12 @@ const styles = StyleSheet.create((theme) => ({
   // the step in reads as belonging to that project. Padding rather than margin, so the hover and
   // pressed fills stay the same box as every other row in the sidebar.
   newWorkspaceGhostRow: {
-    minHeight: 36,
-    marginBottom: theme.spacing[0.5],
-    paddingVertical: theme.spacing[2],
+    minHeight: { xs: 44, md: 30 },
+    marginBottom: 0,
+    paddingVertical: { xs: theme.spacing[2], md: theme.spacing[1] },
     paddingLeft: theme.spacing[4],
     paddingRight: theme.spacing[3],
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: theme.borderRadius.md,
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[2],
@@ -2668,12 +2681,12 @@ const styles = StyleSheet.create((theme) => ({
     right: theme.spacing[2],
   },
   workspaceRow: {
-    minHeight: 36,
-    marginBottom: theme.spacing[0.5],
-    paddingVertical: theme.spacing[2],
+    minHeight: { xs: 44, md: 30 },
+    marginBottom: 0,
+    paddingVertical: { xs: theme.spacing[2], md: theme.spacing[1] },
     paddingLeft: theme.spacing[2],
     paddingRight: theme.spacing[3],
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: theme.borderRadius.md,
     flexDirection: "column",
     alignItems: "stretch",
     justifyContent: "center",

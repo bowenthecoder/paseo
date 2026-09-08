@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSidebarViewStore } from "@/stores/sidebar-view-store";
 import type { ComboboxOption as ComboboxOptionType } from "@/components/ui/combobox";
 import { isWorkspaceArchivePending } from "@/contexts/session-workspace-upserts";
 import {
@@ -89,6 +90,7 @@ export function useNewWorkspaceProjectPicker({
   lastActiveProject,
   allowAllProjects,
 }: NewWorkspaceProjectPickerInput): NewWorkspaceProjectPickerState {
+  const manualGroups = useSidebarViewStore((state) => state.groupMode === "manual");
   const selectableProjects = useMemo(
     () =>
       filterWorkspaceProjectsForHost({ projects, serverId: selectedServerId, allowAllProjects }),
@@ -96,14 +98,23 @@ export function useNewWorkspaceProjectPicker({
   );
   const initialProject = useMemo(
     () =>
-      resolveInitialWorkspaceProject({
-        routeProject,
-        lastActiveProject,
-        projects: selectableProjects,
-        serverId: selectedServerId,
-        allowAllProjects,
-      }),
-    [allowAllProjects, lastActiveProject, routeProject, selectableProjects, selectedServerId],
+      manualGroups && !routeProject
+        ? null
+        : resolveInitialWorkspaceProject({
+            routeProject,
+            lastActiveProject,
+            projects: selectableProjects,
+            serverId: selectedServerId,
+            allowAllProjects,
+          }),
+    [
+      manualGroups,
+      allowAllProjects,
+      lastActiveProject,
+      routeProject,
+      selectableProjects,
+      selectedServerId,
+    ],
   );
 
   const selectionContextKey = createProjectSelectionContextKey({
@@ -190,7 +201,12 @@ export function useNewWorkspaceProjectPicker({
     projectPickerOptions,
     projectByOptionId,
     selectedProjectOptionId: selectedProject ? projectOptionId(selectedProject.viewKey) : "",
-    projectTriggerLabel: selectedProject?.projectName ?? "Choose project",
+    projectTriggerLabel: selectedProject
+      ? (getHostProjectSourceDirectory(selectedProject, selectedServerId)
+          ?.split(/[\\/]/)
+          .toReversed()
+          .find(Boolean) ?? selectedProject.projectName)
+      : "No folder",
     handleSelectProjectOption,
   };
 }

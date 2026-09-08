@@ -23,6 +23,7 @@ import { Keyframe, runOnJS } from "react-native-reanimated";
 import { StyleSheet } from "react-native-unistyles";
 import { FloatingScrollView, FloatingSurface } from "@/components/ui/floating";
 import { isWeb } from "@/constants/platform";
+import { activateMenuShortcut, isMenuTextInput } from "./menu-shortcut";
 import type { KeyboardFocusScope } from "@/keyboard/actions";
 import {
   getOverlayRoot,
@@ -443,6 +444,9 @@ export function MenuOverlay({
         ),
       );
       if (items.length === 0) return false;
+      const editing = isMenuTextInput(target);
+      if (activateMenuShortcut(event, items, editing)) return true;
+      if (editing) return false;
       const currentIndex = items.findIndex((item) => item === document.activeElement);
       let nextIndex: number | null = null;
       if (event.key === "ArrowDown")
