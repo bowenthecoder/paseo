@@ -420,7 +420,6 @@ export function WorkspaceDraftAgentTab({
     workspaceId,
   });
   const draftAttachmentScopeKey = useDraftWorkspaceAttachmentScopeKey(draftId);
-  const openInSidePane = useSettings((settings) => settings.openInSidePane);
   const attachmentScopeKeys = useMemo(
     () => [draftAttachmentScopeKey, workspaceAttachmentScopeKey].filter(Boolean),
     [draftAttachmentScopeKey, workspaceAttachmentScopeKey],
@@ -437,10 +436,9 @@ export function WorkspaceDraftAgentTab({
         isCompact: isCompactFormFactor,
         workspaceKey: buildWorkspaceTabPersistenceKey({ serverId, workspaceId: workspaceId ?? "" }),
         checkout: { serverId, cwd: composerState.workingDir, isGit: true },
-        preferences: openInSidePane,
       });
     },
-    [composerState.workingDir, isCompactFormFactor, openInSidePane, serverId, workspaceId],
+    [composerState.workingDir, isCompactFormFactor, serverId, workspaceId],
   );
 
   const {
