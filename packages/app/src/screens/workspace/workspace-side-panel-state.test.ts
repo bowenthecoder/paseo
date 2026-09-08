@@ -123,7 +123,7 @@ describe("workspace side panel", () => {
       intent: "reveal",
     });
     const pane = sidePane(store);
-    for (const tabId of [...(pane?.tabIds ?? [])]) {
+    for (const tabId of pane?.tabIds.slice() ?? []) {
       store.getState().closeTab(WORKSPACE, tabId);
     }
     expect(isSidePanelOpen(store)).toBe(false);

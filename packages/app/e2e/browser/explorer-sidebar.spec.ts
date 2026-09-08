@@ -8,7 +8,7 @@ import {
 } from "../support/helpers/workspace-tabs";
 
 function explorerSidebar(page: Parameters<typeof ensureExplorerSidebar>[0]) {
-  return page.getByTestId("workspace-explorer-sidebar").filter({ visible: true });
+  return page.getByTestId("workspace-side-panel").filter({ visible: true });
 }
 
 test.describe("Explorer sidebar", () => {
@@ -26,14 +26,14 @@ test.describe("Explorer sidebar", () => {
         .count();
 
       const explorer = await ensureExplorerSidebar(page);
-      await expect(explorer.getByTestId("explorer-sidebar-tab-files")).toBeVisible();
-      await expect(explorer.getByTestId("explorer-sidebar-tab-changes_tree")).toBeVisible();
+      await expect(explorer.getByTestId("workspace-side-panel-view-files")).toBeVisible();
+      await expect(explorer.getByTestId("workspace-side-panel-view-changes_tree")).toBeVisible();
       await expect(explorer.getByTestId("workspace-new-tab-button")).toHaveCount(0);
 
       await openFilesPanel(page);
       await expect(explorer.getByTestId("file-explorer-tree-scroll")).toBeVisible();
 
-      await explorer.getByTestId("explorer-sidebar-tab-changes_tree").click();
+      await explorer.getByTestId("workspace-side-panel-view-changes_tree").click();
       await expect(explorer.getByTestId("changes-tree-panel")).toBeVisible();
 
       await page.getByTestId("workspace-explorer-toggle").first().click();

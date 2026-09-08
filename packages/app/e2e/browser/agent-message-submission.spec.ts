@@ -802,7 +802,9 @@ async function expectCreatedAgentHandoff(
   userMessage: Locator,
 ): Promise<void> {
   await expect(page.getByTestId("turn-working-indicator")).toBeVisible();
-  await expect(page.getByTestId(/^workspace-tab-agent_/).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId(/^workspace-panel-agent_/).first()).toBeVisible({
+    timeout: 30_000,
+  });
   await expect(userMessage).toHaveAttribute("aria-busy", "false", { timeout: 30_000 });
   await expect(page.getByTestId("turn-working-indicator")).toBeVisible();
   await expect(page.getByTestId("user-message").filter({ hasText: prompt })).toHaveCount(1);

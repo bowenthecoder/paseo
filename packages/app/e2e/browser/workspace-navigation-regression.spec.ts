@@ -15,8 +15,8 @@ import { expectComposerVisible } from "../support/helpers/composer";
 import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
 import { seedWorkspace } from "../support/helpers/seed-client";
 import {
-  getVisibleWorkspaceAgentTabIds,
-  expectOnlyWorkspaceAgentTabsVisible,
+  getVisibleWorkspaceAgentPanelIds,
+  expectOnlyWorkspaceAgentPanelVisible,
   waitForWorkspaceTabsVisible,
   expectWorkspaceTabsAbsent,
 } from "../support/helpers/workspace-tabs";
@@ -75,12 +75,12 @@ async function expectNoLoadingPane(page: Page): Promise<void> {
 }
 
 async function getVisibleDraftTabCount(page: Page): Promise<number> {
-  return page.locator('[data-testid^="workspace-tab-draft"]').filter({ visible: true }).count();
+  return page.locator('[data-testid^="workspace-panel-draft"]').filter({ visible: true }).count();
 }
 
 async function closeFirstVisibleDraftTab(page: Page): Promise<void> {
   const tab = page
-    .locator('[data-testid^="workspace-tab-draft"]')
+    .locator('[data-testid^="workspace-panel-draft"]')
     .filter({ visible: true })
     .first();
   await expect(tab).toBeVisible({ timeout: 30_000 });
@@ -368,9 +368,9 @@ test.describe("Workspace navigation regression", () => {
       });
       await expectWorkspaceTabVisible(page, firstAgent.id);
       await expectWorkspaceTabHidden(page, secondAgent.id);
-      await expectOnlyWorkspaceAgentTabsVisible(page, [firstAgent.id]);
-      await expect(getVisibleWorkspaceAgentTabIds(page)).resolves.toEqual([
-        `workspace-tab-agent_${firstAgent.id}`,
+      await expectOnlyWorkspaceAgentPanelVisible(page, firstAgent.id);
+      await expect(getVisibleWorkspaceAgentPanelIds(page)).resolves.toEqual([
+        `workspace-panel-agent_${firstAgent.id}`,
       ]);
       await expect(firstDeckEntry).toBeVisible({ timeout: 30_000 });
 
@@ -400,9 +400,9 @@ test.describe("Workspace navigation regression", () => {
       });
       await expectWorkspaceTabVisible(page, secondAgent.id);
       await expectWorkspaceTabHidden(page, firstAgent.id);
-      await expectOnlyWorkspaceAgentTabsVisible(page, [secondAgent.id]);
-      await expect(getVisibleWorkspaceAgentTabIds(page)).resolves.toEqual([
-        `workspace-tab-agent_${secondAgent.id}`,
+      await expectOnlyWorkspaceAgentPanelVisible(page, secondAgent.id);
+      await expect(getVisibleWorkspaceAgentPanelIds(page)).resolves.toEqual([
+        `workspace-panel-agent_${secondAgent.id}`,
       ]);
       await expect(firstDeckEntry).toBeAttached();
       await expect(firstDeckEntry).toBeHidden();
@@ -434,7 +434,7 @@ test.describe("Workspace navigation regression", () => {
       await expect(secondDeckEntry).toBeVisible({ timeout: 30_000 });
       await expectWorkspaceTabVisible(page, secondAgent.id);
       await expectWorkspaceTabHidden(page, firstAgent.id);
-      await expectOnlyWorkspaceAgentTabsVisible(page, [secondAgent.id]);
+      await expectOnlyWorkspaceAgentPanelVisible(page, secondAgent.id);
       await expect(firstDeckEntry).toBeAttached();
       await expect(firstDeckEntry).toBeHidden();
       await expectWorkspaceDeckEntryCount(page, 2);
@@ -470,9 +470,9 @@ test.describe("Workspace navigation regression", () => {
       });
       await expectWorkspaceTabVisible(page, firstAgent.id);
       await expectWorkspaceTabHidden(page, secondAgent.id);
-      await expectOnlyWorkspaceAgentTabsVisible(page, [firstAgent.id]);
-      await expect(getVisibleWorkspaceAgentTabIds(page)).resolves.toEqual([
-        `workspace-tab-agent_${firstAgent.id}`,
+      await expectOnlyWorkspaceAgentPanelVisible(page, firstAgent.id);
+      await expect(getVisibleWorkspaceAgentPanelIds(page)).resolves.toEqual([
+        `workspace-panel-agent_${firstAgent.id}`,
       ]);
     } finally {
       await secondWorkspace.cleanup();

@@ -109,7 +109,7 @@ test.describe("Assistant fork menu", () => {
     await session.client.waitForFinish(session.agentId, 45_000);
     await awaitAssistantMessage(page);
 
-    const agentTab = page.getByTestId(`workspace-tab-agent_${session.agentId}`);
+    const agentTab = page.getByTestId(`workspace-panel-agent_${session.agentId}`);
     await expect(agentTab).toHaveAttribute("aria-selected", "true");
 
     await forkMostRecentAssistantTurnToNewTab(page);
@@ -118,7 +118,7 @@ test.describe("Assistant fork menu", () => {
       .getByTestId("workspace-tabs-row")
       .getByRole("button")
       .and(page.locator('[aria-selected="true"]'));
-    await expect(selectedTab).toHaveAttribute("data-testid", /^workspace-tab-draft_/, {
+    await expect(selectedTab).toHaveAttribute("data-testid", /^workspace-panel-draft_/, {
       timeout: 30_000,
     });
     await expect(agentTab).toHaveAttribute("aria-selected", "false");

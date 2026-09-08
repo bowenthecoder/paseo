@@ -7,7 +7,6 @@ import {
 } from "@/workspace-tabs/agent-visibility";
 import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
 import { selectSubagentsForParent } from "@/subagents/select";
-import { findPaneById, findPaneContainingTab } from "./workspace-layout-actions";
 import { useWorkspaceLayoutStore } from "./workspace-layout-store";
 import { useSessionStore, type Agent } from "./session-store";
 
@@ -126,7 +125,6 @@ afterEach(() => {
   useSessionStore.getState().clearSession(SERVER_ID);
   useWorkspaceLayoutStore.setState({
     layoutByWorkspace: {},
-    splitSizesByWorkspace: {},
     pinnedAgentIdsByWorkspace: {},
     hiddenAgentIdsByWorkspace: {},
   });
@@ -256,72 +254,5 @@ describe("workspace subagents integration", () => {
         new Set(),
       ).map((row) => row.id),
     ).toEqual([child.id]);
-  });
-
-  it("opens a subagent in Explorer when Explorer is preferred", () => {
-    const workspaceKey = buildWorkspaceTabPersistenceKey({
-      serverId: SERVER_ID,
-      workspaceId: WORKSPACE_ID,
-    });
-    expect(workspaceKey).toBeTruthy();
-
-    const parent = makeAgent({
-      id: "parent-agent",
-      title: "Parent agent",
-    });
-    const child = makeAgent({
-      id: "child-agent",
-      parentAgentId: parent.id,
-      title: "Child agent",
-    });
-
-    initializeAgents([parent, child]);
-    reconcileWorkspaceTabs(workspaceKey!, deriveVisibilityFromSession());
-
-    const store = useWorkspaceLayoutStore.getState();
-    const paneId = store.showExplorerSidebar(workspaceKey!) as string;
-    const tabId = store.openTab({
-      workspaceKey: workspaceKey!,
-      target: { kind: "agent", agentId: child.id },
-      intent: "reveal",
-      parentTabId: `agent_${parent.id}`,
-      placement: { mode: "prefer", paneId },
-    });
-
-    const state = useWorkspaceLayoutStore.getState();
-    const layout = state.layoutByWorkspace[workspaceKey!];
-    const explorerSidebarPaneId = state.explorerSidebarPaneIdByWorkspace[workspaceKey!];
-
-    expect(explorerSidebarPaneId).toBeTruthy();
-    expect(findPaneContainingTab(layout.root, tabId!)?.id).toBe(explorerSidebarPaneId);
-    expect(findPaneById(layout.root, explorerSidebarPaneId!)?.hidden).toBeUndefined();
-    expect(layout.focusedPaneId).toBe("main");
-  });
-
-  it("opens a provider subagent in Explorer when Explorer is preferred", () => {
-    const workspaceKey = buildWorkspaceTabPersistenceKey({
-      serverId: SERVER_ID,
-      workspaceId: WORKSPACE_ID,
-    });
-    expect(workspaceKey).toBeTruthy();
-
-    const store = useWorkspaceLayoutStore.getState();
-    const paneId = store.showExplorerSidebar(workspaceKey!) as string;
-    const tabId = store.openTab({
-      workspaceKey: workspaceKey!,
-      target: { kind: "provider_subagent", parentAgentId: "parent-agent", subagentId: "task-1" },
-      intent: "reveal",
-      parentTabId: "agent_parent-agent",
-      placement: { mode: "prefer", paneId },
-    });
-
-    const state = useWorkspaceLayoutStore.getState();
-    const layout = state.layoutByWorkspace[workspaceKey!];
-    const explorerSidebarPaneId = state.explorerSidebarPaneIdByWorkspace[workspaceKey!];
-
-    expect(explorerSidebarPaneId).toBeTruthy();
-    expect(findPaneContainingTab(layout.root, tabId!)?.id).toBe(explorerSidebarPaneId);
-    expect(findPaneById(layout.root, explorerSidebarPaneId!)?.hidden).toBeUndefined();
-    expect(layout.focusedPaneId).toBe("main");
   });
 });

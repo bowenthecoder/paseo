@@ -366,7 +366,7 @@ test("changes file actions open below the right-click without a reserved kebab",
   await page.getByTestId("diff-file-0-open-file").click();
 
   await expect(page.getByTestId("workspace-file-pane")).toBeVisible();
-  await expect(page.getByTestId("workspace-tab-file_src/use-mounted-tab-set.ts")).toBeVisible();
+  await expect(page.getByTestId("workspace-panel-file_src/use-mounted-tab-set.ts")).toBeVisible();
 });
 
 test("canvas file headers select without toggling for context menu and long press", async ({
@@ -883,9 +883,7 @@ test("canvas diff stays sharp while its workspace pane is resized", async ({ pag
 
   const canvas = page.getByTestId("git-diff-canvas");
   const root = page.getByTestId("git-diff-canvas-root");
-  const handle = page
-    .getByTestId("workspace-explorer-sidebar-resize-handle")
-    .getByRole("separator");
+  const handle = page.getByTestId("workspace-side-panel-resize-handle").getByRole("separator");
   await expect(handle).toBeVisible();
   await expect
     .poll(async () => {
@@ -1014,7 +1012,7 @@ test("autofocusing an inline review keeps the Changes tab focused", async ({ pag
   await useUnwrappedDiffLines(page);
   await openWorkspaceChanges(page, workspace);
 
-  const changesTab = page.getByTestId("workspace-tab-working_diff").filter({ visible: true });
+  const changesTab = page.getByTestId("workspace-panel-working_diff").filter({ visible: true });
   const focusedBackground = await changesTab.evaluate(
     (element) => getComputedStyle(element).backgroundColor,
   );
@@ -1691,7 +1689,7 @@ async function openSelectionWorkspaceChanges(page: Page, workspace: DirtyWorkspa
 }
 
 async function openChangesInVisibleExplorer(page: Page): Promise<void> {
-  const explorer = page.getByTestId("workspace-explorer-sidebar");
+  const explorer = page.getByTestId("workspace-side-panel");
   await expect(explorer).toBeVisible({ timeout: 30_000 });
   const changesTab = explorer.getByRole("button", { name: /Working tree diff/i }).first();
   await changesTab.click();

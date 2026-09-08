@@ -169,7 +169,7 @@ test.describe("Worktree restore", () => {
     await page.getByTestId(`agent-row-${serverId}-${agent.id}`).click();
 
     await expect(
-      page.getByTestId(`workspace-tab-agent_${agent.id}`).filter({ visible: true }).first(),
+      page.getByTestId(`workspace-panel-agent_${agent.id}`).filter({ visible: true }).first(),
     ).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("button", { name: "Unarchive" })).toHaveCount(0);
     expect(await fetchAgentArchivedAt(client, agent.id)).toBeNull();
@@ -180,7 +180,7 @@ test.describe("Worktree restore", () => {
     await page.getByTestId(`agent-row-${serverId}-${agent.id}`).click();
 
     await expect(
-      page.getByTestId(`workspace-tab-agent_${agent.id}`).filter({ visible: true }).first(),
+      page.getByTestId(`workspace-panel-agent_${agent.id}`).filter({ visible: true }).first(),
     ).toBeVisible({ timeout: 30_000 });
     await expect(
       page.getByTestId(`workspace-deck-entry-${serverId}:${worktree.workspaceId}`),
@@ -237,7 +237,7 @@ test.describe("Worktree restore", () => {
         workspaceId: worktree.workspaceId,
       });
       await expect(
-        page.getByTestId(`workspace-tab-agent_${agent.id}`).filter({ visible: true }).first(),
+        page.getByTestId(`workspace-panel-agent_${agent.id}`).filter({ visible: true }).first(),
       ).toBeVisible({ timeout: 30_000 });
       await expect(page.getByTestId("workspace-recovery-action")).toHaveCount(0);
       expect(await fetchAgentArchivedAt(client, agent.id)).toBeNull();
@@ -290,7 +290,7 @@ test.describe("Worktree restore", () => {
       .poll(() => existsSync(worktree.workspaceDirectory), { timeout: 30_000 })
       .toBe(true);
     await expect(
-      page.getByTestId(`workspace-tab-agent_${firstAgent.id}`).filter({ visible: true }).first(),
+      page.getByTestId(`workspace-panel-agent_${firstAgent.id}`).filter({ visible: true }).first(),
     ).toBeVisible({ timeout: 30_000 });
     await expect
       .poll(() => fetchAgentArchivedAt(client, firstAgent.id), { timeout: 30_000 })
@@ -302,7 +302,7 @@ test.describe("Worktree restore", () => {
     await openSessions(page);
     await page.getByTestId(`agent-row-${getServerId()}-${secondAgent.id}`).click();
     await expect(
-      page.getByTestId(`workspace-tab-agent_${secondAgent.id}`).filter({ visible: true }).first(),
+      page.getByTestId(`workspace-panel-agent_${secondAgent.id}`).filter({ visible: true }).first(),
     ).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("button", { name: "Unarchive" })).toBeVisible({
       timeout: 30_000,
@@ -338,7 +338,7 @@ test.describe("Worktree restore", () => {
       workspaceId: worktree.workspaceId,
     });
     await expect(
-      page.getByTestId(`workspace-tab-agent_${agent.id}`).filter({ visible: true }).first(),
+      page.getByTestId(`workspace-panel-agent_${agent.id}`).filter({ visible: true }).first(),
     ).toBeVisible({ timeout: 30_000 });
   });
 

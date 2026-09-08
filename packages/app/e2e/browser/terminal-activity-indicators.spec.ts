@@ -70,7 +70,7 @@ function expectedAttentionReason(state: HookActivityState): "finished" | "needs_
 }
 
 function terminalTab(page: Page, terminalId: string) {
-  return page.getByTestId(`workspace-tab-terminal_${terminalId}`).first();
+  return page.getByTestId(`workspace-panel-terminal_${terminalId}`).first();
 }
 
 async function expectTerminalTabStatus(

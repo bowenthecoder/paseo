@@ -67,7 +67,7 @@ test.describe("Workspace agent title handoff", () => {
       const agentId = await timelineGate.waitForCreatedAgent();
       await timelineGate.waitForDelayedResponse();
 
-      await expect(page.getByTestId(`workspace-tab-agent_${agentId}`).first()).toBeVisible({
+      await expect(page.getByTestId(`workspace-panel-agent_${agentId}`).first()).toBeVisible({
         timeout: 15_000,
       });
       await expect(page.getByText(prompt, { exact: true }).first()).toBeVisible();
@@ -123,10 +123,10 @@ test.describe("Workspace agent title handoff", () => {
         workspaceId: workspace.workspaceId,
       });
 
-      await expect(page.getByTestId(`workspace-tab-agent_${agentId}`)).toHaveCount(0);
+      await expect(page.getByTestId(`workspace-panel-agent_${agentId}`)).toHaveCount(0);
       agentCreatedDelay.release();
 
-      const agentTab = page.getByTestId(`workspace-tab-agent_${agentId}`).first();
+      const agentTab = page.getByTestId(`workspace-panel-agent_${agentId}`).first();
       await expect(agentTab).toBeVisible({ timeout: 15_000 });
       await expect
         .poll(() => fetchActiveAgentTitle(workspace.client, agentId), { timeout: 10_000 })

@@ -54,7 +54,7 @@ test("Markdown images and document links decode local URL paths once", async ({ 
     const preview = page.getByTestId("workspace-file-pane");
     await expect(preview).toContainText("PERCENT_FILENAME_OK", { timeout: 30_000 });
     await expect(preview).not.toContainText("ENOENT");
-    await expect(page.getByTestId(`workspace-tab-file_${documentPath}`).first()).toBeVisible();
+    await expect(page.getByTestId(`workspace-panel-file_${documentPath}`).first()).toBeVisible();
   } finally {
     await workspace.cleanup();
   }
