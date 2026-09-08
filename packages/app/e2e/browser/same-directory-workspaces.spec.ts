@@ -6,7 +6,7 @@ import { seedWorkspace, type SeededWorkspace } from "../support/helpers/seed-cli
 import { expectExplorerEntryVisible, openFileExplorer } from "../support/helpers/file-explorer";
 import {
   expectNoTerminalTabs,
-  clickFirstTerminalTab,
+  selectFirstTerminalView,
   openChangesPanel,
 } from "../support/helpers/workspace-tabs";
 
@@ -97,7 +97,7 @@ test.describe("Same-directory workspaces", () => {
       // Open workspace A and materialize a terminal tab.
       await gotoWorkspace(page, seeded.workspaceId);
       await clickNewTerminal(page);
-      await clickFirstTerminalTab(page);
+      await selectFirstTerminalView(page);
 
       // Workspace B shares the directory but owns its own tabs: it has no
       // terminal tab, because the terminal belongs to A.
@@ -106,7 +106,7 @@ test.describe("Same-directory workspaces", () => {
 
       // Back in A, the terminal is still there — B never absorbed it.
       await gotoWorkspace(page, seeded.workspaceId);
-      await clickFirstTerminalTab(page);
+      await selectFirstTerminalView(page);
     } finally {
       await seeded.cleanup();
     }

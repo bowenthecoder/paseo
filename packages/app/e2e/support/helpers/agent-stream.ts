@@ -44,7 +44,7 @@ export async function expectAgentReadyToInterrupt(page: Page): Promise<void> {
 
 export async function expectVisibleAgentSurfacesIdle(page: Page): Promise<void> {
   const visibleAgentTab = page
-    .getByTestId(/^workspace-tab-agent_/)
+    .getByTestId(/^workspace-panel-agent_/)
     .filter({ visible: true })
     .first();
 

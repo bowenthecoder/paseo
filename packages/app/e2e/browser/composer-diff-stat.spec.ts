@@ -19,7 +19,7 @@ async function revealComposerChangesInExplorer(page: Page) {
 
   const explorer = await ensureExplorerSidebar(page);
   await expect(explorer.getByTestId("changes-tree-panel")).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId("workspace-tab-working_diff")).toHaveCount(0);
+  await expect(page.getByTestId("workspace-panel-working_diff")).toHaveCount(0);
 }
 
 async function openComposerDiff(page: Page) {
@@ -80,7 +80,7 @@ test("composer diff stat reveals Changes, then opens the diff in the configured 
       .locator('[data-testid^="workspace-pane-"]')
       .filter({ visible: true })
       .filter({ has: page.getByTestId("working-diff-panel") });
-    await expect(sidePane.getByTestId("workspace-tab-working_diff")).toBeVisible({
+    await expect(sidePane.getByTestId("workspace-panel-working_diff")).toBeVisible({
       timeout: 30_000,
     });
     await expect(sidePane.getByTestId("working-diff-panel")).toBeVisible({ timeout: 30_000 });
@@ -88,11 +88,11 @@ test("composer diff stat reveals Changes, then opens the diff in the configured 
 
     await test.step("Explorer navigation does not replace the side pane", async () => {
       await openFilesPanel(page);
-      await expect(page.getByTestId("workspace-explorer-sidebar")).toContainText("Files");
+      await expect(page.getByTestId("workspace-side-panel")).toContainText("Files");
 
       await pill.click();
       await expect(sidePane.getByTestId("working-diff-panel")).toBeVisible();
-      await expect(page.getByTestId("workspace-tab-working_diff")).toHaveCount(1);
+      await expect(page.getByTestId("workspace-panel-working_diff")).toHaveCount(1);
     });
   } finally {
     await workspace.cleanup();
@@ -120,7 +120,7 @@ test("composer diff stat opens the compact explorer instead of a Changes tab", a
     await expect(page.getByTestId("changes-header").filter({ visible: true }).first()).toBeVisible({
       timeout: 30_000,
     });
-    await expect(page.getByTestId("workspace-tab-working_diff")).toHaveCount(0);
+    await expect(page.getByTestId("workspace-panel-working_diff")).toHaveCount(0);
   } finally {
     await workspace.cleanup();
   }
@@ -142,7 +142,7 @@ test("composer diff stat reveals Changes, then opens the diff in the focused pan
     await openComposerDiff(page);
 
     const mainPane = visibleMainPane(page);
-    await expect(mainPane.getByTestId("workspace-tab-working_diff")).toBeVisible({
+    await expect(mainPane.getByTestId("workspace-panel-working_diff")).toBeVisible({
       timeout: 30_000,
     });
     await expect(mainPane.getByTestId("working-diff-panel")).toBeVisible({ timeout: 30_000 });

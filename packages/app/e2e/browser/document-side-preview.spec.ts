@@ -19,7 +19,7 @@ function chatPane(page: Page) {
 
 function fileTab(page: Page, filename: string) {
   return page
-    .locator('[data-testid^="workspace-tab-file_"]')
+    .locator('[data-testid^="workspace-panel-file_"]')
     .filter({ hasText: filename, visible: true });
 }
 
@@ -224,10 +224,10 @@ test.describe("Documents alongside the conversation", () => {
         "Outside working folder, same device",
       );
       await expect(
-        page.locator('[data-testid^="workspace-tab-file_"]').filter({ visible: true }),
+        page.locator('[data-testid^="workspace-panel-file_"]').filter({ visible: true }),
       ).toHaveAttribute(
         "data-testid",
-        `workspace-tab-file_${path.join(session.cwd, "outside.txt").replaceAll("\\", "/")}`,
+        `workspace-panel-file_${path.join(session.cwd, "outside.txt").replaceAll("\\", "/")}`,
       );
 
       await page.getByTestId("files-browse-home").click();

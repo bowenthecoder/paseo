@@ -199,13 +199,13 @@ export async function openWorkspaceWithAgents(
 
 export async function expectWorkspaceTabVisible(page: Page, agentId: string): Promise<void> {
   await expect(
-    page.getByTestId(`workspace-tab-agent_${agentId}`).filter({ visible: true }).first(),
+    page.getByTestId(`workspace-panel-agent_${agentId}`).filter({ visible: true }).first(),
   ).toBeVisible({ timeout: 30_000 });
 }
 
 export async function expectWorkspaceTabHidden(page: Page, agentId: string): Promise<void> {
   await expect(
-    page.getByTestId(`workspace-tab-agent_${agentId}`).filter({ visible: true }),
+    page.getByTestId(`workspace-panel-agent_${agentId}`).filter({ visible: true }),
   ).toHaveCount(0, {
     timeout: 30_000,
   });

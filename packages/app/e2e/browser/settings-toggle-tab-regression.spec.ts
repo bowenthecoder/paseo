@@ -1,7 +1,7 @@
 import { buildHostAgentDetailRoute, buildHostWorkspaceRoute } from "@/utils/host-routes";
 import { expect, test } from "../support/fixtures";
 import { createIdleAgent, openWorkspaceWithAgents } from "../support/helpers/archive-tab";
-import { waitForTabBar, expectAgentTabActive } from "../support/helpers/launcher";
+import { waitForChatSurface, expectAgentTabActive } from "../support/helpers/launcher";
 import { seedWorkspace } from "../support/helpers/seed-client";
 import { getServerId } from "../support/helpers/server-id";
 
@@ -90,7 +90,7 @@ async function openAgentRouteAndExpectFocused(input: {
     (url) => url.pathname.includes("/workspace/") && !url.searchParams.has("open"),
     { timeout: 60_000 },
   );
-  await waitForTabBar(input.page);
+  await waitForChatSurface(input.page);
   await expectAgentTabActive(input.page, input.agentId);
 }
 
@@ -116,7 +116,7 @@ test.describe("Settings toggle tab regression", () => {
       });
 
       await openWorkspaceWithAgents(page, [firstAgent, secondAgent]);
-      await waitForTabBar(page);
+      await waitForChatSurface(page);
       await expectAgentTabActive(page, secondAgent.id);
 
       await pressSettingsToggleShortcut(page);
@@ -148,11 +148,11 @@ test.describe("Settings toggle tab regression", () => {
 
       await pressSettingsToggleShortcut(page);
       await expect(page).toHaveURL(buildHostWorkspaceRoute(serverId, workspace.workspaceId));
-      await waitForTabBar(page);
+      await waitForChatSurface(page);
       await expectAgentTabActive(page, secondAgent.id);
 
       await page.reload();
-      await waitForTabBar(page);
+      await waitForChatSurface(page);
       await expectAgentTabActive(page, secondAgent.id);
     } finally {
       await workspace.cleanup();
@@ -176,7 +176,7 @@ test.describe("Settings toggle tab regression", () => {
         title: `settings-composer-height-b-${Date.now()}`,
       });
       await openWorkspaceWithAgents(page, [firstAgent, secondAgent]);
-      await waitForTabBar(page);
+      await waitForChatSurface(page);
 
       const input = page.getByRole("textbox", { name: "Message agent..." });
       await input.fill("Keep this short draft in the composer");
@@ -251,7 +251,7 @@ test.describe("Settings toggle tab regression", () => {
 
       for (let attempt = 0; attempt < 5; attempt += 1) {
         await page.reload();
-        await waitForTabBar(page);
+        await waitForChatSurface(page);
         await expectAgentTabActive(page, secondAgent.id);
       }
     } finally {

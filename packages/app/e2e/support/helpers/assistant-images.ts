@@ -268,7 +268,7 @@ async function beginVisibleImageStabilityObservation(
     {
       accessibleName: alt,
       errorText: IMAGE_PREVIEW_ERROR,
-      tabTestId: `workspace-tab-agent_${imageAgentId}`,
+      tabTestId: `workspace-panel-agent_${imageAgentId}`,
     },
   );
 }

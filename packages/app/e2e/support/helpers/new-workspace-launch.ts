@@ -179,13 +179,13 @@ export async function expectTerminalOutputContains(
  * unscoped terminal-surface locator can match more than one.
  */
 export async function expectWorkspaceOpensWithTerminalTab(page: Page): Promise<string> {
-  const terminalTab = page.locator('[data-testid^="workspace-tab-terminal_"]:visible');
+  const terminalTab = page.locator('[data-testid^="workspace-panel-terminal_"]:visible');
   await expect(terminalTab.first()).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('[data-testid="terminal-surface"]:visible').first()).toBeVisible({
     timeout: 30_000,
   });
   const testId = await terminalTab.first().getAttribute("data-testid");
-  const terminalId = testId?.replace("workspace-tab-terminal_", "") ?? "";
+  const terminalId = testId?.replace("workspace-panel-terminal_", "") ?? "";
   if (!terminalId) {
     throw new Error(`Could not parse terminal id from tab testID: ${testId}`);
   }

@@ -157,6 +157,29 @@ export async function expectNoTerminalTabs(page: Page): Promise<void> {
   await expect(page.locator('[data-testid^="workspace-panel-terminal_"]')).toHaveCount(0);
 }
 
+/** Bring the first live terminal to the front of the side panel. */
+export async function selectFirstTerminalView(
+  page: Page,
+  options?: { timeout?: number },
+): Promise<void> {
+  await ensureExplorerSidebar(page);
+  const entry = page
+    .locator('[data-testid^="workspace-side-panel-view-terminal_"]')
+    .filter({ visible: true })
+    .first();
+  await expect(entry).toBeVisible({ timeout: options?.timeout ?? 30_000 });
+  await entry.click();
+}
+
+export async function expectFirstTerminalViewContains(page: Page, text: string): Promise<void> {
+  await expect(
+    page
+      .locator('[data-testid^="workspace-side-panel-view-terminal_"]')
+      .filter({ visible: true })
+      .first(),
+  ).toContainText(text);
+}
+
 export async function expectTerminalTabOpen(
   page: Page,
   options?: { timeout?: number },

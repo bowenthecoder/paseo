@@ -35,7 +35,7 @@ export async function expectExplorerEntryHidden(page: Page, name: string): Promi
 }
 
 export async function expectFileTabOpen(page: Page, filePath: string): Promise<void> {
-  await expect(page.getByTestId(`workspace-tab-file_${filePath}`).first()).toBeVisible({
+  await expect(page.getByTestId(`workspace-panel-file_${filePath}`).first()).toBeVisible({
     timeout: 30_000,
   });
 }

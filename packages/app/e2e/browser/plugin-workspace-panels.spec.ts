@@ -274,7 +274,7 @@ test.describe("plugin workspace panels and Command Center", () => {
         await page.waitForURL(isSettledWorkspaceUrl);
         await expect(
           page
-            .getByTestId(`workspace-tab-agent_${navigationAgentId}`)
+            .getByTestId(`workspace-panel-agent_${navigationAgentId}`)
             .filter({ visible: true })
             .first(),
         ).toBeVisible();

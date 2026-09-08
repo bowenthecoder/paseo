@@ -73,7 +73,7 @@ test("commit history shows dates and shares diff layout preferences", async ({
   await expect(panel.locator('[data-testid^="diff-code-row-"]')).toHaveCount(0);
   await expect(panel.getByTestId("diff-file-0-body")).toBeVisible();
 
-  await page.getByTestId(/^workspace-tab-commit_diff_/).hover();
+  await page.getByTestId(/^workspace-panel-commit_diff_/).hover();
   await page.getByTestId(/^workspace-commit-diff-close-/).click();
   await expect(panel).toHaveCount(0);
   await commitRow.click();

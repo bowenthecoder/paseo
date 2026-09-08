@@ -134,9 +134,9 @@ test.describe("CodeMirror workspace file editing", () => {
       await expect(editor(page)).toContainText("plain source");
       await expect.poll(() => page.locator(".cm-line").count()).toBeLessThan(200);
 
-      await page.getByTestId(`workspace-tab-agent_${session.agentId}`).first().click();
+      await page.getByTestId(`workspace-panel-agent_${session.agentId}`).first().click();
       await expect(page.getByTestId("message-input-root")).toBeVisible();
-      await page.getByTestId("workspace-tab-file_plain.txt").first().click();
+      await page.getByTestId("workspace-panel-file_plain.txt").first().click();
       await expect(page.getByTestId("file-source-editor")).toBeVisible();
     } finally {
       await session.cleanup();
@@ -164,9 +164,9 @@ test.describe("CodeMirror workspace file editing", () => {
         "This file is too large to display",
       );
 
-      await page.getByTestId(`workspace-tab-agent_${session.agentId}`).first().click();
+      await page.getByTestId(`workspace-panel-agent_${session.agentId}`).first().click();
       await expect(page.getByTestId("message-input-root")).toBeVisible();
-      await page.getByTestId("workspace-tab-file_too-large.txt").first().click();
+      await page.getByTestId("workspace-panel-file_too-large.txt").first().click();
       await expect(page.getByTestId("file-source-too-large")).toBeVisible();
     } finally {
       await session.cleanup();
@@ -204,7 +204,7 @@ test.describe("CodeMirror workspace file editing", () => {
       await expect(page.getByLabel(/^Line 1, column \d+$/)).toBeVisible();
 
       await page
-        .getByTestId(`workspace-tab-agent_${session.agentId}`)
+        .getByTestId(`workspace-panel-agent_${session.agentId}`)
         .filter({ visible: true })
         .click();
       await expect(fileLink).toBeVisible();
@@ -244,15 +244,15 @@ test.describe("CodeMirror workspace file editing", () => {
       await expect(page.getByTestId("workspace-tabs-row").filter({ visible: true })).toHaveCount(2);
 
       await page
-        .getByTestId(`workspace-tab-agent_${session.agentId}`)
+        .getByTestId(`workspace-panel-agent_${session.agentId}`)
         .filter({ visible: true })
         .click();
       await editor(page).click();
       await page.keyboard.press("Alt+Shift+W");
 
-      await expect(page.getByTestId("workspace-tab-file_target.ts")).not.toBeVisible();
+      await expect(page.getByTestId("workspace-panel-file_target.ts")).not.toBeVisible();
       await expect(
-        page.getByTestId(`workspace-tab-agent_${session.agentId}`).filter({ visible: true }),
+        page.getByTestId(`workspace-panel-agent_${session.agentId}`).filter({ visible: true }),
       ).toBeVisible();
     } finally {
       await session.cleanup();
@@ -307,7 +307,7 @@ test.describe("CodeMirror workspace file editing", () => {
     await openFileFromExplorer(page, "visuals.md");
     await expectFileTabOpen(page, relativePath);
 
-    const fileTab = page.getByTestId(`workspace-tab-file_${relativePath}`).first();
+    const fileTab = page.getByTestId(`workspace-panel-file_${relativePath}`).first();
     await fileTab.hover();
     await expect(page.getByTestId(`workspace-tab-tooltip-file_${relativePath}`)).toHaveText(
       relativePath,
@@ -354,7 +354,7 @@ test.describe("CodeMirror workspace file editing", () => {
     await openFileFromExplorer(page, relativePath);
     await expectFileTabOpen(page, relativePath);
 
-    await page.getByTestId(`workspace-tab-file_${relativePath}`).first().hover();
+    await page.getByTestId(`workspace-panel-file_${relativePath}`).first().hover();
 
     await expect(
       page
@@ -498,7 +498,7 @@ test.describe("CodeMirror workspace file editing", () => {
       await dialog.dismiss();
     });
     await page
-      .getByTestId("workspace-tab-file_draft.ts")
+      .getByTestId("workspace-panel-file_draft.ts")
       .filter({ visible: true })
       .first()
       .click({ button: "right" });

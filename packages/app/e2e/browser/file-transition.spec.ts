@@ -40,7 +40,7 @@ async function assertHeldFileTransition(
   gate: Awaited<ReturnType<typeof delayFileReadResponse>>,
 ) {
   await page.evaluate(() => {
-    const originalChip = document.querySelector('[data-testid="workspace-tab-file_src/a.ts"]');
+    const originalChip = document.querySelector('[data-testid="workspace-panel-file_src/a.ts"]');
     (
       window as typeof window & { __fileTransitionOriginalChip?: Element | null }
     ).__fileTransitionOriginalChip = originalChip;
@@ -64,11 +64,11 @@ async function assertHeldFileTransition(
     (
       window as typeof window & { __fileTransitionObserver?: MutationObserver }
     ).__fileTransitionObserver = observer;
-  }, `workspace-tab-file_${targetPath}`);
+  }, `workspace-panel-file_${targetPath}`);
   await openFileFromExplorer(page, targetPath.split("/").pop() as string);
   await gate.waitUntilHeld();
 
-  const targetChip = page.getByTestId(`workspace-tab-file_${targetPath}`).first();
+  const targetChip = page.getByTestId(`workspace-panel-file_${targetPath}`).first();
   await expect(targetChip).toBeVisible();
   await expect(targetChip).toContainText(targetPath.split("/").pop() as string);
   await expect(page.getByTestId("file-preview-loading")).toBeVisible();
@@ -85,7 +85,7 @@ async function assertHeldFileTransition(
       originalStillConnected: originalChip?.isConnected ?? false,
       sameNode: originalChip === currentChip,
     };
-  }, `workspace-tab-file_${targetPath}`);
+  }, `workspace-panel-file_${targetPath}`);
   expect(chipIdentity).toEqual({ originalStillConnected: true, sameNode: true });
 
   const heldTimeline = await page.evaluate(

@@ -82,20 +82,20 @@ async function waitForReplacementAgentId(page: Page, oldAgentId: string): Promis
     .poll(
       async () => {
         const ids = await page
-          .locator('[data-testid^="workspace-tab-agent_"]')
+          .locator('[data-testid^="workspace-panel-agent_"]')
           .evaluateAll((nodes) =>
             nodes.flatMap((node) => {
               if (!(node instanceof HTMLElement)) {
                 return [];
               }
               const testId = node.getAttribute("data-testid") ?? "";
-              if (!testId.startsWith("workspace-tab-agent_")) {
+              if (!testId.startsWith("workspace-panel-agent_")) {
                 return [];
               }
               if (node.offsetParent === null) {
                 return [];
               }
-              return [testId.slice("workspace-tab-agent_".length)];
+              return [testId.slice("workspace-panel-agent_".length)];
             }),
           );
         newAgentId = ids.find((id) => id !== oldAgentId) ?? null;

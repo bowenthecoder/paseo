@@ -24,7 +24,7 @@ import {
   seedParentWithCrossWorkspaceSubagent,
 } from "../support/helpers/subagents";
 import { expectWorkspaceHeader, waitForSidebarHydration } from "../support/helpers/workspace-ui";
-import { getVisibleWorkspaceAgentTabIds } from "../support/helpers/workspace-tabs";
+import { getVisibleWorkspaceAgentPanelIds } from "../support/helpers/workspace-tabs";
 
 type NewWorkspaceDaemonClient = Awaited<ReturnType<typeof connectNewWorkspaceDaemonClient>>;
 type WorkspaceIndicator = "attention" | "done" | "failed" | "loading" | "needs_input" | "running";
@@ -185,13 +185,13 @@ test.describe("Workspace model regressions", () => {
       await gotoWorkspace(page, secondWorkspace.workspace.id);
 
       await expect
-        .poll(() => getVisibleWorkspaceAgentTabIds(page), { timeout: 30_000 })
+        .poll(() => getVisibleWorkspaceAgentPanelIds(page), { timeout: 30_000 })
         .toEqual([]);
 
       await gotoWorkspace(page, seeded.workspaceId);
       await expect
-        .poll(() => getVisibleWorkspaceAgentTabIds(page), { timeout: 30_000 })
-        .toContain(`workspace-tab-agent_${ownedAgent.id}`);
+        .poll(() => getVisibleWorkspaceAgentPanelIds(page), { timeout: 30_000 })
+        .toContain(`workspace-panel-agent_${ownedAgent.id}`);
     } finally {
       await seeded.cleanup();
     }
