@@ -3,9 +3,8 @@ import { WorkspaceDiffStatPill } from "@/composer/diff-stat-pill";
 import { useWorkspaceHasDiffStat } from "@/composer/workspace-diff-stat";
 import { AgentTaskList } from "@/composer/task-list";
 import { ComposerTrackBar } from "@/composer/tracks";
-import { supportsDesktopPaneSplits, useIsCompactFormFactor } from "@/constants/layout";
+import { useIsCompactFormFactor } from "@/constants/layout";
 import { usePaneContext } from "@/panels/pane-context";
-import { useSettings } from "@/hooks/use-settings";
 import { PluginComposerPills } from "@/plugins";
 import { useSessionStore } from "@/stores/session-store";
 import {
@@ -48,7 +47,7 @@ export const AgentTracks = memo(function AgentTracks({
   onArchiveFinished: () => void;
   hasPluginComposerPills: boolean;
 }): ReactElement | null {
-  const { tabId, openTab } = usePaneContext();
+  const { openTab } = usePaneContext();
   const hasWorkspaceDiffStat = useWorkspaceHasDiffStat(serverId, workspaceId);
   const isCompact = useIsCompactFormFactor();
   const workspaceKey = buildWorkspaceTabPersistenceKey({ serverId, workspaceId });

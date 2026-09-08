@@ -1491,7 +1491,6 @@ function useDiffTabNavigation({
   workspaceId,
   cwd,
   isMobile,
-  pullRequestOpenLocation,
 }: {
   serverId: string;
   workspaceId?: string | null;
