@@ -3,7 +3,7 @@ import { Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { AdaptiveRenameModal } from "@/components/rename-modal";
-import { StatusRing } from "@/components/status-ring";
+import { SidebarActivityGlow } from "./activity-glow";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { isNative } from "@/constants/platform";
 import { useToast } from "@/contexts/toast-context";
@@ -179,7 +179,7 @@ function ChatStatus({ chat, unread }: { chat: ManualChatEntry; unread: boolean }
   return (
     <View style={styles.status} testID={`sidebar-chat-status-${chat.workspaceKey}`}>
       {bucket === "running" ? (
-        <StatusRing />
+        <SidebarActivityGlow />
       ) : (
         <View
           style={[

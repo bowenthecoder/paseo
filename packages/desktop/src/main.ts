@@ -86,7 +86,7 @@ import {
   type OwnedDesktopWindow,
 } from "./window/desktop-window-owner.js";
 import { getDesktopSettingsStore } from "./settings/desktop-settings-electron.js";
-import { clampWindowStateToWorkAreas, createWindowStateStore } from "./settings/window-state.js";
+import { createWindowStateStore } from "./settings/window-state.js";
 import {
   isDesktopManagedDaemonRunningSync,
   stopDesktopDaemonViaCli,
@@ -679,15 +679,12 @@ async function createWindow(
   const windowStateStore = restoreWindowState
     ? createWindowStateStore({ userDataPath: app.getPath("userData") })
     : null;
-  const savedWindowState = windowStateStore ? await windowStateStore.load() : null;
-  const restoredWindowState = savedWindowState
-    ? clampWindowStateToWorkAreas(savedWindowState, getWorkAreasPrimaryFirst())
-    : null;
+  const restoredWindowState = windowStateStore ? await windowStateStore.load() : null;
 
   const title = devWorktreeName ? `${APP_NAME} (${devWorktreeName})` : APP_NAME;
   const mainWindow = new BrowserWindow({
     title,
-    ...resolveWindowBounds(restoredWindowState),
+    ...resolveWindowBounds(restoredWindowState, getWorkAreasPrimaryFirst()),
     show: false,
     backgroundColor: getWindowBackgroundColor(systemTheme),
     ...(iconPath ? { icon: iconPath } : {}),

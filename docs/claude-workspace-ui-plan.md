@@ -82,3 +82,28 @@ Mac and VPS Codex model metadata were repaired with backups and safe configurati
 App feature commit `5164b55` is pushed to `https://github.com/bowenthecoder/paseo/tree/bowen/claude-workspaces-subagents-20260908`. Its commit hook passed formatting, lint (zero warnings/errors) and the full workspace typecheck. Subscriptions is pushed through `c17cc02` on the branch linked above. Both implementation worktrees were clean after their feature commits.
 
 The complete locally signed review candidate is `packages/desktop/release/reviewed/mac-arm64/Paseo.app` in the app worktree. Its signature verifies. The review folder includes `Open preview.command`, the checks, screenshots and a separate `manual-chat-groups-backup.json` preserving groups made during preview use. The installed app's checksum was checked again after packaging and still matches the original backup.
+
+## Follow-up: file previews, smaller screens and device chats
+
+The reported preview exposed a real Markdown URL decoding failure: a filename with spaces reached filesystem reads with literal `%20`. The user also requested readable default chat layout on smaller Macs, right-side Markdown/text viewing, and No folder chats on the selected device without a project requirement.
+
+Design direction:
+
+- Keep the active conversation and composer usable on a laptop, with supporting documents beside it when space allows.
+- Preserve the compact, warm, quiet Claude reference styling already reviewed.
+- Give chat the available width before auxiliary navigation; retain pane state when space changes.
+- Use existing chat typography and the existing rendered Markdown/source viewer for documents.
+- Keep the measured sidebar/main colors and existing selection treatment.
+- Use existing resize behavior; avoid decorative transitions.
+- Make the device selector and chat-with-document view the defining interactions, without a required repository.
+
+Follow-up work:
+
+- [x] Decode Markdown local URL paths once while preserving literal filesystem paths and filenames; compact loading/error row and keyboard Retry recover real files.
+- [x] Fit fresh/restored desktop windows to usable display bounds and verify laptop chat/composer visibility. Fresh/default windows now use the same clamping as saved windows.
+- [ ] Preserve readable chat width beside optional navigation and document panes.
+- [ ] Open chat Markdown/text links to the right, with rendered/source viewing and return to chat.
+- [x] Let No folder submit on the selected discovered device, starting at its home; local and a separately connected host passed browser submission and group placement checks. Global file browsing is under final verification.
+- [ ] Test all follow-up flows, build the updated preview, capture screenshots and push fixes.
+
+Latest visual steering: replace the busy sidebar ring with a subtle warm glow, keep the current spacing/colors, and remove the bulky image loading/error surface. The glow is compositor driven, stops when inactive, and honors reduced motion. A seven-case browser run passed encoded image/document links, failed image retry, local/remote No folder creation, clearing a selected folder, selected folder/group regression, and activity glow lifecycle. Logs: `/tmp/paseo-followup-browser-core.log`.

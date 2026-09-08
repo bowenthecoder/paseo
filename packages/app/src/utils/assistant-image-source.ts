@@ -1,4 +1,4 @@
-import { localFileSourceToPath } from "@/attachments/utils";
+import { markdownFileSourceToPath } from "@/attachments/utils";
 import { resolveFilePreviewReadTarget } from "@/file-explorer/preview-target";
 
 export type AssistantImageSourceResolution =
@@ -18,8 +18,16 @@ export function resolveAssistantImageSource(input: {
     return { kind: "direct", uri: source };
   }
 
+  if (
+    /^[A-Za-z][A-Za-z0-9+.-]*:/.test(source) &&
+    !/^file:\/\//i.test(source) &&
+    !/^[A-Za-z]:(?:[\\/]|%5c|%2f)/i.test(source)
+  ) {
+    return null;
+  }
+
   const readTarget = resolveFilePreviewReadTarget({
-    path: localFileSourceToPath(source),
+    path: markdownFileSourceToPath(source),
     workspaceRoot: input.workspaceRoot,
   });
   if (!readTarget) {

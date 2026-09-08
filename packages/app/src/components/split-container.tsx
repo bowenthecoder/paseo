@@ -35,6 +35,7 @@ import Animated, {
 import { useTranslation } from "react-i18next";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { ResizeHandle } from "@/components/resize-handle";
+import { resolveWorkspaceContentMinimum } from "@/components/desktop-sidebar-layout";
 import {
   resolveExplorerSidebarDockSizes,
   resolveExplorerSidebarWidth,
@@ -427,17 +428,20 @@ export function SplitContainer({
     null,
   );
   const requestedExplorerSidebarWidth = previewExplorerSidebarWidth ?? storedExplorerSidebarWidth;
+  const minimumBodyWidth = resolveWorkspaceContentMinimum(mainRoot ?? undefined);
   const explorerSidebarWidth = resolveExplorerSidebarWidth({
     requestedWidth: requestedExplorerSidebarWidth,
     containerWidth: workspaceShellWidth,
+    minimumBodyWidth,
   });
   const explorerSidebarDockSizes = useMemo(
     () =>
       resolveExplorerSidebarDockSizes({
         requestedWidth: requestedExplorerSidebarWidth,
         containerWidth: workspaceShellWidth,
+        minimumBodyWidth,
       }),
-    [requestedExplorerSidebarWidth, workspaceShellWidth],
+    [requestedExplorerSidebarWidth, workspaceShellWidth, minimumBodyWidth],
   );
   const renderExplorerSidebarDock = Boolean(
     !focusModeEnabled && explorerSidebarPane && explorerSidebarPane.hidden !== true,
@@ -462,11 +466,12 @@ export function SplitContainer({
           resolveExplorerSidebarWidth({
             requestedWidth: nextRatio * workspaceShellWidth,
             containerWidth: workspaceShellWidth,
+            minimumBodyWidth,
           }),
         );
       }
     },
-    [workspaceShellWidth],
+    [workspaceShellWidth, minimumBodyWidth],
   );
   const commitExplorerSidebarResize = useCallback(
     (_groupId: string, sizes: number[]) => {
@@ -478,11 +483,12 @@ export function SplitContainer({
           resolveExplorerSidebarWidth({
             requestedWidth: nextRatio * workspaceShellWidth,
             containerWidth: workspaceShellWidth,
+            minimumBodyWidth,
           }),
         );
       }
     },
-    [resizeExplorerSidebar, workspaceKey, workspaceShellWidth],
+    [resizeExplorerSidebar, workspaceKey, workspaceShellWidth, minimumBodyWidth],
   );
   const renderRoot = useMemo(() => wrapRootPaneForStableMount(splitRoot.root), [splitRoot.root]);
   const handleDragStart = useCallback((event: DragStartEvent) => {

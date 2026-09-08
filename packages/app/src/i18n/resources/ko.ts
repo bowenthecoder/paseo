@@ -476,6 +476,10 @@ export const ko: TranslationResources = {
         refreshing: "파일 새로고침 중",
         hideHiddenFiles: "숨겨진 파일 숨기기",
         showHiddenFiles: "숨겨진 파일 표시",
+        parentFolder: "상위 폴더",
+        homeFolder: "홈 폴더",
+        deviceRoot: "기기 루트",
+        workingFolder: "작업 폴더",
       },
       empty: {
         noFiles: "파일 없음",

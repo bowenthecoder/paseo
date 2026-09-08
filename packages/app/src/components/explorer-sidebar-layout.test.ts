@@ -19,4 +19,14 @@ describe("Explorer sidebar layout", () => {
     expect(resolveExplorerSidebarWidth({ requestedWidth: 900, containerWidth: 1200 })).toBe(800);
     expect(resolveExplorerSidebarWidth({ requestedWidth: 600, containerWidth: 750 })).toBe(350);
   });
+
+  it("reserves both chat and document widths before a wide Explorer", () => {
+    expect(
+      resolveExplorerSidebarWidth({
+        requestedWidth: 700,
+        containerWidth: 1280,
+        minimumBodyWidth: 800,
+      }),
+    ).toBe(480);
+  });
 });

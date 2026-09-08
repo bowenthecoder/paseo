@@ -5,11 +5,15 @@ const MIN_WORKSPACE_BODY_WIDTH = 400;
 export function resolveExplorerSidebarWidth(input: {
   requestedWidth?: number;
   containerWidth: number;
+  minimumBodyWidth?: number;
 }): number {
   const requestedWidth = input.requestedWidth ?? DEFAULT_EXPLORER_SIDEBAR_WIDTH;
   const maximumVisibleWidth =
     input.containerWidth > 0
-      ? Math.max(MIN_EXPLORER_SIDEBAR_WIDTH, input.containerWidth - MIN_WORKSPACE_BODY_WIDTH)
+      ? Math.max(
+          MIN_EXPLORER_SIDEBAR_WIDTH,
+          input.containerWidth - (input.minimumBodyWidth ?? MIN_WORKSPACE_BODY_WIDTH),
+        )
       : requestedWidth;
   return Math.max(MIN_EXPLORER_SIDEBAR_WIDTH, Math.min(maximumVisibleWidth, requestedWidth));
 }
@@ -17,6 +21,7 @@ export function resolveExplorerSidebarWidth(input: {
 export function resolveExplorerSidebarDockSizes(input: {
   requestedWidth?: number;
   containerWidth: number;
+  minimumBodyWidth?: number;
 }): number[] {
   if (input.containerWidth <= 0) {
     return [1, 0];

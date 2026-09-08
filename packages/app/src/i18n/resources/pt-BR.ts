@@ -479,6 +479,10 @@ export const ptBR: TranslationResources = {
         refreshing: "Atualizando arquivos",
         hideHiddenFiles: "Ocultar arquivos ocultos",
         showHiddenFiles: "Mostrar arquivos ocultos",
+        parentFolder: "Pasta superior",
+        homeFolder: "Pasta pessoal",
+        deviceRoot: "Raiz do dispositivo",
+        workingFolder: "Pasta de trabalho",
       },
       empty: {
         noFiles: "Nenhum arquivo",

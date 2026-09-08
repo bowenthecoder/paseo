@@ -1,5 +1,6 @@
 import { generateMessageId } from "@/types/stream";
 import { isAbsolutePath } from "@/utils/path";
+import { decodeUrlPath } from "@/utils/decode-url-path";
 import { isRasterImageMimeType } from "./file-types";
 
 export function generateAttachmentId(): string {
@@ -142,14 +143,6 @@ export function pathToFileUri(path: string): string {
   return `file:///${path.replace(/\\/g, "/")}`;
 }
 
-function decodeFilePathSource(source: string): string {
-  try {
-    return decodeURIComponent(source);
-  } catch {
-    return source;
-  }
-}
-
 function normalizeWindowsDrivePath(path: string): string {
   if (!/^[A-Za-z]:[\\/]/.test(path)) {
     return path;
@@ -166,7 +159,7 @@ export function fileUriToPath(uri: string): string {
     return uri;
   }
   const fileSource = uri.slice("file://".length);
-  const decodedPath = decodeFilePathSource(fileSource);
+  const decodedPath = decodeUrlPath(fileSource);
   if (!fileSource.startsWith("/")) {
     return `\\\\${decodedPath.replace(/\//g, "\\")}`;
   }
@@ -178,9 +171,19 @@ export function localFileSourceToPath(source: string): string {
   if (source.startsWith("file://")) {
     path = fileUriToPath(source);
   } else if (isMarkdownEncodedWindowsDrivePath(source)) {
-    path = decodeFilePathSource(source);
+    path = decodeUrlPath(source);
   }
   return normalizeWindowsDrivePath(path);
+}
+
+/** Markdown destinations are URLs; file picker and attachment paths remain literal paths. */
+export function markdownFileSourceToPath(source: string): string {
+  // Split URL suffixes before decoding so escaped '?' and '#' remain part of the filename.
+  const pathname = source.split(/[?#]/, 1)[0];
+  if (pathname.toLowerCase().startsWith("file://")) {
+    return fileUriToPath(`file://${pathname.slice("file://".length)}`);
+  }
+  return normalizeWindowsDrivePath(decodeUrlPath(pathname));
 }
 
 export function getFileExtensionFromName(fileName: string | null | undefined): string {
