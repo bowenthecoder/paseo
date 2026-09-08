@@ -1,5 +1,12 @@
 import type { WorkspaceTabTarget } from "@/workspace-tabs/model";
 
+/**
+ * Where a panel may render. A workspace is one chat plus one side panel, so `main` is the
+ * chat surface and `explorer` is that side panel. The lists below are what routes an open
+ * request: a terminal, a browser or a tree can only land in the side panel, and a chat can
+ * only land in the chat. The persisted spelling stays `explorer` because plugin panels
+ * declare that location by name.
+ */
 export type PaneHost = "main" | "explorer";
 
 export interface PanelManifest<K extends WorkspaceTabTarget["kind"] = WorkspaceTabTarget["kind"]> {
@@ -20,32 +27,32 @@ const manifests = {
   },
   draft: {
     kind: "draft",
-    supportedHosts: ["main", "explorer"],
+    supportedHosts: ["main"],
     resourceKey: (target) => target.draftId,
   },
   agent: {
     kind: "agent",
-    supportedHosts: ["main", "explorer"],
+    supportedHosts: ["main"],
     resourceKey: (target) => target.agentId,
   },
   provider_subagent: {
     kind: "provider_subagent",
-    supportedHosts: ["main", "explorer"],
+    supportedHosts: ["main"],
     resourceKey: (target) => `${target.parentAgentId}:${target.subagentId}`,
   },
   subagents: {
     kind: "subagents",
-    supportedHosts: ["main", "explorer"],
+    supportedHosts: ["main"],
     resourceKey: (target) => target.parentAgentId,
   },
   terminal: {
     kind: "terminal",
-    supportedHosts: ["main", "explorer"],
+    supportedHosts: ["explorer"],
     resourceKey: (target) => target.terminalId,
   },
   browser: {
     kind: "browser",
-    supportedHosts: ["main"],
+    supportedHosts: ["explorer"],
     resourceKey: (target) => target.browserId,
   },
   changes_tree: {
@@ -60,17 +67,17 @@ const manifests = {
   },
   pull_request: {
     kind: "pull_request",
-    supportedHosts: ["main", "explorer"],
+    supportedHosts: ["explorer"],
     resourceKey: () => "pull_request",
   },
   file: {
     kind: "file",
-    supportedHosts: ["main", "explorer"],
+    supportedHosts: ["explorer"],
     resourceKey: (target) => target.path,
   },
   working_diff: {
     kind: "working_diff",
-    supportedHosts: ["main", "explorer"],
+    supportedHosts: ["explorer"],
     resourceKey: () => "working_diff",
   },
   plugin: {
@@ -84,12 +91,12 @@ const manifests = {
   },
   setup: {
     kind: "setup",
-    supportedHosts: ["main"],
+    supportedHosts: ["explorer"],
     resourceKey: (target) => target.workspaceId,
   },
   commit_diff: {
     kind: "commit_diff",
-    supportedHosts: ["main", "explorer"],
+    supportedHosts: ["explorer"],
     resourceKey: (target) => target.sha,
   },
 } satisfies PanelManifestByKind;
