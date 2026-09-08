@@ -42,31 +42,25 @@ function makeDeps(
 }
 
 describe("loadAppSettingsFromStorage", () => {
-  it("opens chat files on the side by default, including older partial settings", async () => {
-    const fresh = await loadAppSettingsFromStorage(makeDeps());
-    const partial = await loadAppSettingsFromStorage(
-      makeDeps({
-        storage: createInMemoryKeyValueStorage({
-          [APP_SETTINGS_KEY]: JSON.stringify({ openInSidePane: { explorerFiles: false } }),
-        }),
-      }),
-    );
-
-    expect(fresh.openInSidePane.chatFiles).toBe(true);
-    expect(partial.openInSidePane.chatFiles).toBe(true);
-    expect(partial.openInSidePane.explorerFiles).toBe(false);
-  });
-
-  it("preserves an explicit Main location for chat files", async () => {
+  // COMPAT(singleChatLayout): a blob written before the single-chat refactor still carries the
+  // split-layout destination preferences. They must parse and be dropped, not fail the whole read
+  // and reset every other setting to its default.
+  it("drops legacy split-layout destinations while keeping the rest of the blob", async () => {
     const result = await loadAppSettingsFromStorage(
       makeDeps({
         storage: createInMemoryKeyValueStorage({
-          [APP_SETTINGS_KEY]: JSON.stringify({ openInSidePane: { chatFiles: false } }),
+          [APP_SETTINGS_KEY]: JSON.stringify({
+            theme: "dark",
+            openInSidePane: { chatFiles: false, explorerFiles: false },
+            pullRequestOpenLocation: "side",
+          }),
         }),
       }),
     );
 
-    expect(result.openInSidePane.chatFiles).toBe(false);
+    expect(result.theme).toBe("dark");
+    expect(result).not.toHaveProperty("openInSidePane");
+    expect(result).not.toHaveProperty("pullRequestOpenLocation");
   });
 
   it("preserves a persisted steer send behavior", async () => {
@@ -222,37 +216,6 @@ describe("loadAppSettingsFromStorage", () => {
     const result = await loadAppSettingsFromStorage(deps);
 
     expect(result.chatOutlineEnabled).toBe(false);
-  });
-
-  it("collapses legacy diff destinations into the former Explorer choice", async () => {
-    const deps = makeDeps({
-      storage: createInMemoryKeyValueStorage({
-        [APP_SETTINGS_KEY]: JSON.stringify({
-          openInSidePane: { explorerChanges: true, changesLinks: false },
-        }),
-      }),
-    });
-
-    const result = await loadAppSettingsFromStorage(deps);
-
-    expect(result.openInSidePane.diffs).toBe(true);
-    expect(result.openInSidePane).not.toHaveProperty("explorerChanges");
-    expect(result.openInSidePane).not.toHaveProperty("changesLinks");
-  });
-
-  it("defaults PRs to Explorer and preserves the legacy side choice", async () => {
-    const defaults = await loadAppSettingsFromStorage(makeDeps());
-    const legacySide = await loadAppSettingsFromStorage(
-      makeDeps({
-        storage: createInMemoryKeyValueStorage({
-          [APP_SETTINGS_KEY]: JSON.stringify({ openInSidePane: { pullRequests: true } }),
-        }),
-      }),
-    );
-
-    expect(defaults.pullRequestOpenLocation).toBe("explorer");
-    expect(legacySide.pullRequestOpenLocation).toBe("side");
-    expect(legacySide.openInSidePane).not.toHaveProperty("pullRequests");
   });
 
   it("uses the native terminal renderer by default", async () => {

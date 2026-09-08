@@ -156,6 +156,7 @@ export interface WorkspaceHeaderMenuDesktopProps extends WorkspaceHeaderWorkspac
   normalizedServerId: string;
   createTerminalDisabled: boolean;
   showChanges: boolean;
+  onCreateDraftTab: () => void;
   onCreateTerminalWithProfile: (profile: TerminalProfile) => void;
   onOpenChanges: () => void;
   onOpenFiles: () => void;
@@ -169,6 +170,7 @@ export function WorkspaceHeaderMenuDesktop({
   normalizedServerId,
   createTerminalDisabled,
   showChanges,
+  onCreateDraftTab,
   onCreateTerminalWithProfile,
   onOpenChanges,
   onOpenFiles,
@@ -196,6 +198,14 @@ export function WorkspaceHeaderMenuDesktop({
         <WorkspaceHeaderMenuTriggerIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" width={220} testID="workspace-header-menu">
+        <DropdownMenuItem
+          testID="workspace-header-new-agent"
+          leading={MENU_NEW_AGENT_ICON}
+          onSelect={onCreateDraftTab}
+        >
+          {t("workspace.header.actions.newAgent")}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         {showChanges ? (
           <DropdownMenuItem
             testID="workspace-header-open-changes"

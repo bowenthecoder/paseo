@@ -522,11 +522,24 @@ export function createWorkspaceLayoutStore(
           if (!result) {
             return null;
           }
-          const nextLayout = keepWorkspaceFocusOutOfExplorerSidebar(
+          const focusedLayout = keepWorkspaceFocusOutOfExplorerSidebar(
             result.layout,
             placement.explorerSidebarPaneId,
             placement.layout.focusedPaneId,
           );
+          // A terminal, tree or browser can only live in the side panel, so an explicit open
+          // has to bring the panel out. Background opens stay quiet.
+          const landedInSidePanel =
+            findPaneContainingTab(focusedLayout.root, result.tabId)?.id ===
+            EXPLORER_SIDEBAR_PANE_ID;
+          const nextLayout =
+            landedInSidePanel && input.intent !== "background"
+              ? (setPaneHiddenInLayout({
+                  layout: focusedLayout,
+                  paneId: EXPLORER_SIDEBAR_PANE_ID,
+                  hidden: false,
+                }) ?? focusedLayout)
+              : focusedLayout;
           const shouldPinAgent = input.pin === true && normalizedTarget.kind === "agent";
           set((state) => ({
             ...withoutFocusRestoration(state, normalizedWorkspaceKey),
