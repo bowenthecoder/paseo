@@ -40,7 +40,6 @@ const NONE: ShortcutAction = { kind: "none" };
 // Action ids whose routing is a no-payload pass-through to the dispatcher.
 const PASSTHROUGH_DISPATCH: Record<string, KeyboardActionDefinition> = {
   "agent.interrupt": { id: "agent.interrupt", scope: "global" },
-  "workspace.tab.menu.open": { id: "workspace.tab.menu.open", scope: "workspace" },
   "workspace.tab.target.agent": { id: "workspace.tab.target.agent", scope: "workspace" },
   "workspace.tab.target.browser": { id: "workspace.tab.target.browser", scope: "workspace" },
   "workspace.tab.target.changes": { id: "workspace.tab.target.changes", scope: "workspace" },
@@ -53,17 +52,6 @@ const PASSTHROUGH_DISPATCH: Record<string, KeyboardActionDefinition> = {
   "workspace.terminal.new": { id: "workspace.terminal.new", scope: "workspace" },
   "workspace.tab.close.current": { id: "workspace.tab.close-current", scope: "workspace" },
   "sidebar.toggle.right": { id: "sidebar.toggle.right", scope: "sidebar" },
-  "workspace.pane.split.right": { id: "workspace.pane.split.right", scope: "workspace" },
-  "workspace.pane.split.down": { id: "workspace.pane.split.down", scope: "workspace" },
-  "workspace.pane.focus.left": { id: "workspace.pane.focus.left", scope: "workspace" },
-  "workspace.pane.focus.right": { id: "workspace.pane.focus.right", scope: "workspace" },
-  "workspace.pane.focus.up": { id: "workspace.pane.focus.up", scope: "workspace" },
-  "workspace.pane.focus.down": { id: "workspace.pane.focus.down", scope: "workspace" },
-  "workspace.pane.move-tab.left": { id: "workspace.pane.move-tab.left", scope: "workspace" },
-  "workspace.pane.move-tab.right": { id: "workspace.pane.move-tab.right", scope: "workspace" },
-  "workspace.pane.move-tab.up": { id: "workspace.pane.move-tab.up", scope: "workspace" },
-  "workspace.pane.move-tab.down": { id: "workspace.pane.move-tab.down", scope: "workspace" },
-  "workspace.pane.close": { id: "workspace.pane.close", scope: "workspace" },
   "view.toggle.focus": { id: "workspace.focus.toggle", scope: "workspace" },
 };
 
@@ -96,24 +84,6 @@ function hasPayloadKey<K extends "index" | "delta" | "kind">(
 
 function dispatch(action: KeyboardActionDefinition): ShortcutAction {
   return { kind: "dispatch", action };
-}
-
-function routeWorkspaceTabNavigateIndex(payload: KeyboardShortcutPayload): ShortcutAction {
-  if (!hasPayloadKey(payload, "index")) return NONE;
-  return dispatch({
-    id: "workspace.tab.navigate-index",
-    scope: "workspace",
-    index: payload.index,
-  });
-}
-
-function routeWorkspaceTabNavigateRelative(payload: KeyboardShortcutPayload): ShortcutAction {
-  if (!hasPayloadKey(payload, "delta")) return NONE;
-  return dispatch({
-    id: "workspace.tab.navigate-relative",
-    scope: "workspace",
-    delta: payload.delta,
-  });
 }
 
 function routeWorkspaceNavigateIndex(
@@ -193,10 +163,6 @@ export function routeKeyboardShortcut(
   }
 
   switch (input.action) {
-    case "workspace.tab.navigate.index":
-      return routeWorkspaceTabNavigateIndex(input.payload);
-    case "workspace.tab.navigate.relative":
-      return routeWorkspaceTabNavigateRelative(input.payload);
     case "workspace.navigate.index":
       return routeWorkspaceNavigateIndex(input.payload, ctx);
     case "workspace.navigate.relative":

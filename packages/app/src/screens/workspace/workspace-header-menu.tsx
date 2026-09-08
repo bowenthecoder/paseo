@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 import {
   Copy,
   Ellipsis,
+  FileText,
+  GitCompare,
   Globe,
   Import as ImportIcon,
   Settings,
@@ -40,6 +42,8 @@ const ThemedSquarePen = withUnistyles(SquarePen);
 const ThemedGlobe = withUnistyles(Globe);
 const ThemedImport = withUnistyles(ImportIcon);
 const ThemedSettings = withUnistyles(Settings);
+const ThemedGitCompare = withUnistyles(GitCompare);
+const ThemedFileText = withUnistyles(FileText);
 
 const mutedColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 
@@ -49,6 +53,8 @@ const MENU_NEW_TERMINAL_ICON = <TerminalProfileIcon iconKey={undefined} size={16
 const MENU_IMPORT_ICON = <ThemedImport size={16} uniProps={mutedColorMapping} />;
 const MENU_COPY_ICON = <ThemedCopy size={16} uniProps={mutedColorMapping} />;
 const MENU_SETTINGS_ICON = <ThemedSettings size={16} uniProps={mutedColorMapping} />;
+const MENU_CHANGES_ICON = <ThemedGitCompare size={16} uniProps={mutedColorMapping} />;
+const MENU_FILES_ICON = <ThemedFileText size={16} uniProps={mutedColorMapping} />;
 function WorkspaceHeaderMenuTriggerIcon() {
   return (
     <ThemedEllipsis
@@ -146,11 +152,39 @@ function workspaceHeaderMenuButtonStyle({
   return iconButtonChromeStyle({ size: "large", state: { hovered, pressed, open } });
 }
 
+export interface WorkspaceHeaderMenuDesktopProps extends WorkspaceHeaderWorkspaceActions {
+  normalizedServerId: string;
+  createTerminalDisabled: boolean;
+  showChanges: boolean;
+  onCreateTerminalWithProfile: (profile: TerminalProfile) => void;
+  onOpenChanges: () => void;
+  onOpenFiles: () => void;
+}
+
 /**
- * Wide layouts make tabs from the tab strip's `+` menu, so this one carries workspace actions only.
+ * There is no tab strip left to launch from, so the side panel's views and the terminal
+ * profiles live here alongside the workspace actions.
  */
-export function WorkspaceHeaderMenuDesktop(props: WorkspaceHeaderWorkspaceActions) {
+export function WorkspaceHeaderMenuDesktop({
+  normalizedServerId,
+  createTerminalDisabled,
+  showChanges,
+  onCreateTerminalWithProfile,
+  onOpenChanges,
+  onOpenFiles,
+  ...workspaceActions
+}: WorkspaceHeaderMenuDesktopProps) {
   const { t } = useTranslation();
+  const router = useRouter();
+  const { config } = useDaemonConfig(normalizedServerId);
+  const profiles = useMemo(
+    () => resolveTerminalProfiles(config?.terminalProfiles),
+    [config?.terminalProfiles],
+  );
+  const handleEditProfiles = useCallback(() => {
+    router.push(buildSettingsHostSectionRoute(normalizedServerId, "terminals") as Href);
+  }, [normalizedServerId, router]);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -162,7 +196,40 @@ export function WorkspaceHeaderMenuDesktop(props: WorkspaceHeaderWorkspaceAction
         <WorkspaceHeaderMenuTriggerIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" width={220} testID="workspace-header-menu">
-        <WorkspaceHeaderWorkspaceActionItems {...props} />
+        {showChanges ? (
+          <DropdownMenuItem
+            testID="workspace-header-open-changes"
+            leading={MENU_CHANGES_ICON}
+            onSelect={onOpenChanges}
+          >
+            {t("workspace.tabs.actions.changes")}
+          </DropdownMenuItem>
+        ) : null}
+        <DropdownMenuItem
+          testID="workspace-header-open-files"
+          leading={MENU_FILES_ICON}
+          onSelect={onOpenFiles}
+        >
+          {t("workspace.tabs.actions.files")}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <WorkspaceHeaderWorkspaceActionItems {...workspaceActions} />
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>{t("workspace.tabs.actions.terminalProfilesMenu")}</DropdownMenuLabel>
+        {profiles.map((profile) => (
+          <HeaderMenuProfileItem
+            key={profile.id}
+            profile={profile}
+            disabled={createTerminalDisabled}
+            onCreateTerminalWithProfile={onCreateTerminalWithProfile}
+          />
+        ))}
+        <DropdownMenuItem
+          testID="workspace-header-edit-terminal-profiles"
+          onSelect={handleEditProfiles}
+        >
+          {t("workspace.tabs.actions.editTerminalProfiles")}
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

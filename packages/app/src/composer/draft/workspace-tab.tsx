@@ -53,7 +53,6 @@ import {
   type WorkspaceDraftTabSetup,
 } from "@/workspace-tabs/model";
 import { openWorkspaceChanges } from "@/workspace-tabs/open-supporting-view";
-import { useSettings } from "@/hooks/use-settings";
 
 const EMPTY_PENDING_PERMISSIONS = new Map();
 const EMPTY_ONLINE_SERVER_IDS: string[] = [];

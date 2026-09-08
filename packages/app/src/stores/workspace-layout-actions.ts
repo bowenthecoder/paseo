@@ -1,10 +1,7 @@
 import invariant from "tiny-invariant";
 import type { JsonValue } from "@getpaseo/protocol/agent-types";
 import type { WorkspaceTab, WorkspaceTabTarget } from "@/workspace-tabs/model";
-import { MIN_SPLIT_SIZE } from "@/stores/workspace-layout-constants";
 import { panelResourceKey, panelSupportsHost } from "@/panels/panel-manifest";
-import { defaultWorkspaceLayoutIds } from "@/stores/workspace-layout-ids";
-import type { WorkspaceLayoutNodeIdPrefix } from "@/stores/workspace-layout-ids";
 import {
   buildDeterministicWorkspaceTabId,
   normalizeWorkspaceTabTarget,
@@ -64,20 +61,9 @@ interface NormalizeSizesInput {
   count: number;
 }
 
-interface ReorderTabsForPaneInput {
-  pane: SplitPaneInternal;
-  tabIds: string[];
-}
-
 interface UpdatePaneInTreeInput {
   paneId: string;
   updater: (pane: SplitPaneInternal) => SplitPaneInternal;
-}
-
-interface InsertChildIntoGroupInput {
-  index: number;
-  node: SplitNodeInternal;
-  sizes: number[];
 }
 
 interface DetachTabFromTreeInput {
@@ -95,19 +81,6 @@ interface InsertTabIntoPaneInput {
   paneId: string;
   tab: WorkspaceTab;
   focusTabId?: string | null;
-}
-
-interface InsertSplitInternalInput {
-  root: SplitNodeInternal;
-  targetPaneId: string;
-  tabId: string;
-  position: "left" | "right" | "top" | "bottom";
-  createNodeId: (prefix: WorkspaceLayoutNodeIdPrefix) => string;
-}
-
-interface InsertSplitInternalResult {
-  root: SplitNodeInternal;
-  newPaneId: string;
 }
 
 /**
@@ -178,20 +151,10 @@ interface ConvertDraftToAgentInLayoutResult {
   tabId: string;
 }
 
-interface ReorderFocusedPaneTabsInLayoutInput {
-  layout: WorkspaceLayout;
-  tabIds: string[];
-}
-
 interface CloseTabInLayoutInput {
   layout: WorkspaceLayout;
   tabId: string;
   preserveEmptyPaneId?: string | null;
-}
-
-interface SplitPaneInLayoutResult {
-  layout: WorkspaceLayout;
-  paneId: string;
 }
 
 interface FocusTabInLayoutInput {
@@ -427,26 +390,6 @@ function findPanePathContainingTab(
   return null;
 }
 
-function findGroupPathById(
-  node: SplitNodeInternal,
-  groupId: string,
-  path: number[] = [],
-): number[] | null {
-  if (node.kind === "pane") {
-    return null;
-  }
-  if (node.group.id === groupId) {
-    return path;
-  }
-  for (let index = 0; index < node.group.children.length; index += 1) {
-    const childPath = findGroupPathById(node.group.children[index], groupId, [...path, index]);
-    if (childPath) {
-      return childPath;
-    }
-  }
-  return null;
-}
-
 /**
  * The group holding the node at `targetPath`, or null when that node is the whole tree.
  *
@@ -455,13 +398,6 @@ function findGroupPathById(
  * parentless wraps root-level panes in a redundant group on every split, which reparents the
  * existing pane and remounts its whole subtree.
  */
-function findParentGroup(root: SplitNodeInternal, targetPath: number[]): SplitNodeInternal | null {
-  if (targetPath.length === 0) {
-    return null;
-  }
-  return getNodeAtPath(root, targetPath.slice(0, -1));
-}
-
 function getNodeAtPath(node: SplitNodeInternal, path: number[]): SplitNodeInternal {
   let current = node;
   for (const index of path) {
@@ -491,21 +427,6 @@ function replaceNodeAtPath(
     direction: node.group.direction,
     children: nextChildren,
     sizes: node.group.sizes,
-  });
-}
-
-function insertChildIntoGroup(
-  groupNode: SplitNodeInternal,
-  input: InsertChildIntoGroupInput,
-): SplitNodeInternal {
-  invariant(groupNode.kind === "group", "Expected group for split insertion");
-  const nextChildren = groupNode.group.children.slice();
-  nextChildren.splice(input.index, 0, input.node);
-  return createGroupNode({
-    id: groupNode.group.id,
-    direction: groupNode.group.direction,
-    children: nextChildren,
-    sizes: input.sizes,
   });
 }
 
@@ -633,35 +554,6 @@ function normalizeNode(node: unknown): SplitNodeInternal | null {
   }
 
   return null;
-}
-
-function reorderTabsForPane(input: ReorderTabsForPaneInput): SplitPaneInternal {
-  const nextIds = normalizeTabIds(input.tabIds);
-  const byId = new Map(input.pane.tabs.map((tab) => [tab.tabId, tab]));
-  const reordered: WorkspaceTab[] = [];
-  const seen = new Set<string>();
-
-  for (const tabId of nextIds) {
-    const tab = byId.get(tabId);
-    if (!tab || seen.has(tabId)) {
-      continue;
-    }
-    seen.add(tabId);
-    reordered.push(tab);
-  }
-
-  for (const tab of input.pane.tabs) {
-    if (seen.has(tab.tabId)) {
-      continue;
-    }
-    seen.add(tab.tabId);
-    reordered.push(tab);
-  }
-
-  return normalizePaneAfterTabChange({
-    ...input.pane,
-    tabs: reordered,
-  });
 }
 
 function removePaneByPath(root: SplitNodeInternal, path: number[]): SplitNodeInternal {
@@ -826,68 +718,6 @@ function updatePaneInTree(
       pane: normalizePaneAfterTabChange(input.updater(node.pane)),
     };
   });
-}
-
-function insertSplitInternal(input: InsertSplitInternalInput): InsertSplitInternalResult {
-  const direction =
-    input.position === "left" || input.position === "right" ? "horizontal" : "vertical";
-  const insertAfter = input.position === "right" || input.position === "bottom";
-
-  const targetPathBeforeDetach = findPanePathById(input.root, input.targetPaneId);
-  invariant(targetPathBeforeDetach, `Target pane not found: ${input.targetPaneId}`);
-
-  const detached = detachTabFromTree(input.root, {
-    tabId: input.tabId,
-    preserveEmptyPaneId: input.targetPaneId,
-  });
-  invariant(detached.tab, `Tab not found: ${input.tabId}`);
-
-  const targetPath = findPanePathById(detached.root, input.targetPaneId);
-  invariant(targetPath, `Target pane not found after detach: ${input.targetPaneId}`);
-  const targetNode = getNodeAtPath(detached.root, targetPath);
-  invariant(targetNode.kind === "pane", "Expected target pane after detach");
-
-  const newPaneId = input.createNodeId("pane");
-  const newPaneNode = createPaneNode({
-    id: newPaneId,
-    tabs: [detached.tab],
-    focusedTabId: detached.tab.tabId,
-  });
-
-  const parentPath = targetPath.slice(0, -1);
-  const targetIndex = targetPath[targetPath.length - 1] ?? 0;
-  const parentNode = findParentGroup(detached.root, targetPath);
-
-  if (parentNode?.kind === "group" && parentNode.group.direction === direction) {
-    const targetSize = parentNode.group.sizes[targetIndex] ?? 0;
-    const nextSizes = parentNode.group.sizes.slice();
-    const insertIndex = insertAfter ? targetIndex + 1 : targetIndex;
-    nextSizes.splice(insertIndex, 0, targetSize / 2);
-    nextSizes[targetIndex + (insertAfter ? 0 : 1)] = targetSize / 2;
-
-    return {
-      root: replaceNodeAtPath(detached.root, parentPath, () =>
-        insertChildIntoGroup(parentNode, {
-          index: insertIndex,
-          node: newPaneNode,
-          sizes: nextSizes,
-        }),
-      ),
-      newPaneId,
-    };
-  }
-
-  const newGroup = createGroupNode({
-    id: input.createNodeId("group"),
-    direction,
-    children: insertAfter ? [targetNode, newPaneNode] : [newPaneNode, targetNode],
-    sizes: [0.5, 0.5],
-  });
-
-  return {
-    root: replaceNodeAtPath(detached.root, targetPath, () => newGroup),
-    newPaneId,
-  };
 }
 
 export function normalizeLayout(layout: unknown): WorkspaceLayout {

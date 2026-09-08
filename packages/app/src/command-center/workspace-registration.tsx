@@ -4,7 +4,6 @@ import {
   ArrowDownToLine,
   ArrowLeft,
   ArrowRight,
-  Columns2,
   Copy,
   Files,
   Focus,
@@ -13,19 +12,16 @@ import {
   GitPullRequest,
   Globe,
   ListChecks,
-  Move,
   PanelRight,
   Pencil,
   Pin,
   PinOff,
   RotateCw,
-  Rows2,
   SquarePen,
   SquareTerminal,
   X,
 } from "lucide-react-native";
 import { getIsElectron } from "@/constants/platform";
-import { supportsDesktopPaneSplits, useIsCompactFormFactor } from "@/constants/layout";
 import { GIT_ACTION_ICONS } from "@/git/action-icons";
 import { useGitActionRunner, useGitActions } from "@/git/use-actions";
 import { useKeyboardShortcutOverrides } from "@/hooks/use-keyboard-shortcut-overrides";
@@ -40,6 +36,7 @@ import {
   collectAllTabs,
   findPaneById,
   useWorkspaceLayoutStore,
+  DEFAULT_PANE_ID,
 } from "@/stores/workspace-layout-store";
 import { shouldShowWorkspaceSetup, useWorkspaceSetupStore } from "@/stores/workspace-setup-store";
 import { clearCommandCenterFocusRestoreElement } from "@/utils/command-center-focus-restore";
@@ -66,8 +63,6 @@ const WORKSPACE_COMMAND_CENTER_ICONS = {
   newAgent: getCommandCenterIcon(SquarePen),
   newTerminal: getCommandCenterIcon(SquareTerminal),
   newBrowser: getCommandCenterIcon(Globe),
-  splitRight: getCommandCenterIcon(Columns2),
-  splitDown: getCommandCenterIcon(Rows2),
   changes: getCommandCenterIcon(GitCompareArrows),
   files: getCommandCenterIcon(Files),
   pullRequest: getCommandCenterIcon(GitPullRequest),
@@ -77,8 +72,6 @@ const WORKSPACE_COMMAND_CENTER_ICONS = {
   rename: getCommandCenterIcon(Pencil),
   reload: getCommandCenterIcon(RotateCw),
   copy: getCommandCenterIcon(Copy),
-  focusPane: getCommandCenterIcon(Focus),
-  moveTab: getCommandCenterIcon(Move),
   focusMode: getCommandCenterIcon(ArrowDownToLine),
   explorerSidebar: getCommandCenterIcon(PanelRight),
   // Workspace management action icons
@@ -89,12 +82,6 @@ const WORKSPACE_COMMAND_CENTER_ICONS = {
   showSetup: getCommandCenterIcon(ListChecks),
   toggleFocusMode: getCommandCenterIcon(Focus),
 };
-
-const OPEN_PANEL_LABEL_KEYS = {
-  supporting: "shell.commandCenter.open",
-  "side-pane": "shell.commandCenter.openInSidePane",
-  "focused-pane": "shell.commandCenter.openInFocusedPane",
-} as const;
 
 function staticIcon(element: ReactElement | undefined): CommandCenterIcon | undefined {
   if (!element) return undefined;
@@ -172,13 +159,11 @@ export function useWorkspaceCommandCenterActions(): void {
   const layout = useWorkspaceLayoutStore((state) =>
     workspaceKey ? (state.layoutByWorkspace[workspaceKey] ?? null) : null,
   );
-  const focusedPane = layout ? findPaneById(layout.root, layout.focusedPaneId) : null;
-  const focusedTabs = layout
-    ? collectAllTabs(layout.root).filter((tab) => focusedPane?.tabIds.includes(tab.tabId))
-    : [];
-  const activeTabIndex = focusedTabs.findIndex((tab) => tab.tabId === focusedPane?.focusedTabId);
-  const activeTabKind =
-    activeTabIndex >= 0 ? (focusedTabs[activeTabIndex]?.target.kind ?? null) : null;
+  const chatPane = layout ? findPaneById(layout.root, DEFAULT_PANE_ID) : null;
+  const activeTabKind = layout
+    ? (collectAllTabs(layout.root).find((tab) => tab.tabId === chatPane?.focusedTabId)?.target
+        .kind ?? null)
+    : null;
   // One narrow projection for the workspace management contribution fields. The registry's snapshot
   // dedup is unreachable (registry.ts spreads a fresh object per contribution, then compares by
   // reference), so the array-identity guard in registry.replace() is the only thing stopping a
@@ -193,7 +178,6 @@ export function useWorkspaceCommandCenterActions(): void {
   const cwd = useWorkspaceDirectory(serverId, workspaceId);
   const currentBranch = fields?.currentBranch ?? null;
   const isPinned = fields?.pinnedAt != null;
-  const isCompact = useIsCompactFormFactor();
   const canPin = useHostFeature(serverId, "workspacePinning");
   const persistenceKey =
     serverId && fields
@@ -240,14 +224,10 @@ export function useWorkspaceCommandCenterActions(): void {
           newAgent: t("workspace.tabs.actions.newAgent"),
           newTerminal: t("workspace.tabs.actions.newTerminal"),
           newBrowser: t("workspace.tabs.actions.newBrowser"),
-          splitRight: t("workspace.tabs.actions.splitRight"),
-          splitDown: t("workspace.tabs.actions.splitDown"),
           changes: t("workspace.tabs.actions.changes"),
           files: t("workspace.tabs.actions.files"),
           pullRequest: t("workspace.tabs.actions.pullRequest"),
-          openPanel: (name, placement) => t(OPEN_PANEL_LABEL_KEYS[placement], { name }),
-          previousTab: t("settings.shortcuts.help.previousTab"),
-          nextTab: t("settings.shortcuts.help.nextTab"),
+          openPanel: (name) => t("shell.commandCenter.open", { name }),
           closeCurrentTab: t("settings.shortcuts.help.closeCurrentTab"),
           renameTab: t("workspace.tabs.menu.rename"),
           reloadAgent: t("workspace.tabs.menu.reloadAgent"),
@@ -255,18 +235,6 @@ export function useWorkspaceCommandCenterActions(): void {
           copyAgentId: t("workspace.tabs.menu.copyAgentId"),
           copyTerminalId: t("workspace.tabs.menu.copyTerminalId"),
           copyFilePath: t("workspace.tabs.menu.copyFilePath"),
-          closeTabsLeft: t("workspace.tabs.menu.closeLeft"),
-          closeTabsRight: t("workspace.tabs.menu.closeRight"),
-          closeOtherTabs: t("workspace.tabs.menu.closeOthers"),
-          focusPaneLeft: t("settings.shortcuts.help.focusPaneLeft"),
-          focusPaneRight: t("settings.shortcuts.help.focusPaneRight"),
-          focusPaneUp: t("settings.shortcuts.help.focusPaneUp"),
-          focusPaneDown: t("settings.shortcuts.help.focusPaneDown"),
-          moveTabLeft: t("settings.shortcuts.help.moveTabLeft"),
-          moveTabRight: t("settings.shortcuts.help.moveTabRight"),
-          moveTabUp: t("settings.shortcuts.help.moveTabUp"),
-          moveTabDown: t("settings.shortcuts.help.moveTabDown"),
-          closePane: t("settings.shortcuts.help.closePane"),
           toggleFocusMode: t("settings.shortcuts.help.toggleFocusMode"),
           toggleExplorerSidebar: t("workspace.tabs.explorerSidebar.toggle"),
           // Workspace management labels
@@ -284,15 +252,12 @@ export function useWorkspaceCommandCenterActions(): void {
         },
         shortcuts: resolveWorkspaceShortcuts(overrides),
         capabilities: {
-          canSplitPanes: supportsDesktopPaneSplits() && !isCompact,
           canOpenBrowserTabs: getIsElectron(),
           isGit,
           canPin,
           canShowSetup,
         },
         activeTabKind,
-        activeTabIndex,
-        activeTabCount: focusedTabs.length,
         currentBranch,
         isPinned,
         labelCatalog,
@@ -306,16 +271,13 @@ export function useWorkspaceCommandCenterActions(): void {
         toggleLabel,
       }),
     [
-      activeTabIndex,
       activeTabKind,
       canPin,
       canShowSetup,
       copyBranchName,
       copyPath,
       currentBranch,
-      focusedTabs.length,
       gitActions,
-      isCompact,
       isGit,
       isPinned,
       keyboardActionDispatcher,
