@@ -50,6 +50,11 @@ opening a file leaves that dock visible. Both presentations keep their selection
 and reuse the layout store's per-workspace Explorer width. They do not create a second Explorer
 lifecycle.
 
+Files starts at the conversation's working folder. Its path bar can browse the parent folder,
+the connected host's home, or the device root, and return to the working folder. Browsing does
+not change the conversation's working directory or group. A file outside that folder keeps its
+host path when opened, downloaded, or added to chat; root expansion state is separate per host.
+
 ## Side pane
 
 `packages/app/src/workspace-tabs/open-beside.ts` owns content opened beside the user's work. The
@@ -75,7 +80,11 @@ new target and never yanks an existing tab out of a user-selected pane.
 
 Desktop **Settings → Layout → Open location** has independent Main panel or On the side choices for
 Explorer Files, diffs, chat files, files opened from diffs, and subagents. They default to Main
-panel. Mobile ignores them.
+panel except chat files, which default to On the side so the conversation remains visible.
+An existing Main choice is preserved. A file link's **Open to Side** action overrides that choice
+for one open. Mobile ignores these preferences and opens the file as a tab; closing it returns to
+the conversation. Markdown opens rendered, with a Preview / Source toggle; line links open source
+at the selected line.
 
 Pull requests have a three-way open location: Main panel, On the side, or Explorer sidebar. Explorer
 sidebar is the default. Compact layouts always open pull requests in Explorer regardless of this

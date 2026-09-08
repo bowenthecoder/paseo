@@ -44,7 +44,9 @@ function normalizeWorkspaceValue(value: string | null | undefined): string | nul
   return trimmed.length > 0 ? trimmed : null;
 }
 
-export function buildWorkspaceExplorerStateKey(scope: FileExplorerWorkspaceScope): string | null {
+export function buildWorkspaceExplorerStateKey(
+  scope: FileExplorerWorkspaceScope & { serverId?: string },
+): string | null {
   const normalizedWorkspaceId = normalizeWorkspaceValue(scope.workspaceId);
   if (normalizedWorkspaceId) {
     return `workspace:${normalizedWorkspaceId}`;
@@ -53,7 +55,10 @@ export function buildWorkspaceExplorerStateKey(scope: FileExplorerWorkspaceScope
   if (!normalizedWorkspaceRoot) {
     return null;
   }
-  return `root:${normalizedWorkspaceRoot}`;
+  const serverId = normalizeWorkspaceValue(scope.serverId);
+  return serverId
+    ? `host:${serverId}:root:${normalizedWorkspaceRoot}`
+    : `root:${normalizedWorkspaceRoot}`;
 }
 
 export function useFileExplorerActions(params: { serverId: string } & FileExplorerWorkspaceScope) {
@@ -68,10 +73,11 @@ export function useFileExplorerActions(params: { serverId: string } & FileExplor
   const workspaceStateKey = useMemo(
     () =>
       buildWorkspaceExplorerStateKey({
+        serverId,
         workspaceId,
         workspaceRoot: normalizedWorkspaceRoot,
       }),
-    [workspaceId, normalizedWorkspaceRoot],
+    [serverId, workspaceId, normalizedWorkspaceRoot],
   );
 
   const updateExplorerState = useCallback(

@@ -463,6 +463,10 @@ export const zhCN: TranslationResources = {
         refreshing: "正在刷新文件",
         hideHiddenFiles: "隐藏隐藏文件",
         showHiddenFiles: "显示隐藏文件",
+        parentFolder: "上级文件夹",
+        homeFolder: "主文件夹",
+        deviceRoot: "设备根目录",
+        workingFolder: "工作文件夹",
       },
       empty: {
         noFiles: "没有文件",

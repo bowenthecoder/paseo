@@ -5,7 +5,17 @@ import {
   resolveDesktopAppContentMinimum,
   resolveDesktopSidebarVisibility,
   resolveDesktopSidebarWidth,
+  resolveWorkspaceContentMinimum,
 } from "@/components/desktop-sidebar-layout";
+import type { SplitGroup, SplitNode } from "@/stores/workspace-layout-actions";
+
+function createPaneNode(input: { id: string; hidden?: boolean }): SplitNode {
+  return { kind: "pane", pane: { ...input, tabIds: [], focusedTabId: null } };
+}
+
+function createGroupNode(group: SplitGroup): SplitNode {
+  return { kind: "group", group };
+}
 
 describe("desktop sidebar layout", () => {
   it("keeps a retained sidebar hidden while app chrome is suppressed", () => {
@@ -90,8 +100,8 @@ describe("desktop sidebar layout", () => {
     ).toBe(false);
   });
 
-  it("imposes no content minimum outside settings", () => {
-    expect(resolveDesktopAppContentMinimum({ isSettingsRoute: false })).toBe(0);
+  it("reserves room for the conversation outside settings", () => {
+    expect(resolveDesktopAppContentMinimum({ isSettingsRoute: false })).toBe(400);
     expect(
       canDesktopAppSidebarShare({
         contentMinimumWidth: resolveDesktopAppContentMinimum({ isSettingsRoute: false }),
@@ -99,5 +109,49 @@ describe("desktop sidebar layout", () => {
         viewportWidth: 751,
       }),
     ).toBe(true);
+  });
+
+  it("yields the chat list before two sidebars squeeze the conversation", () => {
+    const root = createGroupNode({
+      id: "root",
+      direction: "horizontal",
+      children: [createPaneNode({ id: "main" }), createPaneNode({ id: "explorer" })],
+      sizes: [0.7, 0.3],
+    });
+    const minimum = resolveWorkspaceContentMinimum(root);
+    expect(minimum).toBe(640);
+    expect(
+      canDesktopAppSidebarShare({
+        contentMinimumWidth: minimum,
+        requestedSidebarWidth: 320,
+        viewportWidth: 800,
+      }),
+    ).toBe(false);
+    expect(
+      canDesktopAppSidebarShare({
+        contentMinimumWidth: minimum,
+        requestedSidebarWidth: 320,
+        viewportWidth: 1280,
+      }),
+    ).toBe(true);
+  });
+
+  it("counts horizontal document panes but not hidden or vertically stacked panes twice", () => {
+    const root = createGroupNode({
+      id: "root",
+      direction: "horizontal",
+      children: [
+        createGroupNode({
+          id: "stack",
+          direction: "vertical",
+          sizes: [0.5, 0.5],
+          children: [createPaneNode({ id: "main" }), createPaneNode({ id: "terminal" })],
+        }),
+        createPaneNode({ id: "document" }),
+        createPaneNode({ id: "explorer", hidden: true }),
+      ],
+      sizes: [0.4, 0.4, 0.2],
+    });
+    expect(resolveWorkspaceContentMinimum(root)).toBe(800);
   });
 });

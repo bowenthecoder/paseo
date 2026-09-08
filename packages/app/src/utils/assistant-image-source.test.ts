@@ -27,6 +27,48 @@ describe("resolveAssistantImageSource", () => {
     });
   });
 
+  it("decodes the screenshot URL before requesting a file outside the workspace", () => {
+    expect(
+      resolveAssistantImageSource({
+        source: "/Users/test/Desktop/Paseo%20Preview%2020260908/current-chats.png",
+        workspaceRoot: "/Users/test/project",
+      }),
+    ).toEqual({
+      kind: "file_rpc",
+      cwd: "/",
+      path: "/Users/test/Desktop/Paseo Preview 20260908/current-chats.png",
+    });
+  });
+
+  it("decodes relative image URLs once and keeps encoded filename punctuation", () => {
+    expect(
+      resolveAssistantImageSource({
+        source: "shots/current%20%2520%3F%23.png?size=20#preview",
+        workspaceRoot: "/Users/test/project",
+      }),
+    ).toEqual({
+      kind: "file_rpc",
+      cwd: "/Users/test/project",
+      path: "shots/current %20?#.png",
+    });
+  });
+
+  it("does not decode external or data image URLs", () => {
+    for (const source of [
+      "https://example.com/a%20b.png?redirect=%2520#part%20one",
+      "data:image/svg+xml,%3Csvg%20width%3D%221%22%3E",
+      "blob:https://example.com/part%2520",
+    ]) {
+      expect(resolveAssistantImageSource({ source })).toEqual({ kind: "direct", uri: source });
+    }
+    expect(
+      resolveAssistantImageSource({
+        source: "ftp://example.com/a%20b.png",
+        workspaceRoot: "/Users/test/project",
+      }),
+    ).toBeNull();
+  });
+
   it("uses the workspace root for absolute paths inside the workspace", () => {
     expect(
       resolveAssistantImageSource({

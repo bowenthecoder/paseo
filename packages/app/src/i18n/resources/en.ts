@@ -461,6 +461,10 @@ export const en = {
         refreshing: "Refreshing files",
         hideHiddenFiles: "Hide hidden files",
         showHiddenFiles: "Show hidden files",
+        parentFolder: "Parent folder",
+        homeFolder: "Home folder",
+        deviceRoot: "Device root",
+        workingFolder: "Working folder",
       },
       empty: {
         noFiles: "No files",

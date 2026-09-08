@@ -4,6 +4,7 @@ import {
   createPreviewAttachmentId,
   fileUriToPath,
   localFileSourceToPath,
+  markdownFileSourceToPath,
   parseDataUrl,
   parseImageDataUrl,
   pathToFileUri,
@@ -50,6 +51,30 @@ describe("localFileSourceToPath", () => {
     expect(localFileSourceToPath("/tmp/image%20with%20literal%20percent.png")).toBe(
       "/tmp/image%20with%20literal%20percent.png",
     );
+  });
+});
+
+describe("markdownFileSourceToPath", () => {
+  it.each([
+    ["/tmp/Paseo%20Preview/current-chats.png", "/tmp/Paseo Preview/current-chats.png"],
+    ["shots/current%20chats.png", "shots/current chats.png"],
+    ["~/shots/current%20chats.png", "~/shots/current chats.png"],
+    ["file:///tmp/Paseo%20Preview/current.png", "/tmp/Paseo Preview/current.png"],
+    ["C:%5CMy%20Files%5Ccurrent.png", "C:/My Files/current.png"],
+    ["C:/My%20Files/current.png", "C:/My Files/current.png"],
+    ["file:///C:/My%20Files/current.png", "C:/My Files/current.png"],
+    ["/tmp/literal%2520.png", "/tmp/literal%20.png"],
+    ["file:///tmp/literal%2520.png", "/tmp/literal%20.png"],
+    ["C:%5CMy%20Files%5Cliteral%2520.png", "C:/My Files/literal%20.png"],
+    ["/tmp/100%/current%20chats.png", "/tmp/100%/current chats.png"],
+    ["file:///tmp/100%/current%20chats.png", "/tmp/100%/current chats.png"],
+    ["/tmp/caf%C3%A9.png", "/tmp/café.png"],
+    ["/tmp/bad%ZZ%20name.png", "/tmp/bad%ZZ name.png"],
+    ["/tmp/bad%FF.png", "/tmp/bad%FF.png"],
+    ["/tmp/name%3Fpart%23one.png?size=20#preview", "/tmp/name?part#one.png"],
+    ["file:///tmp/name%3Fpart%23one.png?size=20#preview", "/tmp/name?part#one.png"],
+  ])("converts the Markdown destination %s once", (source, expected) => {
+    expect(markdownFileSourceToPath(source)).toBe(expected);
   });
 });
 

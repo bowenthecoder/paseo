@@ -102,7 +102,7 @@ export interface OpenInSidePanePreferences {
 export const DEFAULT_OPEN_IN_SIDE_PANE_PREFERENCES: OpenInSidePanePreferences = {
   explorerFiles: false,
   diffs: false,
-  chatFiles: false,
+  chatFiles: true,
   diffFiles: false,
   subagents: false,
 };
@@ -235,7 +235,7 @@ const StoredAppSettingsSchema = z
         // COMPAT(diffDestinationPreference): legacy split preferences, remove after 2027-02-26.
         explorerChanges: z.boolean().optional(),
         changesLinks: z.boolean().optional(),
-        chatFiles: z.boolean().catch(false),
+        chatFiles: z.boolean().catch(DEFAULT_OPEN_IN_SIDE_PANE_PREFERENCES.chatFiles),
         diffFiles: z.boolean().catch(false),
         subagents: z.boolean().catch(false),
         // COMPAT(pullRequestOpenLocation): legacy side-pane toggle, remove after 2027-02-26.

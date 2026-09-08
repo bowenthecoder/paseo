@@ -466,6 +466,10 @@ export const ru: TranslationResources = {
         refreshing: "Обновление файлов",
         hideHiddenFiles: "Скрыть скрытые файлы",
         showHiddenFiles: "Показать скрытые файлы",
+        parentFolder: "Родительская папка",
+        homeFolder: "Домашняя папка",
+        deviceRoot: "Корень устройства",
+        workingFolder: "Рабочая папка",
       },
       empty: {
         noFiles: "Нет файлов",

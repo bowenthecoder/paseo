@@ -42,6 +42,33 @@ function makeDeps(
 }
 
 describe("loadAppSettingsFromStorage", () => {
+  it("opens chat files on the side by default, including older partial settings", async () => {
+    const fresh = await loadAppSettingsFromStorage(makeDeps());
+    const partial = await loadAppSettingsFromStorage(
+      makeDeps({
+        storage: createInMemoryKeyValueStorage({
+          [APP_SETTINGS_KEY]: JSON.stringify({ openInSidePane: { explorerFiles: false } }),
+        }),
+      }),
+    );
+
+    expect(fresh.openInSidePane.chatFiles).toBe(true);
+    expect(partial.openInSidePane.chatFiles).toBe(true);
+    expect(partial.openInSidePane.explorerFiles).toBe(false);
+  });
+
+  it("preserves an explicit Main location for chat files", async () => {
+    const result = await loadAppSettingsFromStorage(
+      makeDeps({
+        storage: createInMemoryKeyValueStorage({
+          [APP_SETTINGS_KEY]: JSON.stringify({ openInSidePane: { chatFiles: false } }),
+        }),
+      }),
+    );
+
+    expect(result.openInSidePane.chatFiles).toBe(false);
+  });
+
   it("preserves a persisted steer send behavior", async () => {
     const deps = makeDeps({
       storage: createInMemoryKeyValueStorage({

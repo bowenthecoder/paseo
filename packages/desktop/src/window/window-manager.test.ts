@@ -125,6 +125,21 @@ describe("window-manager", () => {
   });
 
   describe("resolveWindowBounds", () => {
+    it("fits a fresh or additional window above the laptop Dock", () => {
+      expect(resolveWindowBounds(null, [{ x: 0, y: 25, width: 1280, height: 695 }])).toEqual({
+        width: 1200,
+        height: 695,
+      });
+    });
+
+    it("fits saved external-monitor geometry to a smaller Mac display", () => {
+      expect(
+        resolveWindowBounds({ x: 1600, y: 120, width: 2000, height: 1200, isMaximized: false }, [
+          { x: 0, y: 25, width: 1280, height: 695 },
+        ]),
+      ).toEqual({ width: 1280, height: 695 });
+    });
+
     it("falls back to the default size when no state is saved", () => {
       expect(resolveWindowBounds(null)).toEqual({
         width: DEFAULT_WINDOW_WIDTH,

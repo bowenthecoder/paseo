@@ -467,6 +467,10 @@ export const fr: TranslationResources = {
         refreshing: "Actualisation des fichiers",
         hideHiddenFiles: "Masquer les fichiers cachés",
         showHiddenFiles: "Afficher les fichiers cachés",
+        parentFolder: "Dossier parent",
+        homeFolder: "Dossier personnel",
+        deviceRoot: "Racine de l’appareil",
+        workingFolder: "Dossier de travail",
       },
       empty: {
         noFiles: "Aucun fichier",

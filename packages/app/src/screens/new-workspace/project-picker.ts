@@ -20,6 +20,7 @@ import {
 } from "./project-selection";
 
 const PROJECT_OPTION_PREFIX = "project:";
+export const NO_FOLDER_OPTION_ID = "no-folder";
 
 interface NewWorkspaceProjectPickerInput {
   selectedServerId: string;
@@ -170,12 +171,24 @@ export function useNewWorkspaceProjectPicker({
 
   const activeSelection = reconcileProjectSelection(projectSelection, selectionContext);
   const selectedProject = resolveProjectSelection(activeSelection, selectionContext);
-  const { options: projectPickerOptions, projectByOptionId } = useMemo(
+  const { options: folderOptions, projectByOptionId } = useMemo(
     () => computeProjectOptionData(selectableProjects),
     [selectableProjects],
   );
+  const projectPickerOptions = useMemo(
+    () => [{ id: NO_FOLDER_OPTION_ID, label: "No folder" }, ...folderOptions],
+    [folderOptions],
+  );
   const handleSelectProjectOption = useCallback(
     (id: string) => {
+      if (id === NO_FOLDER_OPTION_ID) {
+        setProjectSelection({
+          contextKey: manualSelectionContextKey,
+          project: null,
+          source: "no-folder",
+        });
+        return;
+      }
       const project = projectByOptionId.get(id);
       if (!project) return;
       if (
@@ -200,7 +213,9 @@ export function useNewWorkspaceProjectPicker({
       : null,
     projectPickerOptions,
     projectByOptionId,
-    selectedProjectOptionId: selectedProject ? projectOptionId(selectedProject.viewKey) : "",
+    selectedProjectOptionId: selectedProject
+      ? projectOptionId(selectedProject.viewKey)
+      : NO_FOLDER_OPTION_ID,
     projectTriggerLabel: selectedProject
       ? (getHostProjectSourceDirectory(selectedProject, selectedServerId)
           ?.split(/[\\/]/)

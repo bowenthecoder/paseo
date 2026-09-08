@@ -463,6 +463,10 @@ export const ar: TranslationResources = {
         refreshing: "تحديث الملفات",
         hideHiddenFiles: "إخفاء الملفات المخفية",
         showHiddenFiles: "إظهار الملفات المخفية",
+        parentFolder: "المجلد الأصل",
+        homeFolder: "المجلد الرئيسي",
+        deviceRoot: "جذر الجهاز",
+        workingFolder: "مجلد العمل",
       },
       empty: {
         noFiles: "لا توجد ملفات",

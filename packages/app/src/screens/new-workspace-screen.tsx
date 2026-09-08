@@ -122,7 +122,7 @@ import {
   resolveNewWorkspaceInitialServerId,
 } from "./new-workspace-initial-context";
 import { buildNewWorkspaceProjectIconTargets } from "./new-workspace/project-icon-targets";
-import { useNewWorkspaceProjectPicker } from "./new-workspace/project-picker";
+import { NO_FOLDER_OPTION_ID, useNewWorkspaceProjectPicker } from "./new-workspace/project-picker";
 
 const ThemedFolderPlus = withUnistyles(FolderPlus);
 const foregroundMutedColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
@@ -579,6 +579,19 @@ function NewWorkspaceProjectPickerOption({
   isPending: boolean;
   supportsWorkspaceMultiplicity: boolean;
 }) {
+  if (option.id === NO_FOLDER_OPTION_ID) {
+    return (
+      <ComboboxItem
+        testID="new-workspace-project-picker-no-folder"
+        label="No folder"
+        description="Start in this device’s home directory"
+        selected={selected}
+        active={active}
+        disabled={isPending}
+        onPress={onPress}
+      />
+    );
+  }
   const project = projectByOptionId.get(option.id);
   if (!project) return <View key={option.id} />;
   const sourceDirectory =
@@ -802,7 +815,7 @@ async function createAndMergeWorkspace(input: {
 async function createMultiplicityWorkspace(input: {
   client: NonNullable<ReturnType<typeof useHostRuntimeClient>>;
   isolation: "local" | "worktree";
-  project: HostProjectListItem;
+  project: HostProjectListItem | null;
   sourceDirectory: string;
   checkoutRequest: PickerCheckoutRequest | undefined;
   withInitialAgent: boolean;
@@ -815,8 +828,10 @@ async function createMultiplicityWorkspace(input: {
   serverId: string;
   createFailedMessage: string;
 }): Promise<ReturnType<typeof normalizeWorkspaceDescriptor>> {
-  const projectId = getHostProjectId(input.project, input.serverId);
-  if (!projectId) throw new Error("Project is not available on the selected host");
+  const projectId = input.project ? getHostProjectId(input.project, input.serverId) : undefined;
+  if (input.project && !projectId) {
+    throw new Error("Project is not available on the selected host");
+  }
   const isWorktree = input.isolation === "worktree";
   const firstAgentContext = buildFirstAgentContext({
     prompt: input.prompt,
@@ -827,14 +842,14 @@ async function createMultiplicityWorkspace(input: {
       ? {
           kind: "worktree",
           cwd: input.sourceDirectory,
-          projectId,
+          projectId: projectId ?? undefined,
           worktreeSlug: createNameId(),
           ...input.checkoutRequest,
         }
       : {
           kind: "directory",
           path: input.sourceDirectory,
-          projectId,
+          projectId: projectId ?? undefined,
         },
     ...(firstAgentContext ? { firstAgentContext } : {}),
   });
@@ -1351,11 +1366,8 @@ function useNewWorkspaceFormStack(input: NewWorkspaceFormStackInput): ReactEleme
   const { t } = useTranslation();
   const { isCompact, isPending, project, host, isolation, base, launch } = input;
 
-  const localServerId = useLocalDaemonServerId();
   const selectedHostLabel =
-    host.selectedServerId === localServerId
-      ? "Local"
-      : (host.allHosts.find((h) => h.serverId === host.selectedServerId)?.label ?? "Local");
+    host.allHosts.find((h) => h.serverId === host.selectedServerId)?.label ?? "Select device";
   const showHostControl = true;
   const isolationTriggerLabel = isolationLabel(t, isolation.effectiveIsolation);
   const addProjectAction = useMemo(
@@ -1670,6 +1682,7 @@ export function NewWorkspaceScreen({
     lastActiveProject,
     allowAllProjects: supportsWorkspaceMultiplicity,
   });
+  const workingDirectory = selectedSourceDirectory ?? "~";
   const projectIconTargets = useMemo(
     () => buildNewWorkspaceProjectIconTargets(projects, selectedServerId),
     [projects, selectedServerId],
@@ -1691,7 +1704,7 @@ export function NewWorkspaceScreen({
       serverId: selectedServerId,
       isConnected,
       workspaceDirectory: workspace?.workspaceDirectory ?? null,
-      sourceDirectory: selectedSourceDirectory,
+      sourceDirectory: workingDirectory,
       initialSetup: forkDraftSetup?.setup,
     }),
   });
@@ -1842,6 +1855,7 @@ export function NewWorkspaceScreen({
       // multiplicity is off, any project when it's on); don't re-gate here on
       // canCreateWorktree or non-git projects become unselectable.
       selectProjectOption(id);
+      if (id !== selectedProjectOptionId) setCreatedWorkspace(null);
       setProjectPickerOpen(false);
       clearPickerSelectionForTargetChange(selectedProjectOptionId, id);
     },
@@ -1851,6 +1865,7 @@ export function NewWorkspaceScreen({
   const handleSelectWorkspaceHost = useCallback(
     (id: string) => {
       handleSelectHost(id);
+      if (id !== selectedServerId) setCreatedWorkspace(null);
       clearPickerSelectionForTargetChange(selectedServerId, id);
     },
     [clearPickerSelectionForTargetChange, handleSelectHost, selectedServerId],
@@ -2004,20 +2019,22 @@ export function NewWorkspaceScreen({
       if (createdWorkspace) {
         return createdWorkspace;
       }
-      if (!selectedProject) {
-        throw new Error("Choose a project");
-      }
-      if (!selectedSourceDirectory) {
+      if (selectedProject && !selectedSourceDirectory) {
         throw new Error("Choose a host for this project");
       }
       const connectedClient = withConnectedClient();
+      if (!selectedProject && !supportsWorkspaceMultiplicity) {
+        throw new Error("Update this host to start a chat without a folder");
+      }
+      // Resolve ~ on the selected daemon, never on the computer running the app.
+      const workspaceSourceDirectory = selectedSourceDirectory ?? "~";
       const createsWorktree = !supportsWorkspaceMultiplicity || effectiveIsolation === "worktree";
       const checkoutStatusForCreate = createsWorktree
         ? await ensureCheckoutStatus({
             queryClient,
             client: connectedClient,
             serverId: selectedServerId,
-            cwd: selectedSourceDirectory,
+            cwd: workspaceSourceDirectory,
           })
         : null;
       const checkoutRequest = checkoutStatusForCreate
@@ -2030,7 +2047,7 @@ export function NewWorkspaceScreen({
             client: connectedClient,
             isolation: effectiveIsolation,
             project: selectedProject,
-            sourceDirectory: selectedSourceDirectory,
+            sourceDirectory: workspaceSourceDirectory,
             checkoutRequest,
             withInitialAgent: input.withInitialAgent,
             prompt: input.prompt,
@@ -2131,7 +2148,7 @@ export function NewWorkspaceScreen({
       await updateFormPreferences({ launchTarget });
       setPendingAction("terminal");
       await runCreateTerminalWorkspace({
-        cwd: selectedSourceDirectory ?? "",
+        cwd: workingDirectory,
         prompt: terminalPromptText,
         profile: selectedTerminalProfile,
         profileName: selectedTerminalProfile?.name,
@@ -2166,7 +2183,7 @@ export function NewWorkspaceScreen({
     ensureWorkspace,
     launchTarget,
     selectedServerId,
-    selectedSourceDirectory,
+    workingDirectory,
     selectedTerminalProfile,
     t,
     terminalPromptText,
@@ -2337,7 +2354,7 @@ export function NewWorkspaceScreen({
               textReplacement={terminalTextReplacement}
               attachments={NO_TERMINAL_ATTACHMENTS}
               onChangeAttachments={noopChangeAttachments}
-              cwd={selectedSourceDirectory ?? ""}
+              cwd={workingDirectory}
               clearDraft={noopClearDraft}
               autoFocus={terminalTakesPrompt}
               autoFocusKey={launchFocusKey}
@@ -2366,7 +2383,7 @@ export function NewWorkspaceScreen({
               onChangeAttachments={chatDraft.setAttachments}
               onForgeChangeRequestDetected={handleForgeChangeRequestDetected}
               onForgeChangeRequestAutoAttach={handleForgeChangeRequestAutoAttach}
-              cwd={selectedSourceDirectory ?? ""}
+              cwd={workingDirectory}
               clearDraft={handleClearDraft}
               autoFocus
               autoFocusKey={launchFocusKey}

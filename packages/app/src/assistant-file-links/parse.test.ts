@@ -214,6 +214,49 @@ describe("classifyAssistantFileLink", () => {
 });
 
 describe("parseAssistantFileLink", () => {
+  it.each([
+    ["/tmp/My%20Files/report.md:12-14", "/tmp/My Files/report.md", 12, 14],
+    ["notes/My%20File.md:12", "/Users/test/project/notes/My File.md", 12, undefined],
+    ["notes/My%20File.md#L12-L14", "/Users/test/project/notes/My File.md", 12, 14],
+    ["~/My%20Files/report.md", "~/My Files/report.md", undefined, undefined],
+    ["C:/My%20Files/report.md#L12", "C:/My Files/report.md", 12, undefined],
+    ["C:%5CMy%20Files%5Creport.md:12", "C:/My Files/report.md", 12, undefined],
+    ["file:///tmp/My%20Files/report.md#L12", "/tmp/My Files/report.md", 12, undefined],
+    ["/tmp/report%2520copy.md:12", "/tmp/report%20copy.md", 12, undefined],
+    [
+      "notes/report%2520copy.md",
+      "/Users/test/project/notes/report%20copy.md",
+      undefined,
+      undefined,
+    ],
+    ["file:///tmp/report%2520copy.md", "/tmp/report%20copy.md", undefined, undefined],
+    ["/tmp/report.md%3A12", "/tmp/report.md:12", undefined, undefined],
+    ["/tmp/name%3Fpart%23one.md?download=%2520#L12", "/tmp/name?part#one.md", 12, undefined],
+    ["notes/name%23part.md#L12", "/Users/test/project/notes/name#part.md", 12, undefined],
+    ["/tmp/100%/report%20copy.md:12", "/tmp/100%/report copy.md", 12, undefined],
+  ])(
+    "decodes local URL path %s after extracting line markers",
+    (href, path, lineStart, lineEnd) => {
+      expect(
+        parseAssistantFileLink(String(href), { workspaceRoot: "/Users/test/project" }),
+      ).toEqual({
+        raw: href,
+        path,
+        lineStart,
+        lineEnd,
+      });
+    },
+  );
+
+  it("preserves literal percent escapes for inline filesystem paths", () => {
+    expect(parseAssistantFileLink("/tmp/report%20copy.md:12", { decodeUrlPath: false })).toEqual({
+      raw: "/tmp/report%20copy.md:12",
+      path: "/tmp/report%20copy.md",
+      lineStart: 12,
+      lineEnd: undefined,
+    });
+  });
+
   it("resolves bare markdown filenames against the active workspace", () => {
     expect(
       parseAssistantFileLink("dumm.md", {

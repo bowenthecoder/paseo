@@ -63,6 +63,11 @@ const renderedDimensions: AssistantImageRenderedDimensionsReader = {
   },
 };
 
+interface AssistantImageFailure {
+  status: "failed";
+  message: string;
+}
+
 export type AssistantImageResult =
   | {
       status: "loading";
@@ -74,7 +79,7 @@ export type AssistantImageResult =
       binding: AssistantImageRenderBinding;
       aspectRatio: number;
     }
-  | { status: "failed"; message: string };
+  | (AssistantImageFailure & { aspectRatio: number | null });
 
 interface UseAssistantImageInput {
   source: string;
@@ -346,7 +351,7 @@ function getAcquisitionFailure(input: {
   preview: PreviewUrlState;
   hasDirectUri: boolean;
   fallbackMessage: string;
-}): AssistantImageResult | null {
+}): AssistantImageFailure | null {
   if (!input.hasResolution) {
     return { status: "failed", message: input.fallbackMessage };
   }
@@ -415,8 +420,8 @@ export function useAssistantImage({
   const preview = dataImage ? dataImagePreview : filePreview;
   const previewUri = preview.status === "loaded" ? preview.uri : null;
   const uri = directUri ?? previewUri;
-  const cachedMetadata = useMemo(
-    () => getAssistantImageMetadata({ source, workspaceRoot, serverId }),
+  const knownAspectRatio = useMemo(
+    () => getAssistantImageMetadata({ source, workspaceRoot, serverId })?.aspectRatio ?? null,
     [serverId, source, workspaceRoot],
   );
   const [lifecycle, dispatchLifecycle] = useReducer(
@@ -454,9 +459,9 @@ export function useAssistantImage({
     dispatch({
       type: "preview_created",
       uri,
-      aspectRatio: cachedMetadata?.aspectRatio ?? null,
+      aspectRatio: knownAspectRatio,
     });
-  }, [cachedMetadata, dispatch, uri]);
+  }, [knownAspectRatio, dispatch, uri]);
 
   const handleImageError = useCallback(() => {
     if (uri) {
@@ -484,7 +489,7 @@ export function useAssistantImage({
       const metadata = dimensions
         ? setAssistantImageMetadata({ source, workspaceRoot, serverId }, dimensions)
         : null;
-      const aspectRatio = metadata?.aspectRatio ?? cachedMetadata?.aspectRatio ?? null;
+      const aspectRatio = metadata?.aspectRatio ?? knownAspectRatio;
       if (!aspectRatio) {
         dispatch({
           type: "failed",
@@ -495,7 +500,7 @@ export function useAssistantImage({
       }
       dispatch({ type: "image_loaded", uri, aspectRatio });
     },
-    [cachedMetadata, dispatch, serverId, source, t, uri, workspaceRoot],
+    [knownAspectRatio, dispatch, serverId, source, t, uri, workspaceRoot],
   );
 
   const acquisitionFailure = getAcquisitionFailure({
@@ -509,7 +514,7 @@ export function useAssistantImage({
     fallbackMessage: t("message.attachments.imagePreviewLoadFailed"),
   });
   if (acquisitionFailure) {
-    return acquisitionFailure;
+    return { ...acquisitionFailure, aspectRatio: knownAspectRatio };
   }
   const hasCurrentLifecycleUri = lifecycle.status !== "failed" && lifecycle.uri === uri;
   let binding: AssistantImageRenderBinding | null = null;
@@ -534,11 +539,12 @@ export function useAssistantImage({
     };
   }
   if (lifecycle.status === "failed") {
-    return lifecycle;
+    return { ...lifecycle, aspectRatio: knownAspectRatio };
   }
+  const currentAspectRatio = hasCurrentLifecycleUri ? lifecycle.aspectRatio : null;
   return {
     status: "loading",
     binding,
-    aspectRatio: hasCurrentLifecycleUri ? lifecycle.aspectRatio : null,
+    aspectRatio: currentAspectRatio ?? knownAspectRatio,
   };
 }

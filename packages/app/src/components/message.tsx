@@ -1,4 +1,5 @@
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { Button } from "@/components/ui/button";
 import { TaskListRow } from "@/components/task-list-row";
 import {
   View,
@@ -776,7 +777,6 @@ export const assistantMessageStylesheet = StyleSheet.create((theme) => ({
   },
   imageFrame: {
     width: "100%",
-    minHeight: 160,
     marginHorizontal: -theme.spacing[1],
   },
   imageSurface: {
@@ -794,34 +794,26 @@ export const assistantMessageStylesheet = StyleSheet.create((theme) => ({
     right: 0,
     bottom: 0,
     left: 0,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-  },
-  imageState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: theme.spacing[4],
-    paddingVertical: theme.spacing[6],
     gap: theme.spacing[2],
   },
-  imageErrorText: {
+  imageState: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+  },
+  imageStateText: {
+    flexShrink: 1,
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.base,
-    textAlign: "center",
+    fontFamily: theme.fontFamily.ui,
+    fontSize: theme.fontSize.sm,
   },
 }));
 
-const ASSISTANT_IMAGE_MIN_HEIGHT = 160;
+const ASSISTANT_IMAGE_PLACEHOLDER_HEIGHT = 32;
 
-function AssistantMarkdownImage({
-  source,
-  occurrenceKey,
-  alt,
-  hasLeadingContent,
-  client,
-  workspaceRoot,
-  serverId,
-}: {
+interface AssistantMarkdownImageProps {
   source: string;
   occurrenceKey: string;
   alt?: string;
@@ -829,6 +821,34 @@ function AssistantMarkdownImage({
   client?: DaemonClient | null;
   workspaceRoot?: string;
   serverId?: string;
+}
+
+function AssistantMarkdownImage(props: AssistantMarkdownImageProps) {
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt((current) => current + 1), []);
+  // A new occurrence rereads a changed file instead of retaining an invalid preview.
+  const occurrenceKey = `${props.occurrenceKey}:attempt:${attempt}`;
+  return (
+    <AssistantMarkdownImageAttempt
+      {...props}
+      key={`${props.source}:${occurrenceKey}`}
+      occurrenceKey={occurrenceKey}
+      onRetry={retry}
+    />
+  );
+}
+
+function AssistantMarkdownImageAttempt({
+  source,
+  occurrenceKey,
+  alt,
+  hasLeadingContent,
+  client,
+  workspaceRoot,
+  serverId,
+  onRetry,
+}: AssistantMarkdownImageProps & {
+  onRetry: () => void;
 }) {
   const { t } = useTranslation();
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -849,7 +869,7 @@ function AssistantMarkdownImage({
     serverId,
   });
   const binding = image.status === "failed" ? null : image.binding;
-  const aspectRatio = image.status === "failed" ? null : image.aspectRatio;
+  const aspectRatio = image.aspectRatio;
   const imageUri = binding?.uri ?? "";
   const imageSource = useMemo(() => ({ uri: imageUri }), [imageUri]);
   const frameStyle = useMemo<StyleProp<ViewStyle>>(
@@ -860,7 +880,7 @@ function AssistantMarkdownImage({
     if (aspectRatio) {
       return { aspectRatio };
     }
-    return { height: ASSISTANT_IMAGE_MIN_HEIGHT };
+    return { height: ASSISTANT_IMAGE_PLACEHOLDER_HEIGHT };
   }, [aspectRatio]);
   const surfaceStyle = useMemo<StyleProp<ViewStyle>>(
     () => [assistantMessageStylesheet.imageSurface, imageSizeStyle],
@@ -879,24 +899,32 @@ function AssistantMarkdownImage({
     () => [
       assistantMessageStylesheet.imageFrame,
       containerStyle,
-      { height: ASSISTANT_IMAGE_MIN_HEIGHT },
+      imageSizeStyle,
       assistantMessageStylesheet.imageState,
     ],
-    [containerStyle],
+    [containerStyle, imageSizeStyle],
   );
 
   if (image.status === "failed") {
     return (
-      <View style={stateFrameStyle}>
-        <Text style={assistantMessageStylesheet.imageErrorText}>{image.message}</Text>
+      <View testID="assistant-image-error" style={stateFrameStyle}>
+        <Text numberOfLines={1} style={assistantMessageStylesheet.imageStateText}>
+          {t("message.attachments.imageUnavailable")}
+        </Text>
+        <Button size="xs" variant="ghost" hitSlop={8} onPress={onRetry}>
+          {t("common.actions.retry")}
+        </Button>
       </View>
     );
   }
 
   if (!binding) {
     return (
-      <View style={stateFrameStyle}>
+      <View testID="assistant-image-loading" style={stateFrameStyle}>
         <ThemedLoadingSpinner size="small" uniProps={foregroundMutedColorMapping} />
+        <Text numberOfLines={1} style={assistantMessageStylesheet.imageStateText}>
+          {t("common.loading")}
+        </Text>
       </View>
     );
   }
@@ -924,8 +952,15 @@ function AssistantMarkdownImage({
             onError={binding.onError}
           />
           {image.status === "loading" ? (
-            <View pointerEvents="none" style={assistantMessageStylesheet.imageLoadingOverlay}>
+            <View
+              testID="assistant-image-loading"
+              pointerEvents="none"
+              style={assistantMessageStylesheet.imageLoadingOverlay}
+            >
               <ThemedLoadingSpinner size="small" uniProps={foregroundMutedColorMapping} />
+              <Text numberOfLines={1} style={assistantMessageStylesheet.imageStateText}>
+                {t("common.loading")}
+              </Text>
             </View>
           ) : null}
         </View>
