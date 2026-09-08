@@ -10,8 +10,20 @@ import {
   normalizeWorkspaceTabTarget,
   workspaceTabTargetsEqual,
 } from "@/workspace-tabs/identity";
-import { createNewWorkspaceTab } from "@/workspace-tabs/new-tab";
+import { generateMessageId } from "@/types/stream";
 import { generateDraftId } from "@/stores/draft-keys";
+
+/**
+ * The placeholder a pane holds when it has nothing in it. It is ephemeral — stripped before
+ * persisting and restored on load — so it never survives a reload as a real tab.
+ */
+function createNewWorkspaceTab(): WorkspaceTab {
+  return {
+    tabId: `tab_${generateMessageId()}`,
+    target: { kind: "new_tab" },
+    createdAt: Date.now(),
+  };
+}
 
 export interface SplitPane {
   id: string;

@@ -1633,7 +1633,6 @@ function ActiveAgentComposer({
     { initialIsBelow: isCompactFormFactor },
   );
   const paneContext = usePaneContext();
-  const openInSidePane = useSettings((settings) => settings.openInSidePane);
   const { workspaceId, tabId, retargetCurrentTab } = paneContext;
   const { archiveAgent } = useArchiveAgent();
   const closeWorkspaceTab = useWorkspaceLayoutStore((state) => state.closeTab);
@@ -1657,10 +1656,9 @@ function ActiveAgentComposer({
         isCompact: isCompactFormFactor,
         workspaceKey: buildWorkspaceTabPersistenceKey({ serverId, workspaceId }),
         checkout: { serverId, cwd, isGit: true },
-        preferences: openInSidePane,
       });
     },
-    [cwd, isCompactFormFactor, openInSidePane, serverId, workspaceId],
+    [cwd, isCompactFormFactor, serverId, workspaceId],
   );
 
   const handleClientSlashCommand = useCallback(

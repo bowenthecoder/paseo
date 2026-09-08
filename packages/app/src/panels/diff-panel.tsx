@@ -86,8 +86,7 @@ function resolveChangesPresentation(
 
 function ChangesPanel() {
   const { t } = useTranslation();
-  const { serverId, workspaceId, tabId, target, openPreferredTarget, openTargetToSide } =
-    usePaneContext();
+  const { serverId, workspaceId, tabId, target, openTab } = usePaneContext();
   const [changesState, setChangesState] = usePanelState(changesStateSchema, defaultChangesState);
   const { preferences } = useChangesPreferences();
   const cwd = useWorkspaceDirectory(serverId, workspaceId);
@@ -100,22 +99,14 @@ function ChangesPanel() {
   const isTree = target.kind === "changes_tree";
 
   const handleOpenFile = useCallback(
-    (path: string) => openPreferredTarget({ kind: "file", path }, isTree ? "diffs" : "diffFiles"),
-    [isTree, openPreferredTarget],
+    (path: string) => openTab({ kind: "file", path }),
+    [openTab],
   );
 
   const handleSelectDiffFile = useCallback(
     (path: string) =>
-      openPreferredTarget(
-        { kind: "working_diff", focusPath: path, focusRequestId: Date.now() },
-        "diffs",
-      ),
-    [openPreferredTarget],
-  );
-  const handleOpenDiffToSide = useCallback(
-    (path: string) =>
-      openTargetToSide?.({ kind: "working_diff", focusPath: path, focusRequestId: Date.now() }),
-    [openTargetToSide],
+      openTab({ kind: "working_diff", focusPath: path, focusRequestId: Date.now() }),
+    [openTab],
   );
 
   if (!cwd) {
@@ -140,7 +131,6 @@ function ChangesPanel() {
           focusRequestId={target.kind === "working_diff" ? target.focusRequestId : undefined}
           onSelectDiffFile={isTree ? handleSelectDiffFile : undefined}
           onOpenFile={handleOpenFile}
-          onOpenToSide={isTree && openTargetToSide ? handleOpenDiffToSide : undefined}
           onAddToChat={canAddToChat ? addFile : undefined}
           state={changesState}
           onStateChange={setChangesState}

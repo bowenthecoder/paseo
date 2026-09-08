@@ -42,7 +42,6 @@ import {
 import { useSidebarUnreadStore } from "@/stores/sidebar-unread-store";
 import { WorkspaceChatActions } from "./workspace-chat-actions";
 import { MoveChatToGroupTrigger, moveChatToGroupPage } from "./chat-group-menu";
-import { WorkspaceOpenMenuTrigger, workspaceOpenMenuPage } from "./workspace-open-menu";
 import { OpenInFileManagerMenuItem } from "@/workspace/open-in-file-manager/menu-item";
 import { resolveSidebarWorkspaceAccessibilityLabel } from "@/components/sidebar/sidebar-workspace-title";
 import {
@@ -243,7 +242,6 @@ function SidebarWorkspaceMenuItems({
   );
   return (
     <>
-      {serverId && workspaceId ? <WorkspaceOpenMenuTrigger /> : null}
       {agentId ? <DropdownMenuSeparator /> : null}
       {onTogglePin ? (
         <WorkspaceMenuItem
@@ -361,13 +359,7 @@ export function SidebarWorkspaceMenu({
     [serverId, workspaceId, workspaceLabels],
   );
   const labelPages = useWorkspaceLabelMenuPages(agentId ? null : workspaceTarget);
-  const pages = workspaceTarget
-    ? [
-        ...labelPages,
-        moveChatToGroupPage(workspaceKey),
-        workspaceOpenMenuPage(workspaceTarget.serverId, workspaceTarget.workspaceId, agentId),
-      ]
-    : [...labelPages, moveChatToGroupPage(workspaceKey)];
+  const pages = [...labelPages, moveChatToGroupPage(workspaceKey)];
   return (
     <DropdownMenu compactMode="sheet" open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger
@@ -483,13 +475,7 @@ export function SidebarWorkspaceContextMenu({
     [workspace],
   );
   const labelPages = useWorkspaceLabelMenuPages(agentId ? null : workspaceTarget);
-  const pages = workspaceTarget
-    ? [
-        ...labelPages,
-        moveChatToGroupPage(workspaceKey),
-        workspaceOpenMenuPage(workspaceTarget.serverId, workspaceTarget.workspaceId, agentId),
-      ]
-    : [...labelPages, moveChatToGroupPage(workspaceKey)];
+  const pages = [...labelPages, moveChatToGroupPage(workspaceKey)];
 
   const togglePin = useSidebarWorkspacePinController();
   const handleTogglePin = useCallback(() => togglePin(workspace), [togglePin, workspace]);

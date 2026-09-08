@@ -15,7 +15,7 @@ import { providerSubagentPanelRegistration } from "@/panels/provider-subagent-pa
 import { subagentsPanelRegistration } from "@/panels/subagents-panel";
 import { pullRequestPanelRegistration } from "@/panels/pull-request-panel";
 import { pluginPanelRegistration } from "@/plugins/workspace-panels/panel";
-import { newTabPanelRegistration } from "@/panels/new-tab-panel";
+import { emptyChatPanelRegistration } from "@/panels/empty-chat-panel";
 
 let panelsRegistered = false;
 
@@ -24,7 +24,7 @@ export function ensurePanelsRegistered(): void {
     return;
   }
   registerPanel(draftPanelRegistration);
-  registerPanel(newTabPanelRegistration);
+  registerPanel(emptyChatPanelRegistration);
   registerPanel(agentPanelRegistration);
   registerPanel(providerSubagentPanelRegistration);
   registerPanel(subagentsPanelRegistration);
