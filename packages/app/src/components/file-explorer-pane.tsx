@@ -123,7 +123,6 @@ interface TreeRowItemProps {
   revealTargetName?: string;
   onDownloadEntry: (entry: ExplorerEntry) => void;
   onAddToChat?: (path: string) => void;
-  onOpenFileToSide?: (path: string) => void;
   onNewEntry?: (parentPath: string, kind: "file" | "directory") => void;
   onCollapseDirectory?: (path: string) => void;
   onRenameEntry?: (entry: ExplorerEntry) => void;
@@ -250,7 +249,6 @@ function TreeRowItem({
   revealTargetName,
   onDownloadEntry,
   onAddToChat,
-  onOpenFileToSide,
   onNewEntry,
   onCollapseDirectory,
   onRenameEntry,
@@ -316,10 +314,6 @@ function TreeRowItem({
   const handleAddToChat = useCallback(() => {
     onAddToChat?.(entry.path);
   }, [onAddToChat, entry.path]);
-
-  const handleOpenToSide = useCallback(() => {
-    onOpenFileToSide?.(entry.path);
-  }, [entry.path, onOpenFileToSide]);
 
   const handleNewFile = useCallback(() => {
     onNewEntry?.(entry.path, "file");
@@ -389,7 +383,6 @@ function TreeRowItem({
         revealTargetName={revealTargetName}
         onDownload={handleDownload}
         onAddToChat={onAddToChat ? handleAddToChat : undefined}
-        onOpenToSide={!isDirectory && onOpenFileToSide ? handleOpenToSide : undefined}
         onNewFile={onNewEntry ? handleNewFile : undefined}
         onNewFolder={onNewEntry ? handleNewFolder : undefined}
         onCollapseFolder={isDirectory && isExpanded ? handleCollapseDirectory : undefined}
@@ -407,7 +400,6 @@ interface FileExplorerPaneProps {
   workspaceId?: string | null;
   workspaceRoot: string;
   onOpenFile?: (filePath: string) => void;
-  onOpenFileToSide?: (filePath: string) => void;
   onAddToChat?: (path: string) => void;
 }
 
@@ -416,7 +408,6 @@ export function FileExplorerPane({
   workspaceId,
   workspaceRoot,
   onOpenFile: openFile,
-  onOpenFileToSide: openFileToSide,
   onAddToChat: addToChat,
 }: FileExplorerPaneProps) {
   const { t } = useTranslation();
@@ -442,10 +433,6 @@ export function FileExplorerPane({
   const onOpenFile = useMemo(
     () => (openFile ? (path: string) => openFile(resolveOpenPath(path)) : undefined),
     [openFile, resolveOpenPath],
-  );
-  const onOpenFileToSide = useMemo(
-    () => (openFileToSide ? (path: string) => openFileToSide(resolveOpenPath(path)) : undefined),
-    [openFileToSide, resolveOpenPath],
   );
   const onAddToChat = useMemo(
     () => (addToChat ? (path: string) => addToChat(resolveOpenPath(path)) : undefined),
@@ -1028,7 +1015,6 @@ export function FileExplorerPane({
           revealTargetName={fileManagerTarget?.label}
           onDownloadEntry={handleDownloadEntry}
           onAddToChat={onAddToChat}
-          onOpenFileToSide={onOpenFileToSide}
           onNewEntry={fsEntryOpsEnabled ? handleNewEntry : undefined}
           onCollapseDirectory={handleCollapseDirectory}
           onRenameEntry={fsEntryOpsEnabled ? handleRenameEntry : undefined}
@@ -1061,7 +1047,6 @@ export function FileExplorerPane({
       openDirectoryInEditor,
       selectedEntryPath,
       onAddToChat,
-      onOpenFileToSide,
       serverId,
       workspaceId,
       isBrowsingWorkspace,
@@ -1505,7 +1490,6 @@ function TreeRowDispatcher({
   revealTargetName,
   onDownloadEntry,
   onAddToChat,
-  onOpenFileToSide,
   onNewEntry,
   onCollapseDirectory,
   onRenameEntry,
@@ -1530,7 +1514,6 @@ function TreeRowDispatcher({
   revealTargetName?: string;
   onDownloadEntry: (entry: ExplorerEntry) => void;
   onAddToChat?: (path: string) => void;
-  onOpenFileToSide?: (path: string) => void;
   onNewEntry?: (parentPath: string, kind: "file" | "directory") => void;
   onCollapseDirectory?: (path: string) => void;
   onRenameEntry?: (entry: ExplorerEntry) => void;
@@ -1564,7 +1547,6 @@ function TreeRowDispatcher({
       revealTargetName={revealTargetName}
       onDownloadEntry={onDownloadEntry}
       onAddToChat={onAddToChat}
-      onOpenFileToSide={onOpenFileToSide}
       onNewEntry={onNewEntry}
       onCollapseDirectory={onCollapseDirectory}
       onRenameEntry={onRenameEntry}
