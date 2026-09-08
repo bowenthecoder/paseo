@@ -239,6 +239,7 @@ export function WorkspaceHeaderActions({
           importAgentDisabled={importAgentDisabled}
           copyPathDisabled={!workspaceDirectory}
           showChanges={isGitCheckout}
+          onCreateDraftTab={onCreateDraftTab}
           onCreateTerminalWithProfile={onCreateTerminalWithProfile}
           onOpenImportSheet={onOpenImportSheet}
           onCopyWorkspacePath={onCopyWorkspacePath}

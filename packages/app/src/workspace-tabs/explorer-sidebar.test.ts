@@ -28,9 +28,6 @@ const CHECKOUT = { serverId: "server-1", cwd: "/tmp/repo", isGit: true };
 beforeEach(() => {
   useWorkspaceLayoutStore.setState({
     layoutByWorkspace: {},
-    explorerSidebarPaneIdByWorkspace: {},
-    sidePaneIdByWorkspace: {},
-    splitSizesByWorkspace: {},
   });
   usePanelStore.setState({
     mobilePanel: { target: "agent", revision: 0 },

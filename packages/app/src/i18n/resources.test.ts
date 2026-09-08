@@ -371,7 +371,7 @@ describe("translation resources", () => {
 
   it("includes keyboard shortcut help keys for the Batch 4G migration", () => {
     expect(en.settings.shortcuts.dialogTitle).toBe("Shortcuts");
-    expect(en.settings.shortcuts.sections.tabsPanes).toBe("Tabs & Panes");
+    expect(en.settings.shortcuts.sections.chat).toBe("Chat");
     expect(en.settings.shortcuts.help.toggleCommandCenter).toBe("Toggle command center");
     expect(en.settings.shortcuts.help.newWorkspace).toBe("New workspace");
     expect(en.settings.shortcuts.help.cycleAgentMode).toBe("Cycle agent mode");
@@ -520,8 +520,6 @@ describe("translation resources", () => {
     expect(en.message.attachments.imagePreviewLoadFailed).toBe("Unable to load image preview.");
     expect(en.workspace.tabs.explorerSidebar.changes).toBe("Changes");
     expect(en.workspace.tabs.explorerSidebar.files).toBe("Files");
-    expect(en.workspace.tabs.actions.maximizePane).toBe("Maximize pane");
-    expect(en.workspace.tabs.actions.restorePane).toBe("Restore pane");
     expect(en.branchSwitcher.triggerTooltip).toBe("Switch workspace branch");
     expect(en.branchSwitcher.uncommittedTitle).toBe("Uncommitted changes");
     expect(en.branchSwitcher.uncommittedMessage).toBe(

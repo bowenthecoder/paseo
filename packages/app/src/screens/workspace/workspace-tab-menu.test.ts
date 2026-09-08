@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  buildWorkspaceDesktopTabActions,
-  buildWorkspaceTabMenuEntries,
-} from "@/screens/workspace/workspace-tab-menu";
+import { buildWorkspaceTabMenuEntries } from "@/screens/workspace/workspace-tab-menu";
 import type { WorkspaceTabDescriptor } from "@/screens/workspace/workspace-tabs-types";
 
 function createAgentTab(): WorkspaceTabDescriptor {
@@ -15,22 +12,16 @@ function createAgentTab(): WorkspaceTabDescriptor {
 }
 
 describe("buildWorkspaceTabMenuEntries", () => {
-  it("uses desktop tab ordering labels for desktop menus", () => {
+  it("lists the agent tab actions in order", () => {
     const onCopyResumeCommand = vi.fn();
     const onCopyAgentId = vi.fn();
     const onCopyFilePath = vi.fn();
     const onReloadAgent = vi.fn();
     const onRenameTab = vi.fn();
     const onCloseTab = vi.fn();
-    const onCloseTabsBefore = vi.fn();
-    const onCloseTabsAfter = vi.fn();
-    const onCloseOtherTabs = vi.fn();
 
     const entries = buildWorkspaceTabMenuEntries({
-      surface: "desktop",
       tab: createAgentTab(),
-      index: 1,
-      tabCount: 3,
       menuTestIDBase: "workspace-tab-context-agent_123",
       onCopyResumeCommand,
       onCopyAgentId,
@@ -39,49 +30,12 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onReloadAgent,
       onRenameTab,
       onCloseTab,
-      onCloseTabsBefore,
-      onCloseTabsAfter,
-      onCloseOtherTabs,
     });
 
     expect(entries.filter((entry) => entry.kind === "item").map((entry) => entry.label)).toEqual([
       "Copy resume command",
       "Copy agent id",
       "Rename",
-      "Close to the left",
-      "Close to the right",
-      "Close other tabs",
-      "Reload agent",
-      "Close",
-    ]);
-  });
-
-  it("uses stacked ordering labels for mobile menus", () => {
-    const entries = buildWorkspaceTabMenuEntries({
-      surface: "mobile",
-      tab: createAgentTab(),
-      index: 1,
-      tabCount: 3,
-      menuTestIDBase: "workspace-tab-menu-agent_123",
-      onCopyResumeCommand: vi.fn(),
-      onCopyAgentId: vi.fn(),
-      onCopyTerminalId: vi.fn(),
-      onCopyFilePath: vi.fn(),
-      onReloadAgent: vi.fn(),
-      onRenameTab: vi.fn(),
-      onCloseTab: vi.fn(),
-      onCloseTabsBefore: vi.fn(),
-      onCloseTabsAfter: vi.fn(),
-      onCloseOtherTabs: vi.fn(),
-    });
-
-    expect(entries.filter((entry) => entry.kind === "item").map((entry) => entry.label)).toEqual([
-      "Copy resume command",
-      "Copy agent id",
-      "Rename",
-      "Close tabs above",
-      "Close tabs below",
-      "Close other tabs",
       "Reload agent",
       "Close",
     ]);
@@ -89,15 +43,12 @@ describe("buildWorkspaceTabMenuEntries", () => {
 
   it("omits agent copy actions and rename for draft tabs", () => {
     const entries = buildWorkspaceTabMenuEntries({
-      surface: "mobile",
       tab: {
         key: "draft_123",
         tabId: "draft_123",
         kind: "draft",
         target: { kind: "draft", draftId: "draft_123" },
       },
-      index: 0,
-      tabCount: 1,
       menuTestIDBase: "workspace-tab-menu-draft_123",
       onCopyResumeCommand: vi.fn(),
       onCopyAgentId: vi.fn(),
@@ -106,9 +57,6 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onReloadAgent: vi.fn(),
       onRenameTab: vi.fn(),
       onCloseTab: vi.fn(),
-      onCloseTabsBefore: vi.fn(),
-      onCloseTabsAfter: vi.fn(),
-      onCloseOtherTabs: vi.fn(),
     });
 
     expect(entries.some((entry) => entry.kind === "item" && entry.label === "Copy agent id")).toBe(
@@ -123,10 +71,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
 
   it("adds reload tooltip copy for agent tabs", () => {
     const entries = buildWorkspaceTabMenuEntries({
-      surface: "desktop",
       tab: createAgentTab(),
-      index: 0,
-      tabCount: 1,
       menuTestIDBase: "workspace-tab-context-agent_123",
       onCopyResumeCommand: vi.fn(),
       onCopyAgentId: vi.fn(),
@@ -135,9 +80,6 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onReloadAgent: vi.fn(),
       onRenameTab: vi.fn(),
       onCloseTab: vi.fn(),
-      onCloseTabsBefore: vi.fn(),
-      onCloseTabsAfter: vi.fn(),
-      onCloseOtherTabs: vi.fn(),
     });
 
     expect(entries).toContainEqual(
@@ -153,10 +95,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
     const onRenameTab = vi.fn();
     const tab = createAgentTab();
     const entries = buildWorkspaceTabMenuEntries({
-      surface: "desktop",
       tab,
-      index: 0,
-      tabCount: 1,
       menuTestIDBase: "workspace-tab-context-agent_123",
       onCopyResumeCommand: vi.fn(),
       onCopyAgentId: vi.fn(),
@@ -165,9 +104,6 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onReloadAgent: vi.fn(),
       onRenameTab,
       onCloseTab: vi.fn(),
-      onCloseTabsBefore: vi.fn(),
-      onCloseTabsAfter: vi.fn(),
-      onCloseOtherTabs: vi.fn(),
     });
 
     const renameEntry = entries.find((entry) => entry.kind === "item" && entry.label === "Rename");
@@ -189,10 +125,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       target: { kind: "terminal", terminalId: "terminal-abc" },
     };
     const entries = buildWorkspaceTabMenuEntries({
-      surface: "desktop",
       tab: terminalTab,
-      index: 0,
-      tabCount: 1,
       menuTestIDBase: "workspace-tab-context-terminal_abc",
       onCopyResumeCommand: vi.fn(),
       onCopyAgentId: vi.fn(),
@@ -201,9 +134,6 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onReloadAgent: vi.fn(),
       onRenameTab,
       onCloseTab: vi.fn(),
-      onCloseTabsBefore: vi.fn(),
-      onCloseTabsAfter: vi.fn(),
-      onCloseOtherTabs: vi.fn(),
     });
 
     const labels = entries.filter((entry) => entry.kind === "item").map((entry) => entry.label);
@@ -240,10 +170,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       target: { kind: "file", path: "/some/path.ts", lineStart: 1, lineEnd: 10 },
     };
     const entries = buildWorkspaceTabMenuEntries({
-      surface: "desktop",
       tab: fileTab,
-      index: 0,
-      tabCount: 1,
       menuTestIDBase: "workspace-tab-context-file_abc",
       onCopyResumeCommand: vi.fn(),
       onCopyAgentId: vi.fn(),
@@ -252,9 +179,6 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onReloadAgent: vi.fn(),
       onRenameTab: vi.fn(),
       onCloseTab: vi.fn(),
-      onCloseTabsBefore: vi.fn(),
-      onCloseTabsAfter: vi.fn(),
-      onCloseOtherTabs: vi.fn(),
     });
 
     const labels = entries.filter((entry) => entry.kind === "item").map((entry) => entry.label);
@@ -274,8 +198,8 @@ describe("buildWorkspaceTabMenuEntries", () => {
     expect(onCopyFilePath).toHaveBeenCalledWith("/some/path.ts");
   });
 
-  it("uses a Changes close id for the working diff tab", () => {
-    const actions = buildWorkspaceDesktopTabActions({
+  it("omits copy file path for the working diff tab", () => {
+    const entries = buildWorkspaceTabMenuEntries({
       tab: {
         key: "working_diff_abc",
         tabId: "working_diff_abc",
@@ -286,8 +210,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
           focusRequestId: 1,
         },
       },
-      index: 0,
-      tabCount: 1,
+      menuTestIDBase: "workspace-tab-context-working_diff_abc",
       onCopyResumeCommand: vi.fn(),
       onCopyAgentId: vi.fn(),
       onCopyTerminalId: vi.fn(),
@@ -295,13 +218,9 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onReloadAgent: vi.fn(),
       onRenameTab: vi.fn(),
       onCloseTab: vi.fn(),
-      onCloseTabsToLeft: vi.fn(),
-      onCloseTabsToRight: vi.fn(),
-      onCloseOtherTabs: vi.fn(),
     });
 
-    expect(actions.closeButtonTestId).toMatch(/^workspace-working-diff-close-/);
-    expect(actions.menuEntries).not.toContainEqual(
+    expect(entries).not.toContainEqual(
       expect.objectContaining({ kind: "item", key: "copy-file-path" }),
     );
   });
@@ -315,9 +234,6 @@ describe("buildWorkspaceTabMenuEntries", () => {
     };
     const menuTestIDBase = "workspace-tab-context";
     const sharedInput = {
-      surface: "desktop" as const,
-      index: 0,
-      tabCount: 1,
       menuTestIDBase,
       onCopyResumeCommand: vi.fn(),
       onCopyAgentId: vi.fn(),
@@ -326,9 +242,6 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onReloadAgent: vi.fn(),
       onRenameTab: vi.fn(),
       onCloseTab: vi.fn(),
-      onCloseTabsBefore: vi.fn(),
-      onCloseTabsAfter: vi.fn(),
-      onCloseOtherTabs: vi.fn(),
     };
 
     const agentEntries = buildWorkspaceTabMenuEntries({ ...sharedInput, tab: createAgentTab() });

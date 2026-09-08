@@ -135,10 +135,7 @@ function renderAccessory(
 ): { base: string; unmount: () => void } {
   const base = `workspace-tab-menu-${tab.tabId}`;
   const menuEntries = buildWorkspaceTabMenuEntries({
-    surface: "mobile",
     tab,
-    index: 0,
-    tabCount: 2,
     menuTestIDBase: base,
     onCopyResumeCommand: vi.fn(),
     onCopyAgentId: vi.fn(),
@@ -147,9 +144,6 @@ function renderAccessory(
     onReloadAgent: vi.fn(),
     onRenameTab,
     onCloseTab: vi.fn(),
-    onCloseTabsBefore: vi.fn(),
-    onCloseTabsAfter: vi.fn(),
-    onCloseOtherTabs: vi.fn(),
   });
 
   const container = document.createElement("div");

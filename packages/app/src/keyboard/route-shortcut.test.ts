@@ -28,7 +28,6 @@ function makeCtx(overrides: Partial<ShortcutRoutingContext> = {}): ShortcutRouti
 describe("routeKeyboardShortcut — dispatch passthroughs", () => {
   it.each([
     ["agent.interrupt", { id: "agent.interrupt", scope: "global" }],
-    ["workspace.tab.menu.open", { id: "workspace.tab.menu.open", scope: "workspace" }],
     ["workspace.tab.target.agent", { id: "workspace.tab.target.agent", scope: "workspace" }],
     ["workspace.tab.target.browser", { id: "workspace.tab.target.browser", scope: "workspace" }],
     ["workspace.tab.target.changes", { id: "workspace.tab.target.changes", scope: "workspace" }],
@@ -41,17 +40,6 @@ describe("routeKeyboardShortcut — dispatch passthroughs", () => {
     ["workspace.terminal.new", { id: "workspace.terminal.new", scope: "workspace" }],
     ["workspace.tab.close.current", { id: "workspace.tab.close-current", scope: "workspace" }],
     ["sidebar.toggle.right", { id: "sidebar.toggle.right", scope: "sidebar" }],
-    ["workspace.pane.split.right", { id: "workspace.pane.split.right", scope: "workspace" }],
-    ["workspace.pane.split.down", { id: "workspace.pane.split.down", scope: "workspace" }],
-    ["workspace.pane.focus.left", { id: "workspace.pane.focus.left", scope: "workspace" }],
-    ["workspace.pane.focus.right", { id: "workspace.pane.focus.right", scope: "workspace" }],
-    ["workspace.pane.focus.up", { id: "workspace.pane.focus.up", scope: "workspace" }],
-    ["workspace.pane.focus.down", { id: "workspace.pane.focus.down", scope: "workspace" }],
-    ["workspace.pane.move-tab.left", { id: "workspace.pane.move-tab.left", scope: "workspace" }],
-    ["workspace.pane.move-tab.right", { id: "workspace.pane.move-tab.right", scope: "workspace" }],
-    ["workspace.pane.move-tab.up", { id: "workspace.pane.move-tab.up", scope: "workspace" }],
-    ["workspace.pane.move-tab.down", { id: "workspace.pane.move-tab.down", scope: "workspace" }],
-    ["workspace.pane.close", { id: "workspace.pane.close", scope: "workspace" }],
     ["view.toggle.focus", { id: "workspace.focus.toggle", scope: "workspace" }],
   ])("%s → dispatch %j", (action, expected) => {
     expect(routeKeyboardShortcut({ action, payload: null }, makeCtx())).toEqual({
@@ -79,47 +67,6 @@ describe("routeKeyboardShortcut — dispatch passthroughs", () => {
       kind: "dispatch",
       action: { id: "agent.interrupt", scope: "global" },
     });
-  });
-});
-
-describe("routeKeyboardShortcut — workspace.tab.navigate", () => {
-  it("forwards index payloads to the workspace.tab.navigate-index dispatch", () => {
-    expect(
-      routeKeyboardShortcut(
-        { action: "workspace.tab.navigate.index", payload: { index: 3 } },
-        makeCtx(),
-      ),
-    ).toEqual<ShortcutAction>({
-      kind: "dispatch",
-      action: { id: "workspace.tab.navigate-index", scope: "workspace", index: 3 },
-    });
-  });
-
-  it("returns none when index payload is missing", () => {
-    expect(
-      routeKeyboardShortcut({ action: "workspace.tab.navigate.index", payload: null }, makeCtx()),
-    ).toEqual<ShortcutAction>({ kind: "none" });
-  });
-
-  it("forwards delta payloads to the workspace.tab.navigate-relative dispatch", () => {
-    expect(
-      routeKeyboardShortcut(
-        { action: "workspace.tab.navigate.relative", payload: { delta: -1 } },
-        makeCtx(),
-      ),
-    ).toEqual<ShortcutAction>({
-      kind: "dispatch",
-      action: { id: "workspace.tab.navigate-relative", scope: "workspace", delta: -1 },
-    });
-  });
-
-  it("returns none when delta payload is missing", () => {
-    expect(
-      routeKeyboardShortcut(
-        { action: "workspace.tab.navigate.relative", payload: null },
-        makeCtx(),
-      ),
-    ).toEqual<ShortcutAction>({ kind: "none" });
   });
 });
 

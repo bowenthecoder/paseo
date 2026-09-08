@@ -33,6 +33,7 @@ export type KeyboardActionId =
   | "command-center.toggle"
   | "command-center.files"
   | "shortcuts.dialog.toggle"
+  | "workspace.sidePanel.close"
   | "workspace.terminal.new"
   | "workspace.new"
   | "workspace.project.pick"
