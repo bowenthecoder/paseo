@@ -107,6 +107,8 @@ export const zhCN: TranslationResources = {
       sendMessage: "发送消息",
       queue: "排队",
       send: "发送",
+      holdQueue: "排队",
+      holdQueueMessage: "将消息加入队列但不发送",
     },
     cancel: {
       cancelingAgent: "正在取消 Agent",
@@ -135,6 +137,9 @@ export const zhCN: TranslationResources = {
       dropFilesHere: "Drop files here",
       editQueuedMessage: "编辑排队消息",
       sendQueuedMessageNow: "立即发送排队消息",
+      removeQueuedMessage: "移除排队消息",
+      heldQueuedMessage: "保留",
+      sendAllHeldMessages: "全部发送",
       openImage: "打开图片附件",
       removeImage: "移除图片附件",
       removeFile: "Remove file attachment",

@@ -104,6 +104,8 @@ export const en = {
       sendMessage: "Send message",
       queue: "Queue",
       send: "Send",
+      holdQueue: "Queue",
+      holdQueueMessage: "Queue message without sending",
     },
     cancel: {
       cancelingAgent: "Canceling agent",
@@ -132,6 +134,9 @@ export const en = {
       dropFilesHere: "Drop files here",
       editQueuedMessage: "Edit queued message",
       sendQueuedMessageNow: "Send queued message now",
+      removeQueuedMessage: "Remove queued message",
+      heldQueuedMessage: "Held",
+      sendAllHeldMessages: "Send all",
       openImage: "Open image attachment",
       removeImage: "Remove image attachment",
       removeFile: "Remove file attachment",
