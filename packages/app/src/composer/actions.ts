@@ -22,6 +22,12 @@ export interface QueuedComposerMessage {
   id: string;
   text: string;
   attachments: ComposerAttachment[];
+  /**
+   * Held messages wait for an explicit send: the turn-end drain skips them, so they only leave
+   * the queue through "Send now" or "Send all". Messages queued by the send-while-running
+   * behaviour leave this unset and keep draining automatically.
+   */
+  hold?: boolean;
 }
 
 export interface AttachmentPersister {
@@ -220,6 +226,8 @@ export interface QueueComposerMessageInput {
   text: string;
   attachments: ComposerAttachment[];
   queue: QueueWriter;
+  /** Queue the message as held, so nothing sends it until the user asks. */
+  hold?: boolean;
 }
 
 export interface QueueComposerMessageResult {
@@ -235,6 +243,7 @@ export function queueComposerMessage(input: QueueComposerMessageInput): QueueCom
     id: generateMessageId(),
     text: trimmed,
     attachments: input.attachments,
+    ...(input.hold ? { hold: true } : {}),
   };
   input.queue.write((prev) => {
     const next = new Map(prev);
@@ -242,6 +251,31 @@ export function queueComposerMessage(input: QueueComposerMessageInput): QueueCom
     return next;
   });
   return { queued: item };
+}
+
+function dropQueuedMessage(queue: QueueWriter, agentId: string, messageId: string): void {
+  queue.write((prev) => {
+    const next = new Map(prev);
+    next.set(
+      agentId,
+      (prev.get(agentId) ?? []).filter((q) => q.id !== messageId),
+    );
+    return next;
+  });
+}
+
+export interface RemoveQueuedComposerMessageInput {
+  agentId: string;
+  messageId: string;
+  queue: QueueWriter;
+}
+
+/** Drops a queued message without sending it. Returns false when it is already gone. */
+export function removeQueuedComposerMessage(input: RemoveQueuedComposerMessageInput): boolean {
+  const exists = input.queue.read(input.agentId).some((q) => q.id === input.messageId);
+  if (!exists) return false;
+  dropQueuedMessage(input.queue, input.agentId, input.messageId);
+  return true;
 }
 
 export interface EditQueuedComposerMessageInput {
@@ -260,14 +294,7 @@ export function editQueuedComposerMessage(
 ): EditQueuedComposerMessageResult | null {
   const item = input.queue.read(input.agentId).find((q) => q.id === input.messageId);
   if (!item) return null;
-  input.queue.write((prev) => {
-    const next = new Map(prev);
-    next.set(
-      input.agentId,
-      (prev.get(input.agentId) ?? []).filter((q) => q.id !== input.messageId),
-    );
-    return next;
-  });
+  dropQueuedMessage(input.queue, input.agentId, input.messageId);
   return {
     text: item.text,
     attachments: userAttachmentsOnly(item.attachments),
@@ -292,14 +319,7 @@ export async function sendQueuedComposerMessageNow(
 ): Promise<SendQueuedComposerMessageNowResult> {
   const item = input.queue.read(input.agentId).find((q) => q.id === input.messageId);
   if (!item) return { status: "missing" };
-  input.queue.write((prev) => {
-    const next = new Map(prev);
-    next.set(
-      input.agentId,
-      (prev.get(input.agentId) ?? []).filter((q) => q.id !== input.messageId),
-    );
-    return next;
-  });
+  dropQueuedMessage(input.queue, input.agentId, input.messageId);
   try {
     await input.submitMessage({ text: item.text, attachments: item.attachments });
     return { status: "submitted" };
@@ -317,6 +337,45 @@ export async function sendQueuedComposerMessageNow(
           : (input.failedToSendMessage ?? i18n.t("composer.errors.failedToSend")),
     };
   }
+}
+
+export interface SendHeldQueuedComposerMessagesInput {
+  agentId: string;
+  queue: QueueWriter;
+  submitMessage: (input: { text: string; attachments: ComposerAttachment[] }) => Promise<void>;
+  failedToSendMessage?: string;
+}
+
+export type SendHeldQueuedComposerMessagesResult =
+  | { status: "sent"; sent: number }
+  | { status: "failed"; sent: number; errorMessage: string };
+
+/**
+ * Sends every held message in queue order, one submission at a time. The first failure stops the
+ * run, leaving that message and the ones behind it in the queue.
+ */
+export async function sendHeldQueuedComposerMessages(
+  input: SendHeldQueuedComposerMessagesInput,
+): Promise<SendHeldQueuedComposerMessagesResult> {
+  const heldIds = input.queue
+    .read(input.agentId)
+    .filter((item) => item.hold === true)
+    .map((item) => item.id);
+  let sent = 0;
+  for (const messageId of heldIds) {
+    const result = await sendQueuedComposerMessageNow({
+      agentId: input.agentId,
+      messageId,
+      queue: input.queue,
+      submitMessage: input.submitMessage,
+      failedToSendMessage: input.failedToSendMessage,
+    });
+    if (result.status === "failed") {
+      return { status: "failed", sent, errorMessage: result.errorMessage };
+    }
+    if (result.status === "submitted") sent += 1;
+  }
+  return { status: "sent", sent };
 }
 
 export interface OpenComposerAttachmentInput {

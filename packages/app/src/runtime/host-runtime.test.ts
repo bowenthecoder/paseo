@@ -2702,6 +2702,78 @@ describe("HostRuntimeStore", () => {
     useSessionStore.getState().clearSession(host.serverId);
   });
 
+  it("skips held messages and drains the first automatic one behind them", async () => {
+    const host = makeHost({ serverId: "srv_held_queue_drain" });
+    const fakeClient = new FakeDaemonClient();
+    const store = new HostRuntimeStore({
+      deps: {
+        createClient: () => fakeClient as unknown as DaemonClient,
+        connectToDaemon: async () => ({
+          client: fakeClient as unknown as DaemonClient,
+          serverId: host.serverId,
+          hostname: null,
+        }),
+        getClientId: async () => "cid_held_queue_drain",
+      },
+    });
+    const sessionStore = useSessionStore.getState();
+    sessionStore.initializeSession(host.serverId, fakeClient as unknown as DaemonClient, 1);
+    sessionStore.setQueuedMessages(
+      host.serverId,
+      new Map([
+        [
+          "agent",
+          [
+            { id: "held", text: "wait for me", attachments: [], hold: true },
+            { id: "auto", text: "send me", attachments: [] },
+          ],
+        ],
+      ]),
+    );
+
+    store.drainQueuedAgentMessage(host.serverId, "agent");
+    await fakeClient.waitForSentMessages(1);
+
+    expect(fakeClient.sentAgentMessages.map(([, text]) => text)).toEqual(["send me"]);
+    await vi.waitFor(() => {
+      expect(
+        useSessionStore.getState().sessions[host.serverId]?.queuedMessages.get("agent"),
+      ).toEqual([{ id: "held", text: "wait for me", attachments: [], hold: true }]);
+    });
+
+    useSessionStore.getState().clearSession(host.serverId);
+  });
+
+  it("sends nothing when every queued message is held", async () => {
+    const host = makeHost({ serverId: "srv_only_held_queue" });
+    const fakeClient = new FakeDaemonClient();
+    const store = new HostRuntimeStore({
+      deps: {
+        createClient: () => fakeClient as unknown as DaemonClient,
+        connectToDaemon: async () => ({
+          client: fakeClient as unknown as DaemonClient,
+          serverId: host.serverId,
+          hostname: null,
+        }),
+        getClientId: async () => "cid_only_held_queue",
+      },
+    });
+    const sessionStore = useSessionStore.getState();
+    sessionStore.initializeSession(host.serverId, fakeClient as unknown as DaemonClient, 1);
+    const held = [{ id: "held", text: "wait for me", attachments: [], hold: true }];
+    sessionStore.setQueuedMessages(host.serverId, new Map([["agent", held]]));
+
+    store.drainQueuedAgentMessage(host.serverId, "agent");
+    await Promise.resolve();
+
+    expect(fakeClient.sentAgentMessages).toHaveLength(0);
+    expect(useSessionStore.getState().sessions[host.serverId]?.queuedMessages.get("agent")).toEqual(
+      held,
+    );
+
+    useSessionStore.getState().clearSession(host.serverId);
+  });
+
   it("serializes queued-message drains for the same agent", async () => {
     const host = makeHost({ serverId: "srv_serialized_queue_drain" });
     const fakeClient = new FakeDaemonClient();

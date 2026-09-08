@@ -27,6 +27,8 @@ import {
   pickAndPersistImages,
   queueComposerMessage,
   removeComposerAttachmentAtIndex,
+  removeQueuedComposerMessage,
+  sendHeldQueuedComposerMessages,
   sendQueuedComposerMessageNow,
   toggleForgeAttachment,
   toggleForgeAttachmentFromPicker,
@@ -734,6 +736,17 @@ describe("queueComposerMessage", () => {
     expect(queue.state.get("agent")).toBeUndefined();
   });
 
+  it("marks the entry as held when asked, and leaves the flag off otherwise", () => {
+    const queue = createFakeQueue();
+    queueComposerMessage({ agentId: "agent", text: "auto", attachments: [], queue });
+    queueComposerMessage({ agentId: "agent", text: "held", attachments: [], queue, hold: true });
+
+    expect(queue.state.get("agent")?.map((item) => [item.text, item.hold])).toEqual([
+      ["auto", undefined],
+      ["held", true],
+    ]);
+  });
+
   it("captures workspace review attachments at queue time alongside user attachments", () => {
     const queue = createFakeQueue();
     const review = reviewWorkspaceAttachment("Initial queued review.");
@@ -847,6 +860,114 @@ describe("sendQueuedComposerMessageNow", () => {
     expect(result).toEqual({ status: "failed", errorMessage: "network down" });
     const state = queue.state.get("agent");
     expect(state?.map((m) => m.id)).toEqual(["msg-1", "msg-2"]);
+  });
+});
+
+describe("removeQueuedComposerMessage", () => {
+  it("drops the message and keeps the rest of the queue in order", () => {
+    const queue = createFakeQueue(
+      new Map([
+        [
+          "agent",
+          [
+            { id: "msg-1", text: "first", attachments: [] },
+            { id: "msg-2", text: "second", attachments: [], hold: true },
+            { id: "msg-3", text: "third", attachments: [] },
+          ],
+        ],
+      ]),
+    );
+
+    expect(removeQueuedComposerMessage({ agentId: "agent", messageId: "msg-2", queue })).toBe(true);
+    expect(queue.state.get("agent")?.map((m) => m.id)).toEqual(["msg-1", "msg-3"]);
+  });
+
+  it("reports false for a message that is already gone", () => {
+    const queue = createFakeQueue(
+      new Map([["agent", [{ id: "msg-1", text: "first", attachments: [] }]]]),
+    );
+
+    expect(removeQueuedComposerMessage({ agentId: "agent", messageId: "gone", queue })).toBe(false);
+    expect(queue.state.get("agent")).toHaveLength(1);
+  });
+});
+
+describe("sendHeldQueuedComposerMessages", () => {
+  it("submits only the held messages, in queue order, one at a time", async () => {
+    const queue = createFakeQueue(
+      new Map([
+        [
+          "agent",
+          [
+            { id: "msg-1", text: "held one", attachments: [], hold: true },
+            { id: "msg-2", text: "auto", attachments: [] },
+            { id: "msg-3", text: "held two", attachments: [], hold: true },
+          ],
+        ],
+      ]),
+    );
+    const submitted: string[] = [];
+    let inFlight = 0;
+
+    const result = await sendHeldQueuedComposerMessages({
+      agentId: "agent",
+      queue,
+      submitMessage: async (input) => {
+        inFlight += 1;
+        expect(inFlight).toBe(1);
+        await Promise.resolve();
+        submitted.push(input.text);
+        inFlight -= 1;
+      },
+    });
+
+    expect(result).toEqual({ status: "sent", sent: 2 });
+    expect(submitted).toEqual(["held one", "held two"]);
+    expect(queue.state.get("agent")?.map((m) => m.id)).toEqual(["msg-2"]);
+  });
+
+  it("stops at the first failure and leaves the rest of the held messages queued", async () => {
+    const queue = createFakeQueue(
+      new Map([
+        [
+          "agent",
+          [
+            { id: "msg-1", text: "held one", attachments: [], hold: true },
+            { id: "msg-2", text: "held two", attachments: [], hold: true },
+          ],
+        ],
+      ]),
+    );
+
+    const result = await sendHeldQueuedComposerMessages({
+      agentId: "agent",
+      queue,
+      submitMessage: async (input) => {
+        if (input.text === "held two") throw new Error("network down");
+      },
+    });
+
+    expect(result).toEqual({ status: "failed", sent: 1, errorMessage: "network down" });
+    expect(queue.state.get("agent")?.map((m) => m.id)).toEqual(["msg-2"]);
+  });
+
+  it("does nothing when the queue holds only automatically drained messages", async () => {
+    const queue = createFakeQueue(
+      new Map([["agent", [{ id: "msg-1", text: "auto", attachments: [] }]]]),
+    );
+    const submitted: string[] = [];
+
+    const result = await sendHeldQueuedComposerMessages({
+      agentId: "agent",
+      queue,
+      submitMessage: async (input) => {
+        submitted.push(input.text);
+      },
+    });
+
+    expect(result).toEqual({ status: "sent", sent: 0 });
+    expect(submitted).toEqual([]);
+    expect(queue.state.get("agent")).toHaveLength(1);
   });
 });
 

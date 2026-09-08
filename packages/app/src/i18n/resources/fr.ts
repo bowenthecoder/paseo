@@ -106,6 +106,8 @@ export const fr: TranslationResources = {
       sendMessage: "Envoyer un message",
       queue: "File d'attente",
       send: "Envoyer",
+      holdQueue: "File d'attente",
+      holdQueueMessage: "Mettre le message en file d'attente sans l'envoyer",
     },
     cancel: {
       cancelingAgent: "Agent d'annulation",
@@ -134,6 +136,9 @@ export const fr: TranslationResources = {
       dropFilesHere: "Drop files here",
       editQueuedMessage: "Modifier le message en file d'attente",
       sendQueuedMessageNow: "Envoyer le message en file d'attente maintenant",
+      removeQueuedMessage: "Retirer le message de la file d'attente",
+      heldQueuedMessage: "En attente",
+      sendAllHeldMessages: "Tout envoyer",
       openImage: "Ouvrir la pièce jointe de l'image",
       removeImage: "Supprimer l'image jointe",
       removeFile: "Remove file attachment",

@@ -104,6 +104,8 @@ export const ru: TranslationResources = {
       sendMessage: "Отправить сообщение",
       queue: "Очередь",
       send: "Отправить",
+      holdQueue: "Очередь",
+      holdQueueMessage: "Поставить сообщение в очередь без отправки",
     },
     cancel: {
       cancelingAgent: "Отменить агента",
@@ -132,6 +134,9 @@ export const ru: TranslationResources = {
       dropFilesHere: "Переместите файлы сюда",
       editQueuedMessage: "Изменить сообщение из очереди",
       sendQueuedMessageNow: "Отправить сообщение из очереди сейчас",
+      removeQueuedMessage: "Удалить сообщение из очереди",
+      heldQueuedMessage: "Удержано",
+      sendAllHeldMessages: "Отправить все",
       openImage: "Открыть прикрепленное изображение",
       removeImage: "Удалить прикрепленное изображение",
       removeFile: "Удалить прикрепленный файл",

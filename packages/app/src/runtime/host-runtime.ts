@@ -2171,11 +2171,12 @@ export class HostRuntimeStore {
     const session = store.sessions[serverId];
     const queue = session?.queuedMessages.get(agentId);
     const client = session?.client;
-    if (!client || !queue?.length || session.initializingAgents.get(agentId) === true) {
+    // Held messages are the user's to send; only the automatically queued ones drain here.
+    const next = queue?.find((item) => item.hold !== true);
+    if (!client || !next || session?.initializingAgents.get(agentId) === true) {
       return;
     }
     this.queuedAgentDrainInFlight.add(drainKey);
-    const next = queue[0];
     void sendQueuedComposerMessageNow({
       agentId,
       messageId: next.id,

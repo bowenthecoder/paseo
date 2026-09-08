@@ -104,6 +104,8 @@ export const ja: TranslationResources = {
       sendMessage: "メッセージを送信",
       queue: "キュー",
       send: "送信",
+      holdQueue: "キュー",
+      holdQueueMessage: "送信せずにメッセージをキューに追加",
     },
     cancel: {
       cancelingAgent: "エージェントをキャンセル中",
@@ -132,6 +134,9 @@ export const ja: TranslationResources = {
       dropFilesHere: "ここにファイルをドロップ",
       editQueuedMessage: "キューに入れたメッセージを編集",
       sendQueuedMessageNow: "キューに入れたメッセージを今すぐ送信",
+      removeQueuedMessage: "キューに入れたメッセージを削除",
+      heldQueuedMessage: "保留中",
+      sendAllHeldMessages: "すべて送信",
       openImage: "画像添付ファイルを開く",
       removeImage: "画像添付ファイルを削除",
       removeFile: "ファイル添付ファイルを削除",
