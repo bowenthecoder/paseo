@@ -7,6 +7,7 @@ import type { StatusGroup } from "@/hooks/sidebar-status-view-model";
 export interface SidebarShortcutWorkspaceTarget {
   serverId: string;
   workspaceId: string;
+  agentId?: string;
 }
 
 export interface SidebarShortcutModel {
@@ -15,16 +16,17 @@ export interface SidebarShortcutModel {
 }
 
 export interface SidebarShortcutSection {
-  workspaces: readonly SidebarWorkspacePlacement[];
+  workspaces: readonly (SidebarWorkspacePlacement & { agentId?: string })[];
   collapsed?: boolean;
 }
 
 function createShortcutTarget(
-  workspace: SidebarWorkspacePlacement,
+  workspace: SidebarWorkspacePlacement & { agentId?: string },
 ): SidebarShortcutWorkspaceTarget {
   return {
     serverId: workspace.serverId,
     workspaceId: workspace.workspaceId,
+    ...(workspace.agentId ? { agentId: workspace.agentId } : {}),
   };
 }
 
@@ -100,7 +102,8 @@ export function getRelativeSidebarShortcutTarget(input: {
   const currentIndex = input.targets.findIndex(
     (target) =>
       target.serverId === currentTarget.serverId &&
-      target.workspaceId === currentTarget.workspaceId,
+      target.workspaceId === currentTarget.workspaceId &&
+      (target.agentId === undefined || target.agentId === currentTarget.agentId),
   );
   if (currentIndex < 0) {
     return input.targets[input.delta > 0 ? 0 : input.targets.length - 1] ?? null;

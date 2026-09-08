@@ -1097,6 +1097,178 @@ test("extension inherits base override — override claude command, zai extends 
 });
 
 describe("model merging", () => {
+  test.each(["codex", "codex-b"])(
+    "%s configured labels retain native effort capabilities",
+    async (provider) => {
+      const thinkingOptions = [
+        { id: "low", label: "Low" },
+        { id: "medium", label: "Medium", isDefault: true },
+        { id: "high", label: "High" },
+      ];
+      mockState.runtimeModels.set("codex", [
+        {
+          provider: "codex",
+          id: "native-model",
+          label: "Native label",
+          thinkingOptions,
+          defaultThinkingOptionId: "medium",
+          contextWindowMaxTokens: 200_000,
+          isDefault: true,
+        },
+        { provider: "codex", id: "not-curated", label: "Not in configured list" },
+      ]);
+      const registry = buildProviderRegistry(logger, {
+        providerOverrides: {
+          [provider]: {
+            ...(provider === "codex" ? {} : { extends: "codex", label: "Codex 2" }),
+            models: [
+              { id: "unknown-model", label: "Custom model", isDefault: true },
+              {
+                id: "native-model",
+                label: "Preferred label",
+                description: "Preferred description",
+              },
+            ],
+          },
+        },
+      });
+      const options = { scope: "workspace" as const, cwd: "/tmp/registry-models", force: false };
+      const expectedModels = [
+        { provider, id: "unknown-model", label: "Custom model", isDefault: true },
+        {
+          provider,
+          id: "native-model",
+          label: "Preferred label",
+          description: "Preferred description",
+          thinkingOptions,
+          defaultThinkingOptionId: "medium",
+          contextWindowMaxTokens: 200_000,
+        },
+      ];
+
+      expect((await registry[provider].fetchCatalog(options)).models).toEqual(expectedModels);
+      expect((await registry[provider].createClient(logger).fetchCatalog(options)).models).toEqual(
+        expectedModels,
+      );
+    },
+  );
+
+  test("explicit configured Codex efforts override native capabilities, including disabling effort", async () => {
+    const thinkingOptions = [{ id: "high", label: "High", isDefault: true }];
+    mockState.runtimeModels.set(
+      "codex",
+      ["inherited", "disabled", "explicit"].map((id) => ({
+        provider: "codex",
+        id,
+        label: id,
+        thinkingOptions,
+        defaultThinkingOptionId: "high",
+      })),
+    );
+    const registry = buildProviderRegistry(logger, {
+      providerOverrides: {
+        codex: {
+          models: [
+            { id: "inherited", label: "Inherited" },
+            { id: "disabled", label: "Disabled", thinkingOptions: [] },
+            {
+              id: "explicit",
+              label: "Explicit",
+              thinkingOptions: [{ id: "low", label: "Low", isDefault: true }],
+            },
+          ],
+        },
+      },
+    });
+    const { models } = await registry.codex.fetchCatalog({
+      scope: "workspace",
+      cwd: "/tmp/registry-models",
+      force: false,
+    });
+    expect(models[0].thinkingOptions).toEqual(thinkingOptions);
+    expect(models[0].defaultThinkingOptionId).toBe("high");
+    expect(models[1].thinkingOptions).toEqual([]);
+    expect(models[1].defaultThinkingOptionId).toBeUndefined();
+    expect(models[2].thinkingOptions).toEqual([{ id: "low", label: "Low", isDefault: true }]);
+    expect(models[2].defaultThinkingOptionId).toBe("low");
+  });
+
+  test.each(["codex", "gateway"])(
+    "%s endpoint profile keeps static capabilities even if an ID matches a native model",
+    async (provider) => {
+      mockState.runtimeModels.set("codex", [
+        {
+          provider: "codex",
+          id: "shared-model",
+          label: "Native",
+          thinkingOptions: [{ id: "high", label: "High" }],
+        },
+      ]);
+      const registry = buildProviderRegistry(logger, {
+        providerOverrides: {
+          [provider]: {
+            ...(provider === "codex" ? {} : { extends: "codex", label: "Gateway" }),
+            env: { OPENAI_BASE_URL: "https://gateway.example/v1" },
+            models: [{ id: "shared-model", label: "Gateway model" }],
+          },
+        },
+      });
+      const options = { scope: "workspace" as const, cwd: "/tmp/registry-models", force: false };
+      const expectedModels = [{ provider, id: "shared-model", label: "Gateway model" }];
+      expect((await registry[provider].fetchCatalog(options)).models).toEqual(expectedModels);
+      expect((await registry[provider].createClient(logger).fetchCatalog(options)).models).toEqual(
+        expectedModels,
+      );
+    },
+  );
+
+  test("Codex additional labels inherit missing effort and explicit additional options clear native defaults", async () => {
+    mockState.runtimeModels.set(
+      "codex",
+      ["primary", "extra"].map((id) => ({
+        provider: "codex",
+        id,
+        label: id,
+        thinkingOptions: [{ id: "high", label: "High", isDefault: true }],
+        defaultThinkingOptionId: "high",
+      })),
+    );
+    const registry = buildProviderRegistry(logger, {
+      providerOverrides: {
+        codex: {
+          models: [
+            {
+              id: "primary",
+              label: "Primary",
+              thinkingOptions: [{ id: "high", label: "High", isDefault: true }],
+            },
+          ],
+          additionalModels: [
+            { id: "primary", label: "No effort", thinkingOptions: [] },
+            { id: "extra", label: "Extra label" },
+          ],
+        },
+      },
+    });
+    const { models } = await registry.codex.fetchCatalog({
+      scope: "workspace",
+      cwd: "/tmp/registry-models",
+      force: false,
+    });
+    expect(models.map((model) => model.id)).toEqual(["primary", "extra"]);
+    expect(models[0]).toEqual({
+      provider: "codex",
+      id: "primary",
+      label: "No effort",
+      thinkingOptions: [],
+    });
+    expect(models[1]).toMatchObject({
+      label: "Extra label",
+      defaultThinkingOptionId: "high",
+      thinkingOptions: [{ id: "high", label: "High", isDefault: true }],
+    });
+  });
+
   test("profile models replace runtime models", async () => {
     mockState.runtimeModels.set("codex", [
       {
@@ -1736,17 +1908,21 @@ describe("fetchCatalog", () => {
     expect(catalog.models.map((model) => model.id)).toEqual(["profile-model", "extra-model"]);
   });
 
-  test("replacement models still resolve the provider's capability-aware default mode", async () => {
+  test("fully specified replacement models skip discovery and resolve the capability-aware default mode", async () => {
     const resolveDefaultModeId = vi.fn(async () => "default");
+    const fetchCatalog = vi.fn(async (): Promise<ProviderCatalog> => {
+      throw new Error("Static model list should not discover runtime models");
+    });
     const injectedClient = {
       provider: "codex",
       capabilities: {},
       resolveDefaultModeId,
+      fetchCatalog,
       isAvailable: vi.fn(async () => true),
     } satisfies Partial<AgentClient> as AgentClient;
     const registry = buildProviderRegistry(logger, {
       providerOverrides: {
-        codex: { models: [{ id: "profile-model", label: "Profile Model" }] },
+        codex: { models: [{ id: "profile-model", label: "Profile Model", thinkingOptions: [] }] },
       },
     });
 
@@ -1756,6 +1932,7 @@ describe("fetchCatalog", () => {
     );
 
     expect(catalog.defaultModeId).toBe("default");
+    expect(fetchCatalog).not.toHaveBeenCalled();
     expect(resolveDefaultModeId).toHaveBeenCalledWith({
       config: { provider: "codex", cwd: "/tmp/catalog" },
     });

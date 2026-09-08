@@ -65,6 +65,26 @@ export class WorkspaceAutoName {
       options.generateWorkspaceName ?? generateBranchNameFromFirstAgentContext;
   }
 
+  scheduleForAgent(input: {
+    agentId: string;
+    expectedTitle: string | null;
+    cwd: string;
+    firstAgentContext: FirstAgentContext;
+    currentSelection: CurrentSelection;
+  }): void {
+    const expectedTitle = input.expectedTitle;
+    if (!expectedTitle || !input.firstAgentContext.prompt?.trim()) return;
+    this.schedule(
+      async () => {
+        const generated = await this.generateFromContext(input);
+        if (generated?.title) {
+          await this.agentManager.setGeneratedTitle(input.agentId, expectedTitle, generated.title);
+        }
+      },
+      { cwd: input.cwd, message: "Failed to auto-name chat" },
+    );
+  }
+
   scheduleForWorktree(
     input: {
       workspace: PersistedWorkspaceRecord;

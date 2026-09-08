@@ -33,6 +33,11 @@ const manifests = {
     supportedHosts: ["main", "explorer"],
     resourceKey: (target) => `${target.parentAgentId}:${target.subagentId}`,
   },
+  subagents: {
+    kind: "subagents",
+    supportedHosts: ["main", "explorer"],
+    resourceKey: (target) => target.parentAgentId,
+  },
   terminal: {
     kind: "terminal",
     supportedHosts: ["main", "explorer"],

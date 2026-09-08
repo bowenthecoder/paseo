@@ -1,4 +1,8 @@
 import React, { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { useAggregatedAgents } from "@/hooks/use-aggregated-agents";
+import { buildManualChatEntries, type ManualChatEntry } from "./manual-chat-groups";
+import { useSidebarChatGroupsStore } from "@/stores/sidebar-chat-groups-store";
 import {
   useSidebarWorkspacesList,
   type SidebarProjectEntry,
@@ -25,6 +29,8 @@ import {
 } from "@/workspace-labels";
 
 interface SidebarModel extends SidebarWorkspacesListResult {
+  manualChatEntries: ManualChatEntry[];
+  allManualChatEntries: ManualChatEntry[];
   workspaceEntriesByKey: ReadonlyMap<string, SidebarWorkspaceEntry>;
   /**
    * Every project the sidebar could show, before any filter narrows it.
@@ -54,8 +60,22 @@ export function SidebarModelProvider({
   active?: boolean;
   children: ReactNode;
 }) {
-  const list = useSidebarWorkspacesList({ enabled: active });
   const groupMode = useSidebarViewStore((state) => state.groupMode);
+  const hostFilters = useSidebarViewStore((state) => state.hostFilters);
+  const list = useSidebarWorkspacesList({
+    enabled: active,
+    ...(groupMode === "manual" ? { hostFilters: [] } : {}),
+  });
+  const manualGrouping = useSidebarChatGroupsStore(
+    useShallow(({ groups, assignments, order, collapsed, pinned, workspaceDefaults }) => ({
+      pinned,
+      workspaceDefaults,
+      groups,
+      assignments,
+      order,
+      collapsed,
+    })),
+  );
   const labelFilter = useSidebarViewStore((state) => state.labelFilter);
   const projectFilters = useSidebarViewStore((state) => state.projectFilters);
   const reconcileLabelFilter = useSidebarViewStore((state) => state.reconcileLabelFilter);
@@ -105,9 +125,22 @@ export function SidebarModelProvider({
       workspaces: [...workspaceEntriesByKey.values()],
       projectFilters: resolvedProjectFilters,
     });
-    const filtered = filterWorkspacesByLabels({ workspaces: byProject, ...labelFilter });
+    const visibleHosts =
+      groupMode === "manual" && hostFilters.length > 0
+        ? byProject.filter((workspace) => hostFilters.includes(workspace.serverId))
+        : byProject;
+    const filtered = filterWorkspacesByLabels({ workspaces: visibleHosts, ...labelFilter });
     return new Map(filtered.map((workspace) => [workspace.workspaceKey, workspace]));
-  }, [labelFilter, resolvedProjectFilters, workspaceEntriesByKey]);
+  }, [groupMode, hostFilters, labelFilter, resolvedProjectFilters, workspaceEntriesByKey]);
+  const { agents } = useAggregatedAgents({ demand: active !== false && groupMode === "manual" });
+  const allManualChatEntries = useMemo(
+    () => buildManualChatEntries(agents, workspaceEntriesByKey),
+    [agents, workspaceEntriesByKey],
+  );
+  const manualChatEntries = useMemo(
+    () => buildManualChatEntries(agents, filteredWorkspaceEntriesByKey),
+    [agents, filteredWorkspaceEntriesByKey],
+  );
   const visibleWorkspaceKeys = useMemo(
     () => new Set(filteredWorkspaceEntriesByKey.keys()),
     [filteredWorkspaceEntriesByKey],
@@ -147,6 +180,8 @@ export function SidebarModelProvider({
       workspaceEntriesByKey: filteredWorkspaceEntriesByKey,
       projectNamesByViewKey: list.projectNamesByViewKey,
       groupMode,
+      manualGrouping,
+      manualChatEntries,
       pinnedCollapsed,
       collapsedProjectKeys,
       collapsedWorkspaceGroupKeys,
@@ -155,6 +190,8 @@ export function SidebarModelProvider({
       collapsedProjectKeys,
       collapsedWorkspaceGroupKeys,
       groupMode,
+      manualGrouping,
+      manualChatEntries,
       list.projectNamesByViewKey,
       filteredProjects,
       pinnedCollapsed,
@@ -167,6 +204,8 @@ export function SidebarModelProvider({
   const value = useMemo(
     () => ({
       ...list,
+      manualChatEntries,
+      allManualChatEntries,
       projects: filteredProjects,
       allProjects: list.projects,
       resolvedProjectFilters,
@@ -182,6 +221,8 @@ export function SidebarModelProvider({
     }),
     [
       resolvedProjectFilters,
+      allManualChatEntries,
+      manualChatEntries,
       collapsedProjectKeys,
       groupMode,
       list,

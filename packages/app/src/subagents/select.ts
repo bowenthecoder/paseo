@@ -5,6 +5,9 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 import { useSessionStore, type Agent } from "@/stores/session-store";
 import { refreshProviderSubagents, useProviderSubagentStore } from "./provider-store";
 import type { ProviderSubagentDescriptorPayload } from "@getpaseo/protocol/messages";
+import { i18n } from "@/i18n/i18next";
+import { formatTokenCount } from "@/components/context-window-meter.utils";
+import { reportedSubagentContextTokens } from "./usage";
 
 export interface PaseoSubagentRow {
   kind: "paseo";
@@ -13,7 +16,7 @@ export interface PaseoSubagentRow {
   title: Agent["title"];
   /** Managed agents have a real title, so the union's task line is always absent for them. */
   description: null;
-  subtitle: null;
+  subtitle: string | null;
   status: Agent["status"];
   turn: Agent["turn"];
   requiresAttention: Agent["requiresAttention"];
@@ -53,13 +56,17 @@ const EMPTY_SUBAGENT_ROWS: SubagentRow[] = [];
 const EMPTY_PROVIDER_SUBAGENT_ROWS: ProviderSubagentRow[] = [];
 
 function toSubagentRow(agent: Agent): SubagentRow {
+  const tokens = reportedSubagentContextTokens(agent.lastUsage);
   return {
     kind: "paseo",
     id: agent.id,
     provider: agent.provider,
     title: agent.title,
     description: null,
-    subtitle: null,
+    subtitle:
+      tokens === null
+        ? null
+        : i18n.t("subagents.contextTokens", { tokens: formatTokenCount(tokens) }),
     status: agent.status,
     turn: agent.turn,
     requiresAttention: agent.requiresAttention,

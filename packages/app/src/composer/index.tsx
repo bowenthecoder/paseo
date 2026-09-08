@@ -41,7 +41,7 @@ import {
   DraftAgentControls,
   type DraftAgentControlsProps,
 } from "@/composer/agent-controls";
-import { ContextWindowMeter } from "@/components/context-window-meter";
+import { ContextAndAccountUsage } from "@/components/context-and-account-usage";
 import { KeyboardTranslateView } from "@/components/keyboard-translate-view";
 import { useImageAttachmentPicker } from "@/hooks/use-image-attachment-picker";
 import { selectAgentTurnPresentation, useSessionStore } from "@/stores/session-store";
@@ -280,11 +280,11 @@ function renderContextWindowMeter(
   glyphSize: number,
 ): ReactElement | null {
   const hasData = contextWindowMaxTokens !== null && contextWindowUsedTokens !== null;
-  if (!hasData && !pending) {
+  if (!hasData && !pending && !provider) {
     return null;
   }
   return (
-    <ContextWindowMeter
+    <ContextAndAccountUsage
       maxTokens={contextWindowMaxTokens}
       usedTokens={contextWindowUsedTokens}
       totalCostUsd={totalCostUsd}
@@ -2460,7 +2460,7 @@ const styles = StyleSheet.create((theme: Theme) => ({
     gap: theme.spacing[1],
   },
   contextWindowMeterSlot: {
-    width: 28,
+    minWidth: 28,
     height: 28,
     flexShrink: 0,
     alignItems: "center",

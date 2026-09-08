@@ -1,7 +1,7 @@
 import { MAX_EXPLICIT_AGENT_TITLE_CHARS } from "@getpaseo/protocol/agent-title-limits";
 import type { FirstAgentContext } from "@getpaseo/protocol/messages";
 
-const MAX_INITIAL_AGENT_TITLE_CHARS = Math.min(60, MAX_EXPLICIT_AGENT_TITLE_CHARS);
+const MAX_INITIAL_AGENT_TITLE_CHARS = Math.min(48, MAX_EXPLICIT_AGENT_TITLE_CHARS);
 
 function deriveInitialAgentTitle(prompt: string): string | null {
   const firstContentLine = prompt
@@ -11,11 +11,19 @@ function deriveInitialAgentTitle(prompt: string): string | null {
   if (!firstContentLine) {
     return null;
   }
-  const normalized = firstContentLine.replace(/\s+/g, " ").trim();
+  const normalized = firstContentLine
+    .replace(
+      /^(?:(?:please|can you|could you|would you|help me(?: to)?|i (?:want|need|would like) you to)\s+)+/i,
+      "",
+    )
+    .replace(/\s+/g, " ")
+    .trim();
   if (!normalized) {
     return null;
   }
-  const clamped = normalized.slice(0, MAX_INITIAL_AGENT_TITLE_CHARS).trim();
+  const words = normalized.split(" ").slice(0, 6);
+  while (words.length > 1 && words.join(" ").length > MAX_INITIAL_AGENT_TITLE_CHARS) words.pop();
+  const clamped = words.join(" ").slice(0, MAX_INITIAL_AGENT_TITLE_CHARS).trim();
   return clamped.length > 0 ? clamped : null;
 }
 

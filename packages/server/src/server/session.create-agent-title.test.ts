@@ -33,3 +33,12 @@ describe("resolveCreateAgentTitles", () => {
     expect(resolved.provisionalTitle).toBeNull();
   });
 });
+
+test("provisional titles omit request boilerplate and end at word boundaries", () => {
+  expect(
+    resolveCreateAgentTitles({
+      initialPrompt:
+        "I want you to investigate the Amazon tracking failure and then run all the regression tests",
+    }).provisionalTitle,
+  ).toBe("investigate the Amazon tracking failure and");
+});

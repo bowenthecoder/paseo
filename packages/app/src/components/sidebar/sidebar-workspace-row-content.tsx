@@ -29,6 +29,7 @@ import { StatusRing } from "@/components/status-ring";
 import { resolveSidebarWorkspacePrimaryLabel } from "@/components/sidebar/sidebar-workspace-title";
 import { TrailingActionScrim } from "@/components/ui/trailing-action-scrim";
 import { useWorkspaceLabelDefinitions } from "@/workspace-labels";
+import { useSidebarUnreadStore } from "@/stores/sidebar-unread-store";
 
 const foregroundMutedColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 const needsInputColorMapping = (theme: Theme) => ({
@@ -123,16 +124,18 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
     settings: { workspaceTitleSource },
   } = useAppSettings();
   const workspaceLabel = resolveSidebarWorkspacePrimaryLabel({ workspace, workspaceTitleSource });
+  const unread = useSidebarUnreadStore((state) => state.unread[workspace.workspaceKey] === true);
   // The workspace carries label names; their colors live in its host's catalog, so the row is
   // where the two meet — the meta line is handed finished definitions.
   const labels = useWorkspaceLabelDefinitions(workspace.serverId, workspace.labels);
   const workspaceBranchTextStyle = useMemo(
     () => [
       styles.workspaceBranchText,
+      backdrop === "surfaceSidebarSelected" && styles.workspaceBranchTextSelected,
       isHovered && styles.workspaceBranchTextHovered,
       isCreating && styles.workspaceBranchTextCreating,
     ],
-    [isHovered, isCreating],
+    [backdrop, isHovered, isCreating],
   );
 
   return (
@@ -159,6 +162,7 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
         <View style={styles.workspaceContentColumn}>
           <View style={styles.workspaceTitleRow}>
             <Text style={workspaceBranchTextStyle} numberOfLines={1}>
+              {unread ? "• " : ""}
               {workspaceLabel}
             </Text>
             <View style={sidebarWorkspaceRowStyles.rowRight}>{children}</View>
@@ -498,24 +502,30 @@ const styles = StyleSheet.create((theme) => ({
     width: STATUS_INDICATOR_FILLED_DOT_SIZE,
     height: STATUS_INDICATOR_FILLED_DOT_SIZE,
     borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.foregroundExtraMuted,
-    opacity: 0.3,
+    borderWidth: 1,
+    borderColor: theme.colors.foregroundExtraMuted,
+    opacity: 0.6,
   },
   // The title owns the first line outright now that the host, change request and CI moved
   // to the meta row, so it takes the full width the trailing slot leaves behind.
   workspaceBranchText: {
-    color: theme.colors.foreground,
+    color: theme.colors.foregroundSidebar ?? theme.colors.foreground,
     fontSize: theme.fontSize.base,
     fontWeight: "400",
     lineHeight: 20,
-    opacity: 0.76,
+    opacity: theme.colors.foregroundSidebar ? 1 : 0.76,
     flex: 1,
     minWidth: 0,
   },
   workspaceBranchTextCreating: {
     opacity: 0.92,
   },
+  workspaceBranchTextSelected: {
+    color: theme.colors.foreground,
+    opacity: 1,
+  },
   workspaceBranchTextHovered: {
+    color: theme.colors.foreground,
     opacity: 1,
   },
   statusDotNeedsInput: {

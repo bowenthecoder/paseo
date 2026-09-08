@@ -433,6 +433,7 @@ export function buildOpenProjectRoute() {
 }
 
 interface NewWorkspaceRouteOptions {
+  chatGroupId?: string;
   serverId?: string;
   sourceDirectory?: string;
   displayName?: string;
@@ -442,6 +443,7 @@ interface NewWorkspaceRouteOptions {
 
 function buildNewWorkspaceSearch(options: NewWorkspaceRouteOptions): string {
   const params = new URLSearchParams();
+  if (options.chatGroupId) params.set("chatGroupId", options.chatGroupId);
   const serverId = trimNonEmpty(options.serverId);
   if (serverId) {
     params.set("serverId", serverId);

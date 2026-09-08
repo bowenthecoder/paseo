@@ -241,7 +241,7 @@ function ProviderSubagentPanel() {
         <View style={styles.subtitleHeader}>
           <Text
             style={styles.subtitleText}
-            numberOfLines={1}
+            numberOfLines={3}
             testID="provider-subagent-pane-subtitle"
           >
             {subtitle}

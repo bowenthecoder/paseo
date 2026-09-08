@@ -744,6 +744,30 @@ describe("Codex app-server provider", () => {
     });
   });
 
+  test.each(["low", "medium", "high", "xhigh", "max", "ultra"])(
+    "sends Astra effort %s unchanged on the next turn",
+    async (effort) => {
+      const session = createSession({ model: "gpt-6-astra", thinkingOptionId: "medium" });
+      session.activeForegroundTurnId = null;
+      const request = vi.fn(async (method: string, _params: unknown) => {
+        if (method === "thread/loaded/list") return { data: ["test-thread"] };
+        if (method === "turn/start") return {};
+        throw new Error(`Unexpected request: ${method}`);
+      });
+      session.client = { request };
+      await session.setThinkingOption(effort);
+      await session.startTurn("hello");
+      expect(request).toHaveBeenCalledWith(
+        "turn/start",
+        expect.objectContaining({
+          model: "gpt-6-astra",
+          effort,
+        }),
+        expect.any(Number),
+      );
+    },
+  );
+
   test("setMode and setThinkingOption return a next-turn notice while a turn is active", async () => {
     const session = createSession({ modeId: "auto", thinkingOptionId: "medium" });
 
@@ -5558,6 +5582,44 @@ describe("Codex app-server provider", () => {
         usage: undefined,
       },
     ]);
+  });
+
+  test("reports child token usage without changing the parent usage or reopening a finished child", () => {
+    const session = createSession();
+    const events: AgentStreamEvent[] = [];
+    session.subscribe((event) => events.push(event));
+    asInternals(session).handleNotification("item/completed", {
+      threadId: "test-thread",
+      item: {
+        type: "collabAgentToolCall",
+        id: "spawn-child-usage",
+        tool: "spawnAgent",
+        status: "completed",
+        receiverThreadIds: ["child-usage"],
+        agentsStates: { "child-usage": { status: "completed", message: null } },
+      },
+    });
+    events.length = 0;
+    asInternals(session).handleNotification("thread/tokenUsage/updated", {
+      threadId: "child-usage",
+      tokenUsage: {
+        total: { totalTokens: 12345 },
+        last: { totalTokens: 2345, inputTokens: 2000, outputTokens: 345 },
+      },
+    });
+    expect(events).toEqual([
+      {
+        type: "provider_subagent",
+        provider: "codex",
+        turnId: "test-turn",
+        event: { type: "upsert", id: "child-usage", subtitle: "12.3k tokens" },
+      },
+    ]);
+    asInternals(session).handleNotification("thread/tokenUsage/updated", {
+      threadId: "child-usage",
+      tokenUsage: { total: { totalTokens: "unknown" } },
+    });
+    expect(events).toHaveLength(1);
   });
 
   test("emits usage_updated on token usage updates and keeps usage on turn completion", () => {

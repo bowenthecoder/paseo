@@ -3,7 +3,9 @@ import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
 import { useSidebarWorkspacePinController } from "@/hooks/use-sidebar-workspace-pin";
 import type { KeyboardActionId } from "@/keyboard/keyboard-action-dispatcher";
 import { useHostFeature } from "@/runtime/host-features";
-import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
+import { useActiveSidebarShortcutTarget } from "@/hooks/use-active-sidebar-shortcut-target";
+import { useSidebarChatGroupsStore } from "@/stores/sidebar-chat-groups-store";
+import { useSidebarViewStore } from "@/stores/sidebar-view-store";
 import { useWorkspaceFields } from "@/stores/session-store-hooks";
 import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
 
@@ -11,14 +13,13 @@ const WORKSPACE_PIN_ACTIONS: readonly KeyboardActionId[] = ["workspace.pin"];
 
 // The pin shortcut used to live on the sidebar row, so it disappeared whenever the row was not
 // rendered — a collapsed project or status group, a collapsed Pinned section, or focus mode.
-// It belongs here instead: one registration keyed on the active route selection.
-//
-// "Active workspace" means the route selection, not a focused pane. Those are equivalent today
-// (panes belong to the routed workspace, and /settings parses to no selection, which correctly
-// disables the handler). Revisit this if panes ever span workspaces.
+// One global registration keeps pinning available while rows are hidden. Manual grouping pins
+// the chat in the focused pane; project and status grouping pin the routed workspace.
 export function useGlobalWorkspacePinAction() {
-  const selection = useActiveWorkspaceSelection();
+  const selection = useActiveSidebarShortcutTarget();
+  const groupMode = useSidebarViewStore((state) => state.groupMode);
   const serverId = selection?.serverId ?? null;
+  const agentId = selection?.agentId ?? null;
   const routeWorkspaceId = selection?.workspaceId ?? null;
   // Narrow projection so pin state changes don't re-render on every gitRuntime/diffStat tick.
   // A null result means the workspace is gone, which `pinnedAt: null` alone could not express.
@@ -35,6 +36,13 @@ export function useGlobalWorkspacePinAction() {
   const togglePin = useSidebarWorkspacePinController();
 
   const handle = useCallback(() => {
+    if (groupMode === "manual") {
+      if (!serverId || !agentId) return false;
+      const key = `${serverId}:chat:${agentId}`;
+      const state = useSidebarChatGroupsStore.getState();
+      state.setPinned(key, !state.pinned[key]);
+      return true;
+    }
     if (!serverId || !fields || !canPin) {
       return false;
     }
@@ -52,12 +60,15 @@ export function useGlobalWorkspacePinAction() {
       pinnedAt: fields.pinnedAt,
     });
     return true;
-  }, [canPin, fields, serverId, togglePin]);
+  }, [agentId, canPin, fields, groupMode, serverId, togglePin]);
 
   useKeyboardActionHandler({
     handlerId: "workspace-pin-global",
     actions: WORKSPACE_PIN_ACTIONS,
-    enabled: serverId !== null && fields !== null && canPin,
+    enabled:
+      groupMode === "manual"
+        ? serverId !== null && agentId !== null
+        : serverId !== null && fields !== null && canPin,
     priority: 0,
     handle,
   });

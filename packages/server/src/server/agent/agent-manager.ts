@@ -1920,6 +1920,14 @@ export class AgentManager {
     this.emitState(agent);
   }
 
+  async setGeneratedTitle(agentId: string, expectedTitle: string, title: string): Promise<void> {
+    await this.runLifecycleMutation(agentId, async () => {
+      const record = await this.registry?.get(agentId);
+      if (!record || record.archivedAt || record.title !== expectedTitle) return;
+      await this.updateAgentMetadataUnlocked(agentId, { title });
+    });
+  }
+
   async setTitle(agentId: string, title: string): Promise<void> {
     const agent = this.requireAgent(agentId);
     const normalizedTitle = title.trim();

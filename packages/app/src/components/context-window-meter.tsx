@@ -5,10 +5,12 @@ import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ProviderUsageTooltipSection } from "@/provider-usage/tooltip-section";
-import { useProviderUsage } from "@/provider-usage/use-provider-usage";
+import type { ProviderUsageView } from "@/provider-usage/types";
 import { formatTokenCount } from "./context-window-meter.utils";
 
-interface ContextWindowMeterProps {
+export interface ContextWindowMeterProps {
+  providerUsageView: ProviderUsageView;
+  refreshProviderUsage: () => Promise<void>;
   maxTokens: number | null;
   usedTokens: number | null;
   totalCostUsd?: number | null;
@@ -101,18 +103,15 @@ export function ContextWindowMeter({
   usedTokens,
   totalCostUsd,
   showPercentage = false,
-  serverId,
   provider,
   pending = false,
   glyphSize,
+  providerUsageView,
+  refreshProviderUsage,
 }: ContextWindowMeterProps) {
   const { theme } = useUnistyles();
   const { t } = useTranslation();
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
-  const { view: providerUsageView, refresh: refreshProviderUsage } = useProviderUsage(
-    serverId ?? null,
-    { enabled: isTooltipOpen },
-  );
   const percentage =
     maxTokens !== null && usedTokens !== null ? getUsagePercentage(maxTokens, usedTokens) : null;
   const handleTooltipOpenChange = useCallback(
