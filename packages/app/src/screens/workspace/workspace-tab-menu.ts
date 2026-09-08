@@ -1,8 +1,6 @@
 import type { WorkspaceTabDescriptor } from "@/screens/workspace/workspace-tabs-types";
 import { i18n } from "@/i18n/i18next";
 
-export type WorkspaceTabMenuSurface = "desktop" | "mobile";
-
 export interface WorkspaceTabMenuLabels {
   copyResumeCommand: string;
   copyAgentId: string;
@@ -51,10 +49,7 @@ export type WorkspaceTabMenuEntry =
     };
 
 interface BuildWorkspaceTabMenuEntriesInput {
-  surface: WorkspaceTabMenuSurface;
   tab: WorkspaceTabDescriptor;
-  index: number;
-  tabCount: number;
   menuTestIDBase: string;
   onCopyResumeCommand: (agentId: string) => Promise<void> | void;
   onCopyAgentId: (agentId: string) => Promise<void> | void;

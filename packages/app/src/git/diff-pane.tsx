@@ -103,7 +103,6 @@ import { openDesktopTarget, useDesktopOpenTargets } from "@/workspace/desktop-op
 import { PullRequestStateIcon } from "@/git/pull-request-state-icon";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { openWorkspacePullRequest } from "@/workspace-tabs/open-supporting-view";
-import type { PullRequestOpenLocation } from "@/hooks/use-settings";
 
 export type { GitActionId, GitAction, GitActions } from "@/git/policy";
 
@@ -1328,7 +1327,6 @@ function ChangedFilesTree({
           onActivate={handleSelectFile}
           onSelect={handleSelectPath}
           onOpenFile={mode.onOpenFile}
-          onOpenToSide={mode.onOpenToSide}
           onAddToChat={mode.onAddToChat}
           onCopyPath={mode.onCopyPath}
           onCopyRelativePath={mode.onCopyRelativePath}
@@ -1496,7 +1494,6 @@ function useDiffTabNavigation({
   workspaceId?: string | null;
   cwd: string;
   isMobile: boolean;
-  pullRequestOpenLocation: PullRequestOpenLocation;
 }) {
   const openTab = useWorkspaceLayoutStore((state) => state.openTab);
   const openWorkspaceTab = useCallback(
@@ -1609,7 +1606,6 @@ export function ChangesSurface({
     workspaceId,
     cwd,
     isMobile,
-    pullRequestOpenLocation: appSettings.pullRequestOpenLocation,
   });
   const refreshSupported = useSessionStore(
     (s) => s.sessions[serverId]?.serverInfo?.features?.checkoutRefresh === true,

@@ -474,8 +474,6 @@ function switcherTriggerStyle({ pressed }: { pressed?: boolean }) {
 
 function MobileWorkspaceTabOption({
   tab,
-  tabIndex,
-  tabCount,
   normalizedServerId,
   normalizedWorkspaceId,
   selected,
@@ -490,8 +488,6 @@ function MobileWorkspaceTabOption({
   onCloseTab,
 }: {
   tab: WorkspaceTabDescriptor;
-  tabIndex: number;
-  tabCount: number;
   normalizedServerId: string;
   normalizedWorkspaceId: string;
   selected: boolean;
@@ -513,11 +509,6 @@ function MobileWorkspaceTabOption({
       copyTerminalId: t("workspace.tabs.menu.copyTerminalId"),
       copyFilePath: t("workspace.tabs.menu.copyFilePath"),
       rename: t("workspace.tabs.menu.rename"),
-      closeAbove: t("workspace.tabs.menu.closeAbove"),
-      closeBelow: t("workspace.tabs.menu.closeBelow"),
-      closeLeft: t("workspace.tabs.menu.closeLeft"),
-      closeRight: t("workspace.tabs.menu.closeRight"),
-      closeOthers: t("workspace.tabs.menu.closeOthers"),
       reloadAgent: t("workspace.tabs.menu.reloadAgent"),
       reloadAgentTooltip: t("workspace.tabs.menu.reloadAgentTooltip"),
       close: t("workspace.tabs.menu.close"),
@@ -526,10 +517,7 @@ function MobileWorkspaceTabOption({
   );
   const menuTestIDBase = `workspace-tab-menu-${tab.tabId}`;
   const menuEntries = buildWorkspaceTabMenuEntries({
-    surface: "mobile",
     tab,
-    index: tabIndex,
-    tabCount,
     menuTestIDBase,
     onCopyResumeCommand,
     onCopyAgentId,
@@ -543,7 +531,7 @@ function MobileWorkspaceTabOption({
 
   const fallbackLabels = useMemo(
     () => ({
-      newTab: t("workspace.tabs.actions.newTab"),
+      newTab: t("workspace.chat.empty.title"),
       newAgent: t("workspace.tabs.fallback.newAgent"),
       setup: t("workspace.tabs.fallback.setup"),
       terminal: t("workspace.tabs.fallback.terminal"),
@@ -611,14 +599,6 @@ const MobileWorkspaceTabSwitcher = memo(function MobileWorkspaceTabSwitcher({
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const anchorRef = useRef<View>(null);
-  const tabIndexByKey = useMemo(() => {
-    const map = new Map<string, number>();
-    tabs.forEach((tab, index) => {
-      map.set(tab.key, index);
-    });
-    return map;
-  }, [tabs]);
-
   const handleOpenSwitcher = useCallback(() => {
     Keyboard.dismiss();
     setIsOpen(true);
@@ -640,15 +620,9 @@ const MobileWorkspaceTabSwitcher = memo(function MobileWorkspaceTabSwitcher({
       if (!tab) {
         return <View />;
       }
-      const tabIndex = tabIndexByKey.get(tab.key) ?? -1;
-      if (tabIndex < 0) {
-        return <View />;
-      }
       return (
         <MobileWorkspaceTabOption
           tab={tab}
-          tabIndex={tabIndex}
-          tabCount={tabs.length}
           normalizedServerId={normalizedServerId}
           normalizedWorkspaceId={normalizedWorkspaceId}
           selected={selected}
@@ -666,8 +640,6 @@ const MobileWorkspaceTabSwitcher = memo(function MobileWorkspaceTabSwitcher({
     },
     [
       tabByKey,
-      tabIndexByKey,
-      tabs.length,
       normalizedServerId,
       normalizedWorkspaceId,
       onCopyResumeCommand,
@@ -2014,7 +1986,7 @@ function WorkspaceScreenContent({
   const activeTabKey = useMemo(() => activeTabId ?? "", [activeTabId]);
   const tabFallbackLabels = useMemo(
     () => ({
-      newTab: t("workspace.tabs.actions.newTab"),
+      newTab: t("workspace.chat.empty.title"),
       newAgent: t("workspace.tabs.fallback.newAgent"),
       setup: t("workspace.tabs.fallback.setup"),
       workspaceSetup: t("workspace.tabs.fallback.workspaceSetup"),
