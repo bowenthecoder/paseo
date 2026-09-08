@@ -38,7 +38,7 @@ Updated: 2026-09-08. Branch: `bowen/claude-workspaces-subagents-20260908`.
 - [x] Integrate and run focused typecheck/lint/unit checks plus Playwright on grouping, shortcuts, folder routing, split view, usage, and subagents.
 - [x] Run real-provider checks for Codex, Claude, and Grok with harmless test tasks in isolated directories; record actual supported/unsupported metrics.
 - [x] Package preview, inspect screenshots using actual open workspaces, and show review artifacts.
-- [ ] Commit and push checked source changes to a review branch; record remote URL and checks.
+- [x] Commit and push checked source changes to a review branch; record remote URL and checks.
 - [ ] Replace installed/live app only after the requested screenshot review is complete.
 
 ## Verification rules
@@ -76,3 +76,9 @@ Review folder: `/Users/bowen/Desktop/Paseo Preview 20260908`. `current-chats.png
 The preview uses a separate desktop profile with built-in daemon management disabled. It connects to current hosts for the existing-chat screenshots. New provider adapters were validated on isolated daemons; existing production hosts keep their running daemon versions until live rollout. In particular, the new Grok effort/child adapter and corrected quota labels require the new daemon/plugin source when deployed. The installed app and production daemon on port 6767 were not restarted or replaced.
 
 Mac and VPS Codex model metadata were repaired with backups and safe configuration reloads. The VPS backup is `/home/codex/.paseo/config.json.before-effort-metadata-20260908-1732`. Each configured VPS model was matched to that VPS's own CLI model cache. Native Codex capability inheritance is also fixed in source so future label-only overrides retain effort controls.
+
+## Pushed review source
+
+App feature commit `5164b55` is pushed to `https://github.com/bowenthecoder/paseo/tree/bowen/claude-workspaces-subagents-20260908`. Its commit hook passed formatting, lint (zero warnings/errors) and the full workspace typecheck. Subscriptions is pushed through `c17cc02` on the branch linked above. Both implementation worktrees were clean after their feature commits.
+
+The complete locally signed review candidate is `packages/desktop/release/reviewed/mac-arm64/Paseo.app` in the app worktree. Its signature verifies. The review folder includes `Open preview.command`, the checks, screenshots and a separate `manual-chat-groups-backup.json` preserving groups made during preview use. The installed app's checksum was checked again after packaging and still matches the original backup.
