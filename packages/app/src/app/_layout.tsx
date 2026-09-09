@@ -19,6 +19,7 @@ import {
 import { AppState, useWindowDimensions, View } from "react-native";
 import { GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
+import { ChatDragRoot } from "@/components/sidebar/chat-drag";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { AppearanceProvider } from "@/appearance/provider";
@@ -550,33 +551,35 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
     />
   );
   const workspaceChrome = (
-    <View style={rowStyle}>
-      {!isCompactLayout ? (
-        <DesktopSidebarFrame
-          overlay={sidebarControl.overlay}
-          onClose={sidebarControl.close}
-          scopeRef={sidebarControl.overlayScopeRef}
-        >
-          <WindowChromeRegion corners={appChromeLayout.sidebarCorners}>
-            {sidebarChrome}
-          </WindowChromeRegion>
-        </DesktopSidebarFrame>
-      ) : null}
-      {usesCompactExplorerHost ? (
-        <CompactExplorerSidebarHost
-          enabled={chromeEnabled}
-          presentation={explorerSidebarPresentation === "dock" ? "dock" : "overlay"}
-        >
-          <WindowChromeRegion corners={chromeEnabled ? "both" : appChromeLayout.contentCorners}>
+    <ChatDragRoot>
+      <View style={rowStyle}>
+        {!isCompactLayout ? (
+          <DesktopSidebarFrame
+            overlay={sidebarControl.overlay}
+            onClose={sidebarControl.close}
+            scopeRef={sidebarControl.overlayScopeRef}
+          >
+            <WindowChromeRegion corners={appChromeLayout.sidebarCorners}>
+              {sidebarChrome}
+            </WindowChromeRegion>
+          </DesktopSidebarFrame>
+        ) : null}
+        {usesCompactExplorerHost ? (
+          <CompactExplorerSidebarHost
+            enabled={chromeEnabled}
+            presentation={explorerSidebarPresentation === "dock" ? "dock" : "overlay"}
+          >
+            <WindowChromeRegion corners={chromeEnabled ? "both" : appChromeLayout.contentCorners}>
+              <View style={flexStyle}>{children}</View>
+            </WindowChromeRegion>
+          </CompactExplorerSidebarHost>
+        ) : (
+          <WindowChromeRegion corners={appChromeLayout.contentCorners}>
             <View style={flexStyle}>{children}</View>
           </WindowChromeRegion>
-        </CompactExplorerSidebarHost>
-      ) : (
-        <WindowChromeRegion corners={appChromeLayout.contentCorners}>
-          <View style={flexStyle}>{children}</View>
-        </WindowChromeRegion>
-      )}
-    </View>
+        )}
+      </View>
+    </ChatDragRoot>
   );
 
   const surface = (

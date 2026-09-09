@@ -2,7 +2,10 @@
 
 A workspace shows a primary chat and up to three independent chat views. Use **Four chat
 views** for a 2×2 grid, **Add chat view** for another cell, or right-click a chat and choose
-**Open in → Open in split view** (press **O**, then **S** while the menu is open). Two chats
+**Open in → Open in split view** (press **O**, then **S** while the menu is open), or drag the
+chat's sidebar row onto the chat area: a chip with the chat's name follows the pointer, the
+area says what the drop does ("Open … in split view", or why it is refused), and releasing
+opens the chat as the next view. Dragging a row onto a sidebar group still moves it. Two chats
 are side by side; three or four use two rows. Clicking or focusing a cell makes its composer
 the keyboard target. Each cell has its own model, working folder, draft and queued messages.
 

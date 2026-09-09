@@ -160,6 +160,7 @@ export const ja: TranslationResources = {
     clientCommands: {
       archiveAgent: "現在のエージェントをアーカイブ",
       freshDraft: "このエージェントをアーカイブして新しい下書きを開始",
+      planMode: "このエージェントのプランモードを切り替える",
     },
     github: {
       searching: "検索中...",
@@ -1845,6 +1846,11 @@ export const ja: TranslationResources = {
       one: "{{count}}個のコマンドを実行",
       other: "{{count}}個のコマンドを実行",
     },
+    createdFiles: {
+      one: "ファイルを1件作成",
+      other: "ファイルを{{count}}件作成",
+    },
+    readFile: "{{name}} を読み取り",
     readFiles: {
       one: "{{count}}個のファイルを読み取り",
       other: "{{count}}個のファイルを読み取り",
@@ -1861,6 +1867,8 @@ export const ja: TranslationResources = {
       one: "Paseoを{{count}}回呼び出し",
       other: "Paseoを{{count}}回呼び出し",
     },
+    failedSuffix: "({{count}}件失敗)",
+    separator: "、",
     and: "および",
   },
   renameModal: {

@@ -1,16 +1,9 @@
 import type { ReactNode } from "react";
+import type { ManualChatEntry } from "./manual-chat-groups";
 
-export function ManualGroupDragRoot({
-  children,
-}: {
-  children: ReactNode;
-  onDrop: (workspaceKey: string, groupId: string) => void;
-}) {
-  return children;
-}
 export function ManualGroupDropZone({ children }: { children: ReactNode; groupId: string }) {
   return children;
 }
-export function ManualGroupDraggable({ children }: { children: ReactNode; workspaceKey: string }) {
+export function ManualGroupDraggable({ children }: { children: ReactNode; chat: ManualChatEntry }) {
   return children;
 }

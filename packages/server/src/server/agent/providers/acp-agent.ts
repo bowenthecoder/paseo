@@ -6,6 +6,15 @@ import path from "node:path";
 import { Readable, Writable } from "node:stream";
 
 import { terminateWithTreeKill } from "../../../utils/tree-kill.js";
+import {
+  PLAN_APPROVAL_ACTIONS,
+  PLAN_APPROVAL_EXT_METHODS,
+  grokPlanFilePath,
+  parsePlanApprovalExtRequest,
+  resolvePlanApprovalResponse,
+  toolNameFromACPTitle,
+  type PlanApprovalExtResponse,
+} from "./acp-plan-approval.js";
 import type { ProcessTerminator } from "../../../utils/tree-kill.js";
 import type {
   ReadableStream as NodeReadableStream,
@@ -14,6 +23,7 @@ import type {
 import {
   ClientSideConnection,
   PROTOCOL_VERSION,
+  RequestError,
   type AgentCapabilities as ACPAgentCapabilities,
   type Error as ACPError,
   type AnyMessage,
@@ -461,6 +471,8 @@ interface ACPAgentClientOptions {
 interface ACPAgentSessionOptions {
   provider: string;
   logger: Logger;
+  /** Reads a plan the agent wrote to disk when its approval request carries no content. */
+  planFileReader?: ACPPlanFileReader;
   runtimeSettings?: ProviderRuntimeSettings;
   defaultCommand: [string, ...string[]];
   defaultModes: AgentMode[];
@@ -521,6 +533,25 @@ export interface ACPToolSnapshot {
   locations?: ToolCallLocation[] | null;
   rawInput?: unknown;
   rawOutput?: unknown;
+}
+
+export type ACPPlanFileReader = (input: {
+  cwd: string;
+  sessionId: string;
+}) => Promise<string | null>;
+
+const readGrokPlanFile: ACPPlanFileReader = async (input) => {
+  try {
+    return await fs.readFile(grokPlanFilePath(homedir(), input.cwd, input.sessionId), "utf8");
+  } catch {
+    return null;
+  }
+};
+
+interface PendingPlanApproval {
+  request: AgentPermissionRequest;
+  resolve: (response: PlanApprovalExtResponse) => void;
+  turnId: string | null;
 }
 
 interface PendingPermission {
@@ -1452,6 +1483,8 @@ export class ACPAgentSession implements AgentSession, ACPClient {
   private readonly launchEnv?: Record<string, string>;
   private readonly subscribers = new Set<(event: AgentStreamEvent) => void>();
   private readonly pendingPermissions = new Map<string, PendingPermission>();
+  private readonly pendingPlanApprovals = new Map<string, PendingPlanApproval>();
+  private readonly planFileReader: ACPPlanFileReader;
   private pendingUserMessage: PendingUserMessage | null = null;
   private submittedUserMessageTurnId: string | null = null;
   private readonly toolCalls = new Map<string, ACPToolSnapshot>();
@@ -1504,6 +1537,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     this.clientCapabilityMeta = options.clientCapabilityMeta;
     this.modeIdTransformer = options.modeIdTransformer;
     this.toolSnapshotTransformer = options.toolSnapshotTransformer;
+    this.planFileReader = options.planFileReader ?? readGrokPlanFile;
     this.providerModeWriter = options.providerModeWriter;
     this.beforeModeWriter = options.beforeModeWriter;
     this.thinkingOptionWriter = options.thinkingOptionWriter;
@@ -2141,10 +2175,29 @@ export class ACPAgentSession implements AgentSession, ACPClient {
   }
 
   getPendingPermissions(): AgentPermissionRequest[] {
-    return Array.from(this.pendingPermissions.values(), (entry) => entry.request);
+    return [
+      ...Array.from(this.pendingPermissions.values(), (entry) => entry.request),
+      ...Array.from(this.pendingPlanApprovals.values(), (entry) => entry.request),
+    ];
   }
 
   async respondToPermission(requestId: string, response: AgentPermissionResponse): Promise<void> {
+    const planApproval = this.pendingPlanApprovals.get(requestId);
+    if (planApproval) {
+      this.pendingPlanApprovals.delete(requestId);
+      planApproval.resolve(resolvePlanApprovalResponse(response));
+      this.pushEvent({
+        type: "permission_resolved",
+        provider: this.provider,
+        requestId,
+        resolution: response,
+        turnId: planApproval.turnId ?? undefined,
+      });
+      if (response.behavior === "deny" && response.interrupt && this.connection && this.sessionId) {
+        await this.connection.cancel({ sessionId: this.sessionId });
+      }
+      return;
+    }
     const pending = this.pendingPermissions.get(requestId);
     if (!pending) {
       throw new Error(`No pending permission request with id '${requestId}'`);
@@ -2206,6 +2259,10 @@ export class ACPAgentSession implements AgentSession, ACPClient {
       pending.resolve({ outcome: { outcome: "cancelled" } });
     }
     this.pendingPermissions.clear();
+    for (const pending of this.pendingPlanApprovals.values()) {
+      pending.resolve({ outcome: "rejected", feedback: null });
+    }
+    this.pendingPlanApprovals.clear();
 
     if (this.activeForegroundTurnId) {
       await this.connection.cancel({ sessionId: this.sessionId });
@@ -2225,6 +2282,10 @@ export class ACPAgentSession implements AgentSession, ACPClient {
       pending.resolve({ outcome: { outcome: "cancelled" } });
     }
     this.pendingPermissions.clear();
+    for (const pending of this.pendingPlanApprovals.values()) {
+      pending.resolve({ outcome: "rejected", feedback: null });
+    }
+    this.pendingPlanApprovals.clear();
 
     if (this.connection && this.sessionId) {
       try {
@@ -2361,6 +2422,63 @@ export class ACPAgentSession implements AgentSession, ACPClient {
       modelMetadata: this.availableModels?.find((model) => model.modelId === this.currentModel)
         ?._meta,
     };
+  }
+
+  async extMethod(
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    if (PLAN_APPROVAL_EXT_METHODS.has(method)) {
+      return this.requestPlanApproval(params);
+    }
+    this.logger.warn(
+      { agentId: this.agentId, provider: this.provider, method },
+      "Unsupported ACP extension method",
+    );
+    throw RequestError.methodNotFound(method);
+  }
+
+  // Grok's exit_plan_mode tool waits on this answer; see acp-plan-approval.ts.
+  private async requestPlanApproval(
+    params: Record<string, unknown>,
+  ): Promise<PlanApprovalExtResponse> {
+    const parsed = parsePlanApprovalExtRequest(params);
+    const sessionId = parsed.sessionId ?? this.sessionId;
+    let planText = parsed.planContent;
+    if (planText === null && sessionId) {
+      planText = await this.planFileReader({ cwd: this.config.cwd, sessionId });
+    }
+    const requestId = randomUUID();
+    const request: AgentPermissionRequest = {
+      id: requestId,
+      provider: this.provider,
+      name: "exit_plan_mode",
+      kind: "plan",
+      title: "Plan approval",
+      ...(planText === null
+        ? { description: "The agent finished planning, but its plan text was not available." }
+        : {}),
+      actions: [...PLAN_APPROVAL_ACTIONS],
+      metadata: {
+        ...(planText !== null ? { planText } : {}),
+        ...(parsed.toolCallId ? { toolCallId: parsed.toolCallId } : {}),
+        rawRequest: params,
+      },
+    };
+    const promise = new Promise<PlanApprovalExtResponse>((resolve) => {
+      this.pendingPlanApprovals.set(requestId, {
+        request,
+        resolve,
+        turnId: this.activeForegroundTurnId,
+      });
+    });
+    this.pushEvent({
+      type: "permission_requested",
+      provider: this.provider,
+      request,
+      turnId: this.activeForegroundTurnId ?? undefined,
+    });
+    return promise;
   }
 
   async extNotification(method: string, params: Record<string, unknown>): Promise<void> {
@@ -3326,10 +3444,12 @@ export function mapToolSnapshotToTimeline(
 ): ToolCallTimelineItem {
   const status = mapToolStatus(snapshot.status);
   const detail = mapToolDetail(snapshot, terminals);
+  // Agents that only report kind "other" still name the call in the title.
+  const namedKind = snapshot.kind && snapshot.kind !== "other" ? snapshot.kind : null;
   const base = {
     type: "tool_call" as const,
     callId: snapshot.toolCallId,
-    name: snapshot.kind ?? snapshot.title,
+    name: namedKind ?? (toolNameFromACPTitle(snapshot.title) || snapshot.title),
     detail,
     metadata: {
       kind: snapshot.kind ?? undefined,

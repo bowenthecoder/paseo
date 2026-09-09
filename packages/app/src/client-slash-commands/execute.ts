@@ -1,4 +1,8 @@
-import { buildDraftAgentSetup, type ClientSlashCommand } from "@/client-slash-commands";
+import {
+  buildDraftAgentSetup,
+  resolvePlanModeToggle,
+  type ClientSlashCommand,
+} from "@/client-slash-commands";
 import type { ArchiveAgentInput } from "@/hooks/use-archive-agent";
 import type { PaneContextValue } from "@/panels/pane-context";
 import { generateDraftId } from "@/stores/draft-keys";
@@ -17,12 +21,30 @@ export interface ExecuteAgentClientCommandInput {
   >;
   archiveAgent: (input: ArchiveAgentInput) => Promise<void>;
   navigateToWorkspace: (input: NavigateToWorkspaceInput) => void;
+  setAgentMode: (agentId: string, modeId: string) => Promise<unknown>;
+  setAgentFeature: (agentId: string, featureId: string, value: unknown) => Promise<void>;
+  notify: (message: string) => void;
 }
 
 export async function executeAgentClientCommand(
   input: ExecuteAgentClientCommandInput,
 ): Promise<void> {
   const { serverId, agent, command, pane } = input;
+  if (command.kind === "toggle-plan-mode") {
+    const toggle = resolvePlanModeToggle(agent);
+    if (!toggle) {
+      input.notify("Plan mode is not available for this agent.");
+      return;
+    }
+    if (toggle.kind === "feature") {
+      await input.setAgentFeature(agent.id, toggle.featureId, toggle.value);
+      input.notify(toggle.value ? "Plan mode on" : "Plan mode off");
+      return;
+    }
+    await input.setAgentMode(agent.id, toggle.modeId);
+    input.notify(toggle.entering ? "Plan mode on" : "Plan mode off");
+    return;
+  }
   const workspaceKey = buildWorkspaceTabPersistenceKey({
     serverId,
     workspaceId: pane.layoutWorkspaceId ?? pane.workspaceId,

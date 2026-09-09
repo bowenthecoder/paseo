@@ -160,6 +160,7 @@ export const es: TranslationResources = {
     clientCommands: {
       archiveAgent: "Archivar el agente actual",
       freshDraft: "Archive este agente y comience un nuevo borrador",
+      planMode: "Activar o desactivar el modo plan para este agente",
     },
     github: {
       searching: "Búsqueda...",
@@ -1872,6 +1873,11 @@ export const es: TranslationResources = {
       one: "ejecutó {{count}} comando",
       other: "ejecutó {{count}} comandos",
     },
+    createdFiles: {
+      one: "creó un archivo",
+      other: "creó {{count}} archivos",
+    },
+    readFile: "leyó {{name}}",
     readFiles: {
       one: "leyó {{count}} archivo",
       other: "leyó {{count}} archivos",
@@ -1888,6 +1894,8 @@ export const es: TranslationResources = {
       one: "llamó a Paseo {{count}} vez",
       other: "llamó a Paseo {{count}} veces",
     },
+    failedSuffix: "({{count}} con error)",
+    separator: ", ",
     and: "y",
   },
   renameModal: {

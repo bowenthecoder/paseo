@@ -162,6 +162,7 @@ export const fr: TranslationResources = {
     clientCommands: {
       archiveAgent: "Archiver l'agent actuel",
       freshDraft: "Archivez cet agent et démarrez un nouveau brouillon",
+      planMode: "Activer ou désactiver le mode plan pour cet agent",
     },
     github: {
       searching: "Recherche...",
@@ -1877,6 +1878,11 @@ export const fr: TranslationResources = {
       one: "a exécuté {{count}} commande",
       other: "a exécuté {{count}} commandes",
     },
+    createdFiles: {
+      one: "a créé un fichier",
+      other: "a créé {{count}} fichiers",
+    },
+    readFile: "a lu {{name}}",
     readFiles: {
       one: "a lu {{count}} fichier",
       other: "a lu {{count}} fichiers",
@@ -1893,6 +1899,8 @@ export const fr: TranslationResources = {
       one: "a appelé Paseo {{count}} fois",
       other: "a appelé Paseo {{count}} fois",
     },
+    failedSuffix: "({{count}} en échec)",
+    separator: ", ",
     and: "et",
   },
   renameModal: {

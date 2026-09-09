@@ -160,6 +160,7 @@ export const ar: TranslationResources = {
     clientCommands: {
       archiveAgent: "أرشفة الوكيل الحالي",
       freshDraft: "أرشفة هذا الوكيل وابدأ مسودة جديدة",
+      planMode: "تشغيل وضع التخطيط أو إيقافه لهذا الوكيل",
     },
     github: {
       searching: "جارٍ البحث...",
@@ -1825,6 +1826,11 @@ export const ar: TranslationResources = {
       one: "شغّل {{count}} أمرًا",
       other: "شغّل {{count}} أوامر",
     },
+    createdFiles: {
+      one: "أنشأ ملفًا",
+      other: "أنشأ {{count}} ملفات",
+    },
+    readFile: "قرأ {{name}}",
     readFiles: {
       one: "قرأ {{count}} ملفًا",
       other: "قرأ {{count}} ملفات",
@@ -1841,6 +1847,8 @@ export const ar: TranslationResources = {
       one: "استدعى Paseo {{count}} مرة",
       other: "استدعى Paseo {{count}} مرات",
     },
+    failedSuffix: "({{count}} فشل)",
+    separator: "، ",
     and: "و",
   },
   renameModal: {

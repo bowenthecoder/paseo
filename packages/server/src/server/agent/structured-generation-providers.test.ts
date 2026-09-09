@@ -47,6 +47,35 @@ describe("resolveStructuredGenerationProviders", () => {
     expect(snapshots.calls).toEqual([{ cwd: "/tmp/repo", wait: true }]);
   });
 
+  test("uses any enabled provider that lists a model when nothing else resolves", async () => {
+    const snapshots = new ProviderSnapshots([
+      {
+        provider: "grok",
+        status: READY,
+        enabled: true,
+        models: [{ provider: "grok", id: "grok-4.6", label: "Grok 4.6", isDefault: true }],
+      },
+      {
+        provider: "claude",
+        status: READY,
+        enabled: true,
+        models: [
+          { provider: "claude", id: "claude-opus-5", label: "Opus 5" },
+          { provider: "claude", id: "claude-fable-5-1", label: "Fable 5.1", isDefault: true },
+        ],
+      },
+      { provider: "codex", status: ERROR, enabled: false, models: [] },
+    ]);
+
+    const providers = await resolveStructuredGenerationProviders({
+      cwd: "/tmp/repo",
+      providerSnapshotManager: snapshots,
+    });
+
+    // Trimmed model lists hide every default candidate; Claude still names the chat.
+    expect(providers).toEqual([{ provider: "claude", model: "claude-fable-5-1" }]);
+  });
+
   test("falls back to dynamic defaults and current selection when no provider is configured", async () => {
     const snapshots = new ProviderSnapshots([
       {

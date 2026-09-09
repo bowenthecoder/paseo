@@ -17,6 +17,13 @@ const STEER_DEFAULT_MIGRATION = "steer-default";
 const MOBILE_CONTENT_16_MIGRATION = "mobile-content-16";
 
 /**
+ * `toolCallDetailLevel` defaulted to "detailed" until the grouped overview became the normal
+ * chat look, and the materialized default is indistinguishable from a deliberate choice.
+ * Flips a stored "detailed" to "overview" once; choosing "detailed" afterwards sticks.
+ */
+const OVERVIEW_DEFAULT_MIGRATION = "overview-default";
+
+/**
  * Brings stored settings up to date, returning what the caller should use. Owns both writes so
  * the marker can only ever be written after the settings it describes: a failed marker write
  * leaves the migration to re-run harmlessly, while a failed settings write must leave the marker
@@ -41,6 +48,15 @@ export async function migrateAppSettings(
     migrated =
       migrated.sendBehavior === "interrupt" ? { ...migrated, sendBehavior: "steer" } : migrated;
     applied.add(STEER_DEFAULT_MIGRATION);
+    addedMigration = true;
+  }
+
+  if (!applied.has(OVERVIEW_DEFAULT_MIGRATION)) {
+    migrated =
+      migrated.toolCallDetailLevel === "detailed"
+        ? { ...migrated, toolCallDetailLevel: "overview" }
+        : migrated;
+    applied.add(OVERVIEW_DEFAULT_MIGRATION);
     addedMigration = true;
   }
 

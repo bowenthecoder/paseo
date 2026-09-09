@@ -70,6 +70,67 @@ native provider title writeback/synchronization is still outside the implemented
   Work in isolated checkouts, run focused end-to-end checks, inspect screenshots and push the
   completed app and plugin changes. Readiness requires observed results, not a promise of no bugs.
 
+## Second build — requested 9 September 2026 (evening)
+
+Bowen tried the final candidate and asked for seven more things. Each one is built on the same
+integration branch, verified per provider (Claude 1, Codex 1 and Grok; Codex 2 is out of usage
+until 14 September), and recorded in the review folder before the candidate is rebuilt.
+
+1. **Drag a chat into the chat area to open it in a split view**, the way the Claude Code app
+   lets you drag a session out into a new pane. Dragging a sidebar chat row shows a floating
+   chip with the chat's name; while it is over the chat area the area lights up with "Open in
+   split view" (or the reason it cannot, such as four views already open); dropping opens the
+   chat as the next independent view. Drag into a group keeps working. Native and reorder
+   modes are unchanged (they have no cross-surface drag).
+2. **Usage in the model picker.** Each account row in the composer's model picker shows its
+   live usage next to the name ("Claude 1 · 18% · 55% wk", "Codex 2 · out"), using the same
+   wording as the composer pill, so the account to pick is obvious. Unknown usage shows "?",
+   signed-out shows "sign in". Data comes from the same subscription/native usage query the
+   picker footer already uses.
+   Verified: 7 short-label unit cases, the `model-picker-usage-labels` browser case (row reads
+   "Mock Load Test · 37% · 80% wk" with a spent account as "out"), and the 6 existing effort and
+   subscription-retry picker cases still pass.
+3. **Output that reads like the Claude Code app.** Bowen's screenshot is the target: a
+   proportional font, narration between collapsed one-line tool summaries ("Ran 4 commands,
+   read bb5hlxzmr.txt ›", "Edited 4 files (1 failed), created a file, ran 3 commands +44 -100 ›"),
+   no monospace rows. Paseo's grouped overview is therefore the default detail level for every
+   provider (a one-time migration moves existing "detailed" preferences), the summary keeps
+   failures inside their category, names a lone read, counts created files and diff lines, and
+   finished reasoning stays out of the way while streaming reasoning still shows. Grok's tools
+   stop arriving as "Other": an ACP tool without a kind takes its name from the agent's title and
+   is sorted by that name. The plugin's terminal-style CLI look becomes opt-in (off by default).
+4. **Chat names that describe the job.** Automatic naming already existed (a short model-written
+   title from the first accepted prompt) but chats created through the MCP/CLI path were marked
+   as manually named and never renamed, chats from before name provenance existed kept their
+   raw first prompt forever, and a host whose trimmed model lists hide every default naming
+   model had no candidate at all. Now the MCP path keeps the prompt-derived name provisional,
+   the daemon backfills legacy chats whose name is exactly their raw first prompt (once, at
+   startup, one chat at a time; typed names are never touched), and any enabled provider that
+   lists a model can write a title when nothing else resolves. Verified with real Claude and
+   Grok turns; Codex is covered by the existing real title case.
+5. **Plan commands.** The composer already offered plan mode through the mode control for
+   Claude Code and OpenCode and through the plan feature for Codex; `/plan` now toggles it from
+   the keyboard, and Grok's plan mode (its own enter/exit plan tools) completes through the
+   approval in item 6.
+6. **The "Plan approval could not be completed because the client disconnected" error.**
+   It is Grok's wording. When Grok finishes a plan it asks the client to show a plan-approval
+   dialog through a custom protocol call (`_x.ai/exit_plan_mode`, request
+   `{ sessionId, toolCallId, planContent }`); Paseo answered "Method not found", Grok treated
+   that as a disconnected client, kept plan mode on and failed the tool with no error payload,
+   which Paseo shows as "Tool call failed". Paseo now implements the call: the plan is shown as
+   a plan permission with Approve plan, Request changes (a typed reply becomes the feedback)
+   and Abandon plan, answered as `{ outcome: "approved" | "rejected" | "abandoned", feedback }`,
+   the shape a live Grok 1.0.25 accepted for all three answers. The plan file is read from
+   Grok's session directory when the request carries no text. Other unknown extension calls
+   are logged and answered "method not found".
+7. **Resets from the app.** Every chat's menu has "Reset context (new chat)" (press **N**),
+   and `/reset` joins `/clear` and `/new` in the composer: the chat is archived into History and
+   a fresh draft with the same provider, model and mode takes its place, so the model starts
+   from a clean context. `/plan` switches plan mode on or off for the current agent (Claude
+   Code's plan mode, Codex's plan feature, OpenCode's plan agent; providers without one get a
+   short notice). Daemon restart stays in Settings → Host. If "resets" meant something else,
+   say so and it changes.
+
 ## Backups and worktrees
 
 | Resource                             | Location or status                                                                                                     |

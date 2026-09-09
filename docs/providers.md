@@ -49,6 +49,8 @@ Copilot custom agents are exposed through ACP session config, not the slash-comm
 
 ACP permission options are rendered as ordered actions and Paseo returns the selected option's exact `optionId`. Agents can therefore encode a single-choice question as multiple options of the same allow kind. Auto-accept does not resolve those chooser requests; they always wait for the user.
 
+Vendor extension requests reach `ACPAgentSession.extMethod`. Grok Build's plan mode ends with `_x.ai/exit_plan_mode`; Paseo turns it into a `plan` permission (Approve plan, Request changes with the typed reply as feedback, Abandon plan) and answers `{ outcome: "approved" | "rejected" | "abandoned", feedback }`, reading `~/.grok/sessions/<encoded cwd>/<session>/plan.md` when the request carries no plan text (`acp-plan-approval.ts`). Any other extension request is logged and answered "method not found", which an agent treats as an unsupported feature rather than a dead client.
+
 ### Direct
 
 Implement the `AgentClient` and `AgentSession` interfaces from `agent-sdk-types.ts` yourself. This gives full control but requires you to handle process management, streaming, permissions, and session persistence from scratch.
@@ -136,7 +138,9 @@ Boundary tests should assert observable behavior: cold reads may call provider a
 
 ## Provider Usage Fetchers
 
-Provider plan usage is fetch-on-demand, not a daemon push subscription. The app calls `provider.usage.list.request` through React Query when the usage tooltip or Host Usage settings screen is shown, and the daemon returns the normalized `ProviderUsage` list directly.
+Provider plan usage is fetch-on-demand, not a daemon push subscription. The app calls `provider.usage.list.request` through React Query when the usage tooltip, the model picker or the Host Usage settings screen is shown, and the daemon returns the normalized `ProviderUsage` list directly.
+
+The model picker reads that list twice over: the footer card shows the selected account in full, and every provider row carries a short state after its name ("Claude 1 · 18% · 55% wk", "Codex 2 · out"). Both read the same query key, so a picker with five accounts still costs one lookup. `packages/app/src/provider-usage/short-usage.ts` owns the row wording and matches the Subscriptions plugin's composer pill; a model-scoped weekly limit never reads as "out", because it stops that model rather than the account.
 
 To add plan usage for a provider, add `packages/server/src/services/quota-fetcher/providers/<provider>.ts` and register it in `packages/server/src/services/quota-fetcher/manifest.ts`. The provider file exports only its fetcher class; provider auth, endpoint constants, API schemas, and normalization helpers stay private in that file. A fetcher owns provider auth/API parsing and returns the generic shape:
 

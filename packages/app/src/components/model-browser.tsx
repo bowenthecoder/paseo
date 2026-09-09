@@ -49,6 +49,9 @@ import {
   type ProviderSelectionModelRow,
   type ProviderSelectorProvider,
 } from "@/provider-selection/provider-selection";
+import { formatShortUsage } from "@/provider-usage/short-usage";
+import type { ProviderUsage } from "@/provider-usage/types";
+import { useModelPickerUsageMap } from "@/provider-usage/use-model-picker-usage-map";
 import { useProviderSettingsStore } from "@/stores/provider-settings-store";
 import { useCurrentOverlayLayer } from "@/lib/overlay-root";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
@@ -157,6 +160,7 @@ export interface ModelBrowserState {
   providers: ProviderSelectorProvider[];
   selectedProvider: string;
   selectedModel: string;
+  serverId: string | null;
   profiles: AgentProfilePicker | null;
   view: ModelBrowserView;
   searchQuery: string;
@@ -196,6 +200,7 @@ interface ModelBrowserContentProps extends Omit<ModelBrowserProps, "state" | "sc
   providers: ProviderSelectorProvider[];
   selectedProvider: string;
   selectedModel: string;
+  serverId: string | null;
   searchQuery: string;
   isSearchFocused: boolean;
   profiles: AgentProfilePicker | null;
@@ -392,6 +397,7 @@ export function useModelBrowser({
     providers,
     selectedProvider,
     selectedModel,
+    serverId,
     profiles,
     view,
     searchQuery,
@@ -516,6 +522,7 @@ type ModelBrowserRowTone = "default" | "elevated" | "drillDown";
 
 function ModelBrowserRow({
   label,
+  labelSuffix,
   description,
   leadingSlot,
   trailingSlot,
@@ -528,6 +535,8 @@ function ModelBrowserRow({
   testID,
 }: {
   label: string;
+  /** Muted state that reads as part of the name, such as an account's usage. */
+  labelSuffix?: string;
   description?: string;
   leadingSlot: React.ReactNode;
   trailingSlot?: React.ReactNode;
@@ -573,6 +582,9 @@ function ModelBrowserRow({
             style={labelMuted ? styles.browserRowLabelMuted : styles.browserRowLabel}
           >
             {label}
+            {labelSuffix ? (
+              <Text style={styles.browserRowLabelSuffix}>{` · ${labelSuffix}`}</Text>
+            ) : null}
           </Text>
           {description ? (
             <Text numberOfLines={1} style={styles.browserRowDescription}>
@@ -948,9 +960,11 @@ function AgentProfilesPickerContent({
 
 function GroupProviderButton({
   provider,
+  usage,
   onDrillDown,
 }: {
   provider: ProviderSelectorProvider;
+  usage: ProviderUsage | undefined;
   onDrillDown: (providerId: string, providerLabel: string) => void;
 }) {
   const { t } = useTranslation();
@@ -1004,6 +1018,8 @@ function GroupProviderButton({
   return (
     <ModelBrowserRow
       label={provider.label}
+      // Loading and failed lookups say nothing here; the footer card owns that copy.
+      labelSuffix={usage ? formatShortUsage(usage) : undefined}
       leadingSlot={leadingSlot}
       trailingSlot={trailingSlot}
       tone="drillDown"
@@ -1016,17 +1032,27 @@ function GroupProviderButton({
 
 function GroupedProviderRows({
   providers,
+  serverId,
   onDrillDown,
 }: {
   providers: ProviderSelectorProvider[];
+  serverId: string | null;
   onDrillDown: (providerId: string, providerLabel: string) => void;
 }) {
+  const providerIds = useMemo(() => providers.map((provider) => provider.id), [providers]);
+  // These rows exist only while the picker is open, so mounting them is the signal
+  // to look up usage; nothing fetches for a closed picker.
+  const usage = useModelPickerUsageMap(serverId, providerIds, true);
   return (
     <View>
       {providers.map((provider, index) => (
         <View key={provider.id}>
           {index > 0 ? <View style={styles.separator} /> : null}
-          <GroupProviderButton provider={provider} onDrillDown={onDrillDown} />
+          <GroupProviderButton
+            provider={provider}
+            usage={usage.get(provider.id)}
+            onDrillDown={onDrillDown}
+          />
         </View>
       ))}
     </View>
@@ -1337,6 +1363,7 @@ function ModelBrowserContent({
   providers,
   selectedProvider,
   selectedModel,
+  serverId,
   searchQuery,
   isSearchFocused,
   profiles,
@@ -1445,7 +1472,11 @@ function ModelBrowserContent({
                 <Text style={styles.sectionHeadingText}>{t("modelSelector.providers")}</Text>
               </View>
             ) : null}
-            <GroupedProviderRows providers={providers} onDrillDown={onDrillDown} />
+            <GroupedProviderRows
+              providers={providers}
+              serverId={serverId}
+              onDrillDown={onDrillDown}
+            />
           </View>
         ) : null)}
       {!hasResults ? <ModelSearchEmptyState /> : null}
@@ -1491,6 +1522,7 @@ export function ModelBrowser({
       providers={state.providers}
       selectedProvider={state.selectedProvider}
       selectedModel={state.selectedModel}
+      serverId={state.serverId}
       searchQuery={state.searchQuery}
       isSearchFocused={state.isSearchFocused}
       profiles={state.profiles}
@@ -1596,6 +1628,9 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.base,
     color: theme.colors.foregroundMuted,
     flexShrink: 0,
+  },
+  browserRowLabelSuffix: {
+    color: theme.colors.foregroundMuted,
   },
   browserRowDescription: {
     fontSize: theme.fontSize.sm,

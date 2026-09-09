@@ -160,6 +160,7 @@ export const ko: TranslationResources = {
     clientCommands: {
       archiveAgent: "현재 에이전트 보관",
       freshDraft: "이 에이전트를 보관하고 새 초안을 시작합니다",
+      planMode: "이 에이전트의 플랜 모드 켜기/끄기",
     },
     github: {
       searching: "검색 중...",
@@ -1836,6 +1837,11 @@ export const ko: TranslationResources = {
       one: "{{count}} 명령을 실행했습니다.",
       other: "{{count}} 명령을 실행했습니다.",
     },
+    createdFiles: {
+      one: "파일 1개 생성",
+      other: "파일 {{count}}개 생성",
+    },
+    readFile: "{{name}} 읽음",
     readFiles: {
       one: "파일 {{count}}개 읽음",
       other: "파일 {{count}}개 읽음",
@@ -1852,6 +1858,8 @@ export const ko: TranslationResources = {
       one: "Paseo를 {{count}}회 호출함",
       other: "Paseo를 {{count}}회 호출함",
     },
+    failedSuffix: "({{count}}개 실패)",
+    separator: ", ",
     and: "그리고",
   },
   renameModal: {

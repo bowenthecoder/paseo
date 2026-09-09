@@ -239,6 +239,9 @@ describe("managed task client commands", () => {
       pane,
       archiveAgent: archive.archiveAgent,
       navigateToWorkspace: navigation.navigate,
+      setAgentMode: vi.fn(async () => null),
+      setAgentFeature: vi.fn(async () => {}),
+      notify: vi.fn(),
     });
 
     expect(store.getWorkspaceTabs(workspaceKey).map((tab) => tab.tabId)).not.toContain(childTab);
@@ -292,6 +295,9 @@ describe("managed task client commands", () => {
         pane,
         archiveAgent: archive.archiveAgent,
         navigateToWorkspace: navigation.navigate,
+        setAgentMode: vi.fn(async () => null),
+        setAgentFeature: vi.fn(async () => {}),
+        notify: vi.fn(),
       });
 
       expect(navigation.navigate).toHaveBeenCalledOnce();
@@ -361,6 +367,9 @@ describe("managed task client commands", () => {
       },
       archiveAgent: async () => {},
       navigateToWorkspace: navigation.navigate,
+      setAgentMode: vi.fn(async () => null),
+      setAgentFeature: vi.fn(async () => {}),
+      notify: vi.fn(),
     });
     const layout = useWorkspaceLayoutStore.getState().layoutByWorkspace[workspaceKey];
     const mainTabId = findPaneById(layout.root, DEFAULT_PANE_ID)?.focusedTabId;

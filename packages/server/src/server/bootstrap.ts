@@ -1078,6 +1078,9 @@ export async function createPaseoDaemon(
       },
     });
   });
+  void agentManager.backfillLegacyTitles().catch((error) => {
+    logger.warn({ err: error }, "Legacy chat name backfill failed");
+  });
 
   setupAutoArchiveOnMerge({
     paseoHome: config.paseoHome,
