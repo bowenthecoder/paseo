@@ -891,6 +891,39 @@ function WorkspaceHeaderTitleBar({
   );
 }
 
+function WorkspaceChatHeaderTitle({
+  tab,
+  workspaceId,
+  ...header
+}: WorkspaceHeaderTitleBarProps & {
+  tab: WorkspaceTabDescriptor | null;
+  workspaceId: string;
+}) {
+  if (tab?.kind !== "agent") {
+    return <WorkspaceHeaderTitleBar {...header} />;
+  }
+
+  return (
+    <WorkspaceTabPresentationResolver
+      tab={tab}
+      serverId={header.normalizedServerId}
+      workspaceId={workspaceId}
+    >
+      {(presentation) => (
+        <WorkspaceHeaderTitleBar
+          {...header}
+          isLoading={header.isLoading || presentation.titleState === "loading"}
+          title={presentation.label}
+          isSubtitleDistinct={
+            presentation.label.trim().toLocaleLowerCase() !==
+            header.subtitle.trim().toLocaleLowerCase()
+          }
+        />
+      )}
+    </WorkspaceTabPresentationResolver>
+  );
+}
+
 interface RenderWorkspaceContentInput {
   isMissingWorkspaceDirectory: boolean;
   activeTabDescriptor: WorkspaceTabDescriptor | null;
@@ -1640,15 +1673,25 @@ function WorkspaceScreenContent({
    * Compact has one surface, so it shows whichever of the two panes is live: the side panel
    * while it is open, and the chat otherwise. Wide renders both at once and does not use this.
    */
-  const focusedPaneTabState = useMemo(
-    () =>
-      deriveWorkspacePaneState({
-        layout: workspaceLayout,
-        paneId: sidePanelState.isVisible ? EXPLORER_SIDEBAR_PANE_ID : DEFAULT_PANE_ID,
-        tabs: uiTabs,
-      }),
-    [sidePanelState.isVisible, uiTabs, workspaceLayout],
-  );
+  const focusedPaneTabState = useMemo(() => {
+    let paneId = workspaceLayout?.focusedPaneId ?? DEFAULT_PANE_ID;
+    if (isMobile && sidePanelState.isVisible) paneId = EXPLORER_SIDEBAR_PANE_ID;
+    if (!isMobile && isFocusModeEnabled && paneId === EXPLORER_SIDEBAR_PANE_ID)
+      paneId = DEFAULT_PANE_ID;
+    return deriveWorkspacePaneState({ layout: workspaceLayout, paneId, tabs: uiTabs });
+  }, [isMobile, isFocusModeEnabled, sidePanelState.isVisible, uiTabs, workspaceLayout]);
+  const headerChatTabDescriptor = useMemo(() => {
+    // Supporting views keep the main chat's title in the shared workspace header.
+    const chatPaneState =
+      focusedPaneTabState.pane?.id === EXPLORER_SIDEBAR_PANE_ID
+        ? deriveWorkspacePaneState({
+            layout: workspaceLayout,
+            paneId: DEFAULT_PANE_ID,
+            tabs: uiTabs,
+          })
+        : focusedPaneTabState;
+    return chatPaneState.activeTab?.descriptor ?? null;
+  }, [focusedPaneTabState, uiTabs, workspaceLayout]);
   const compactTabs = useMemo<WorkspaceTabDescriptor[]>(
     () =>
       uiTabs.map((tab) => ({
@@ -1672,6 +1715,7 @@ function WorkspaceScreenContent({
     tabs: uiTabs,
     routeFocused: isRouteFocused,
     focusedPaneOnly: syncFocusedPaneOnly,
+    visiblePaneId: syncFocusedPaneOnly ? focusedPaneTabState.pane?.id : undefined,
   });
   useEffect(() => {
     for (const agentId of visibleAgentIds) {
@@ -2853,6 +2897,7 @@ function WorkspaceScreenContent({
     (paneId: string, tabId: string) => {
       if (persistenceKey) {
         selectWorkspaceTabInPane(persistenceKey, paneId, tabId);
+        useWorkspaceLayoutStore.getState().focusPane(persistenceKey, paneId);
       }
     },
     [persistenceKey, selectWorkspaceTabInPane],
@@ -2976,7 +3021,9 @@ function WorkspaceScreenContent({
           left={
             <>
               <SidebarMenuToggle />
-              <WorkspaceHeaderTitleBar
+              <WorkspaceChatHeaderTitle
+                tab={headerChatTabDescriptor}
+                workspaceId={normalizedWorkspaceId}
                 isLoading={isWorkspaceHeaderLoading}
                 title={workspaceHeaderTitle}
                 subtitle={workspaceHeaderSubtitle}
@@ -2989,10 +3036,12 @@ function WorkspaceScreenContent({
         />
       ) : null,
     [
+      headerChatTabDescriptor,
       headerRight,
       isWorkspaceHeaderLoading,
       isWorkspaceHeaderSubtitleDistinct,
       normalizedServerId,
+      normalizedWorkspaceId,
       showScreenHeader,
       workspaceHeaderSubtitle,
       workspaceHeaderTitle,
@@ -3016,6 +3065,7 @@ function WorkspaceScreenContent({
         onSelectSidePanelView={handleSelectSidePanelView}
         onCloseSidePanelView={handleCloseTabById}
         onCloseSidePanel={closeSidePanel}
+        onReloadAgent={handleReloadAgent}
       />
     );
   }, [
@@ -3024,6 +3074,7 @@ function WorkspaceScreenContent({
     desktopFocusModeEnabled,
     handleCloseTabById,
     handleSelectSidePanelView,
+    handleReloadAgent,
     isMobile,
     isRouteFocused,
     normalizedServerId,

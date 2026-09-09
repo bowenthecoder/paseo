@@ -1855,6 +1855,18 @@ export const ru: TranslationResources = {
     output: "Выходные данные",
   },
   toolCallGroup: {
+    runningTools: {
+      one: "выполняется инструментов: {{count}}",
+      other: "выполняется инструментов: {{count}}",
+    },
+    failedTools: {
+      one: "сбоев инструментов: {{count}}",
+      other: "сбоев инструментов: {{count}}",
+    },
+    canceledTools: {
+      one: "отмененных инструментов: {{count}}",
+      other: "отмененных инструментов: {{count}}",
+    },
     editedFiles: {
       one: "изменён {{count}} файл",
       other: "изменены файлы ({{count}})",

@@ -1875,6 +1875,18 @@ export const fr: TranslationResources = {
     output: "Sortir",
   },
   toolCallGroup: {
+    runningTools: {
+      one: "{{count}} outil en cours",
+      other: "{{count}} outils en cours",
+    },
+    failedTools: {
+      one: "{{count}} outil a échoué",
+      other: "{{count}} outils ont échoué",
+    },
+    canceledTools: {
+      one: "{{count}} outil annulé",
+      other: "{{count}} outils annulés",
+    },
     editedFiles: {
       one: "a modifié {{count}} fichier",
       other: "a modifié {{count}} fichiers",

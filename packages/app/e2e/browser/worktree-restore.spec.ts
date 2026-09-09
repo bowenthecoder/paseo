@@ -264,9 +264,10 @@ test.describe("Worktree restore", () => {
       to: switchedBranch,
     });
     await expectWorkspaceBranch(page, switchedBranch);
+    // Branch changes update the checkout while the header keeps the restored chat's name.
     await expect(
       page.getByTestId("workspace-header-title").filter({ visible: true }).first(),
-    ).toHaveText(switchedBranch, { timeout: 30_000 });
+    ).toHaveText(agent.title, { timeout: 30_000 });
   });
 
   test("recovers the selected agent with its workspace and later rescues another archived agent", async ({

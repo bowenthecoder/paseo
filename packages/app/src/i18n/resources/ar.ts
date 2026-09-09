@@ -1823,6 +1823,18 @@ export const ar: TranslationResources = {
     output: "الإخراج",
   },
   toolCallGroup: {
+    runningTools: {
+      one: "{{count}} أداة قيد التشغيل",
+      other: "{{count}} أدوات قيد التشغيل",
+    },
+    failedTools: {
+      one: "فشلت {{count}} أداة",
+      other: "فشلت {{count}} أدوات",
+    },
+    canceledTools: {
+      one: "أُلغيت {{count}} أداة",
+      other: "أُلغيت {{count}} أدوات",
+    },
     editedFiles: {
       one: "حرّر {{count}} ملفًا",
       other: "حرّر {{count}} ملفات",

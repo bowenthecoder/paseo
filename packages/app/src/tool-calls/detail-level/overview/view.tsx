@@ -37,6 +37,9 @@ function useOverviewSummary(summary: OverviewSummary): string {
   return useMemo(() => {
     const parts: string[] = [];
     const entries = [
+      [summary.failedToolCount, "toolCallGroup.failedTools"],
+      [summary.canceledToolCount, "toolCallGroup.canceledTools"],
+      [summary.runningToolCount, "toolCallGroup.runningTools"],
       [summary.editedFileCount, "toolCallGroup.editedFiles"],
       [summary.commandCount, "toolCallGroup.commands"],
       [summary.readFileCount, "toolCallGroup.readFiles"],
@@ -96,6 +99,7 @@ export const OverviewToolCallGroupView = memo(function OverviewToolCallGroupView
           label={aggregateSummary}
           icon={Wrench}
           isLoading={group.isLoading}
+          isError={group.summary.failedToolCount > 0}
           isExpanded={false}
           isLastInSequence={isLastInSequence}
           onToggle={toggle}
@@ -113,6 +117,7 @@ export const OverviewToolCallGroupView = memo(function OverviewToolCallGroupView
       label={aggregateSummary}
       icon={Wrench}
       isLoading={group.isLoading}
+      isError={group.summary.failedToolCount > 0}
       isExpanded={expanded}
       isLastInSequence={isLastInSequence}
       onToggle={toggle}

@@ -1087,6 +1087,20 @@ export async function createPaseoDaemon(
     logger,
   });
 
+  agentManager.setAgentTitleGenerationCallback((input) => {
+    workspaceAutoName.scheduleForAgent({
+      agentId: input.agentId,
+      expectedTitle: input.expectedTitle,
+      cwd: input.cwd,
+      firstAgentContext: { prompt: input.prompt },
+      currentSelection: {
+        provider: input.provider,
+        model: input.model,
+        thinkingOptionId: input.thinkingOptionId,
+      },
+    });
+  });
+
   setupAutoArchiveOnMerge({
     paseoHome: config.paseoHome,
     paseoWorktreesBaseRoot: config.worktreesRoot,

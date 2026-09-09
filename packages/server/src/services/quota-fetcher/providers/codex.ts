@@ -1,4 +1,3 @@
-import { existsSync, promises as fs } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Logger } from "pino";
@@ -10,7 +9,12 @@ import type {
 } from "../../../server/messages.js";
 import type { ProviderApiFetch, ProviderUsageFetcher } from "../provider.js";
 import {
-  ApiNumberSchema,
+  expandCredentialHome,
+  readCredentialFile,
+  type CredentialFileReader,
+} from "../credential-file.js";
+import {
+  ReportedNullableNumberSchema,
   balanceToneFromRemaining,
   toneFromUsedPct,
   fetchProviderApi,
@@ -60,7 +64,7 @@ const CodexUsageResponseSchema = z.object({
     .object({
       has_credits: z.boolean().optional(),
       unlimited: z.boolean().optional(),
-      balance: ApiNumberSchema.optional(),
+      balance: ReportedNullableNumberSchema,
     })
     .nullish(),
 });
@@ -73,6 +77,7 @@ interface CodexQuotaProviderOptions {
   logger: Logger;
   codexHome?: string;
   fetch?: ProviderApiFetch;
+  credentialFileReader?: CredentialFileReader;
 }
 
 function codexWindow(
@@ -103,10 +108,14 @@ export class CodexQuotaProvider implements ProviderUsageFetcher {
 
   private readonly codexHome: string;
   private readonly fetchApi: ProviderApiFetch;
+  private readonly credentialFileReader: CredentialFileReader;
 
   constructor(options: CodexQuotaProviderOptions) {
-    this.codexHome = options.codexHome || process.env["CODEX_HOME"] || join(homedir(), ".codex");
+    this.codexHome = expandCredentialHome(
+      options.codexHome || process.env["CODEX_HOME"] || join(homedir(), ".codex"),
+    );
     this.fetchApi = options.fetch ?? fetch;
+    this.credentialFileReader = options.credentialFileReader ?? readCredentialFile;
   }
 
   async fetchUsage(): Promise<ProviderUsage> {
@@ -168,7 +177,7 @@ export class CodexQuotaProvider implements ProviderUsageFetcher {
     }
 
     const balances: ProviderUsageBalance[] = [];
-    if (resp.credits?.balance !== undefined) {
+    if (typeof resp.credits?.balance === "number") {
       balances.push({
         id: "credits",
         label: "Credits",
@@ -191,21 +200,10 @@ export class CodexQuotaProvider implements ProviderUsageFetcher {
   }
 
   private async readCodexAuth(): Promise<CodexAuth | null> {
-    const candidates = [
-      ...(process.env["CODEX_HOME"] ? [join(process.env["CODEX_HOME"], "auth.json")] : []),
-      join(homedir(), ".config", "codex", "auth.json"),
-      join(this.codexHome, "auth.json"),
-    ];
-    for (const path of candidates) {
-      if (!existsSync(path)) continue;
-      try {
-        const auth = CodexAuthSchema.parse(JSON.parse(await fs.readFile(path, "utf8")));
-        if (auth.tokens?.access_token) return auth;
-      } catch {
-        continue;
-      }
-    }
-    return null;
+    const parsed = CodexAuthSchema.safeParse(
+      await this.credentialFileReader(join(this.codexHome, "auth.json")),
+    );
+    return parsed.success && parsed.data.tokens?.access_token ? parsed.data : null;
   }
 
   private async callCodexApi(

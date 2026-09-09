@@ -78,7 +78,7 @@ import {
 import { invokeRewindCapability, type RewindMode } from "./rewind/rewind.js";
 import { isSystemInjectedEnvelope } from "./agent-prompt.js";
 import { stripInternalPaseoMcpServer, withRuntimePaseoMcpServer } from "./runtime-mcp-config.js";
-import { resolveCreateAgentTitles } from "./create-agent-title.js";
+import { resolveCreateAgentTitles, resolveAcceptedTitlePrompt } from "./create-agent-title.js";
 import type { PaseoToolCatalogFactory } from "./tools/types.js";
 import { isPaseoToolPolicyEnabled } from "./paseo-tool-policy.js";
 import {
@@ -286,6 +286,16 @@ export interface CreateAgentOptions {
   // undefined is an explicit decision: the agent never appears in the sidebar.
   workspaceId: string | undefined;
   owner?: AgentOwner;
+}
+
+export interface AgentTitleGenerationInput {
+  agentId: string;
+  expectedTitle: string;
+  cwd: string;
+  prompt: string;
+  provider: string;
+  model?: string | null;
+  thinkingOptionId?: string | null;
 }
 
 export interface AgentManagerOptions {
@@ -518,6 +528,7 @@ interface WriteLabelsResult {
 
 interface AgentMetadataPatch {
   title?: string;
+  titleSource?: StoredAgentRecord["titleSource"];
   labels?: AgentLabelPatch;
 }
 
@@ -690,6 +701,7 @@ function detachedAgentLabelPatch(labels: Record<string, string>): AgentLabelPatc
 
 export class AgentManager {
   private readonly pluginLifecycle: PluginLifecycle | undefined;
+  private onAgentTitleGeneration?: (input: AgentTitleGenerationInput) => void | Promise<void>;
   private readonly clients = new Map<AgentProvider, AgentClient>();
   private readonly providerEnabled = new Map<AgentProvider, boolean>();
   private readonly providerDefinitions = new Map<AgentProvider, ProviderEnabledFlag>();
@@ -710,6 +722,7 @@ export class AgentManager {
   private readonly agentRegistrationTasks = new Set<Promise<void>>();
   private readonly inFlightAgentCloses = new Map<string, Promise<void>>();
   private readonly reloadedSessionCloses = new WeakMap<AgentSession, Promise<void>>();
+  private readonly inFlightAgentReloads = new Map<string, Promise<ManagedAgent>>();
   private readonly lifecycleMutationTails = new Map<string, Promise<void>>();
   private readonly agentStreamCoalescer: AgentStreamCoalescer;
   private mcpBaseUrl: string | null;
@@ -795,6 +808,12 @@ export class AgentManager {
 
   getRegisteredProviderIds(): AgentProvider[] {
     return Array.from(this.clients.keys());
+  }
+
+  setAgentTitleGenerationCallback(
+    callback: (input: AgentTitleGenerationInput) => void | Promise<void>,
+  ): void {
+    this.onAgentTitleGeneration = callback;
   }
 
   setAgentAttentionCallback(callback: AgentAttentionCallback): void {
@@ -1129,7 +1148,12 @@ export class AgentManager {
   async waitForAgentClose(agentId: string): Promise<void> {
     // Loading during reload must wait for the replacement, not resume another writer.
     await this.lifecycleMutationTails.get(agentId);
-    await this.inFlightAgentCloses?.get(agentId)?.catch(() => undefined);
+    while (true) {
+      const closing = this.inFlightAgentCloses?.get(agentId);
+      const reloading = this.inFlightAgentReloads?.get(agentId);
+      if (!closing && !reloading) return;
+      await Promise.all([closing?.catch(() => undefined), reloading?.catch(() => undefined)]);
+    }
   }
 
   getTimeline(id: string): AgentTimelineItem[] {
@@ -1229,9 +1253,13 @@ export class AgentManager {
     const createOptions = this.buildCreateSessionOptions(options);
     const session = await client.createSession(providerLaunchConfig, launchContext, createOptions);
     await this.requireExternalMcpSupport(session, storedConfig);
+    let initialTitleSource: StoredAgentRecord["titleSource"];
+    if (storedConfig.title?.trim()) initialTitleSource = "manual";
+    else if (options.initialTitle) initialTitleSource = "provisional";
     const agent = await this.registerSession(session, storedConfig, resolvedAgentId, {
       labels: options.labels,
       initialTitle: options.initialTitle,
+      initialTitleSource,
       workspaceId: options.workspaceId,
       owner: options.owner,
       historyPrimed: true,
@@ -1429,11 +1457,22 @@ export class AgentManager {
     overrides?: Partial<AgentSessionConfig>,
     options?: { rehydrateFromDisk?: boolean },
   ): Promise<ManagedAgent> {
-    return this.trackAgentRegistrationOperation(
+    const previous = this.inFlightAgentReloads.get(agentId) ?? Promise.resolve();
+    const reload = this.trackAgentRegistrationOperation(
       this.runLifecycleMutation(agentId, () =>
-        this.reloadAgentSessionInternal(agentId, overrides, options),
+        previous
+          .catch(() => undefined)
+          .then(() => this.reloadAgentSessionInternal(agentId, overrides, options)),
       ),
     );
+    this.inFlightAgentReloads.set(agentId, reload);
+    const clearReload = () => {
+      if (this.inFlightAgentReloads.get(agentId) === reload) {
+        this.inFlightAgentReloads.delete(agentId);
+      }
+    };
+    void reload.then(clearReload, clearReload);
+    return reload;
   }
 
   private async reloadAgentSessionInternal(
@@ -1920,15 +1959,39 @@ export class AgentManager {
     this.emitState(agent);
   }
 
+  // Manual provenance survives same-text renames, reloads and late generation results.
   async setGeneratedTitle(agentId: string, expectedTitle: string, title: string): Promise<void> {
     await this.runLifecycleMutation(agentId, async () => {
       const record = await this.registry?.get(agentId);
-      if (!record || record.archivedAt || record.title !== expectedTitle) return;
-      await this.updateAgentMetadataUnlocked(agentId, { title });
+      if (
+        !record ||
+        record.archivedAt ||
+        record.titleSource === "manual" ||
+        record.titleSource === "native" ||
+        record.title !== expectedTitle
+      )
+        return;
+      const agent = this.getAgent(agentId);
+      if (agent) {
+        await this.setTitleUnlocked(agentId, title, "generated");
+      } else {
+        await this.writeStoredMetadata(agentId, {
+          title,
+          titleSource: "generated",
+        });
+      }
     });
   }
 
   async setTitle(agentId: string, title: string): Promise<void> {
+    await this.runLifecycleMutation(agentId, () => this.setTitleUnlocked(agentId, title, "manual"));
+  }
+
+  private async setTitleUnlocked(
+    agentId: string,
+    title: string,
+    titleSource: StoredAgentRecord["titleSource"],
+  ): Promise<void> {
     const agent = this.requireAgent(agentId);
     const normalizedTitle = title.trim();
     if (!normalizedTitle) {
@@ -1942,7 +2005,7 @@ export class AgentManager {
       return;
     }
     this.touchUpdatedAt(agent);
-    await this.persistSnapshot(agent, { title: normalizedTitle });
+    await this.persistSnapshot(agent, { title: normalizedTitle, titleSource });
     this.emitState(agent, { persist: false });
   }
 
@@ -1980,7 +2043,9 @@ export class AgentManager {
 
     const nextRecord = {
       ...record,
-      ...(patch.title ? { title: patch.title } : {}),
+      ...(patch.title
+        ? { title: patch.title, titleSource: patch.titleSource ?? ("manual" as const) }
+        : {}),
       ...(patch.labels ? { labels: applyLabelPatch(record.labels, patch.labels) } : {}),
       updatedAt: this.nextStoredUpdatedAt(record),
     };
@@ -2151,7 +2216,7 @@ export class AgentManager {
     const liveAgent = this.getAgent(agentId);
     if (liveAgent) {
       if (updates.title) {
-        await this.setTitle(agentId, updates.title);
+        await this.setTitleUnlocked(agentId, updates.title, "manual");
       }
       if (updates.labels) {
         await this.writeLabels(agentId, updates.labels);
@@ -2301,6 +2366,58 @@ export class AgentManager {
     });
   }
 
+  /** Persist eligibility before dispatch; metadata generation never holds the coding turn. */
+  private scheduleTitleForAcceptedPrompt(
+    agent: ActiveManagedAgent,
+    prompt: AgentPromptInput,
+  ): void {
+    const generate = this.onAgentTitleGeneration;
+    const text = resolveAcceptedTitlePrompt(prompt);
+    if (
+      !generate ||
+      agent.internal ||
+      !text ||
+      isSystemInjectedEnvelope(text) ||
+      /^\/(?:rename|title)(?:\s|$)/i.test(text)
+    )
+      return;
+    void this.runLifecycleMutation(
+      agent.id,
+      async (): Promise<AgentTitleGenerationInput | null> => {
+        const record = await this.registry?.get(agent.id);
+        if (
+          !record ||
+          record.archivedAt ||
+          record.titleGenerationAttempted ||
+          (record.title && record.titleSource !== "provisional")
+        )
+          return null;
+        const expectedTitle =
+          record.title ?? resolveCreateAgentTitles({ initialPrompt: text }).provisionalTitle;
+        if (!expectedTitle) return null;
+        await this.persistSnapshot(agent, {
+          title: expectedTitle,
+          titleSource: "provisional",
+          titleGenerationAttempted: true,
+        });
+        this.emitState(agent, { persist: false });
+        return {
+          agentId: agent.id,
+          expectedTitle,
+          cwd: agent.cwd,
+          prompt: text,
+          provider: agent.provider,
+          model: agent.config.model,
+          thinkingOptionId: agent.config.thinkingOptionId,
+        };
+      },
+    )
+      .then((input) => (input ? generate(input) : undefined))
+      .catch((error) => {
+        this.logger.warn({ err: error, agentId: agent.id }, "Failed to auto-name chat");
+      });
+  }
+
   private async startPendingForegroundTurn(params: {
     agent: ActiveManagedAgent;
     agentId: string;
@@ -2429,6 +2546,7 @@ export class AgentManager {
         this.enqueueSessionEvent(agent.id, stagedEvent);
       }
       this.emitState(agent);
+      this.scheduleTitleForAcceptedPrompt(agent, prompt);
       this.logger.trace(
         {
           agentId,
@@ -2714,6 +2832,7 @@ export class AgentManager {
     clientMessageId: string | undefined,
     expectedTurnId: string,
   ): Promise<void> {
+    this.scheduleTitleForAcceptedPrompt(agent, prompt);
     if (!clientMessageId) {
       return;
     }
@@ -3311,6 +3430,7 @@ export class AgentManager {
       lastError?: string;
       attention?: AttentionState;
       initialTitle?: string | null;
+      initialTitleSource?: StoredAgentRecord["titleSource"];
       publishWhenReady?: boolean;
       workspaceId?: string;
       owner?: AgentOwner;
@@ -3354,6 +3474,7 @@ export class AgentManager {
       this.assertAgentRegistrationActive(managed);
       await this.persistSnapshot(managed, {
         title: initialPersistedTitle,
+        titleSource: options?.initialTitleSource,
       });
       this.assertAgentRegistrationActive(managed);
       if (!options?.publishWhenReady) {
@@ -3721,7 +3842,12 @@ export class AgentManager {
 
   private async persistSnapshot(
     agent: ManagedAgent,
-    options?: { title?: string | null; internal?: boolean },
+    options?: {
+      title?: string | null;
+      titleSource?: StoredAgentRecord["titleSource"];
+      titleGenerationAttempted?: boolean;
+      internal?: boolean;
+    },
   ): Promise<void> {
     if (!this.registry) {
       return;

@@ -15,7 +15,6 @@ import {
 } from "@/subagents";
 import { SubagentsTrack } from "@/subagents/track";
 import type { TodoEntry } from "@/types/stream";
-import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
 import { openComposerChanges } from "@/workspace-tabs/open-supporting-view";
 
@@ -47,7 +46,7 @@ export const AgentTracks = memo(function AgentTracks({
   onArchiveFinished: () => void;
   hasPluginComposerPills: boolean;
 }): ReactElement | null {
-  const { openTab } = usePaneContext();
+  const { host, openTab, layoutWorkspaceId } = usePaneContext();
   const hasWorkspaceDiffStat = useWorkspaceHasDiffStat(serverId, workspaceId);
   const isCompact = useIsCompactFormFactor();
   const workspaceKey = buildWorkspaceTabPersistenceKey({ serverId, workspaceId });
@@ -61,15 +60,9 @@ export const AgentTracks = memo(function AgentTracks({
   }, [agentId, openTab]);
   const handleOpenSubagent = useCallback(
     (subagentId: string) => {
-      const session = useSessionStore.getState().sessions[serverId];
-      const agent = session?.agents.get(subagentId) ?? session?.agentDetails.get(subagentId);
-      if (agent?.workspaceId && agent.workspaceId !== workspaceId) {
-        navigateToAgent({ serverId, agentId: subagentId });
-        return;
-      }
-      navigateToAgent({ serverId, agentId: subagentId });
+      openTab({ kind: "agent", agentId: subagentId });
     },
-    [serverId, workspaceId],
+    [openTab],
   );
   const handleOpenProviderSubagent = useCallback(
     (parentAgentId: string, subagentId: string) => {
@@ -78,6 +71,10 @@ export const AgentTracks = memo(function AgentTracks({
     [openTab],
   );
   const handleOpenChanges = useCallback(() => {
+    if (host === "explorer" || (layoutWorkspaceId && layoutWorkspaceId !== workspaceId)) {
+      openTab({ kind: "working_diff" });
+      return;
+    }
     if (!workspaceKey) {
       return;
     }
@@ -86,7 +83,7 @@ export const AgentTracks = memo(function AgentTracks({
       workspaceKey,
       checkout: { serverId, cwd, isGit: true },
     });
-  }, [cwd, isCompact, serverId, workspaceKey]);
+  }, [cwd, host, isCompact, layoutWorkspaceId, openTab, serverId, workspaceId, workspaceKey]);
 
   if (
     !hasWorkspaceDiffStat &&
@@ -104,7 +101,6 @@ export const AgentTracks = memo(function AgentTracks({
     <ComposerTrackBar>
       <AgentTaskList tasks={tasks} />
       <SubagentsTrack
-        serverId={serverId}
         rows={subagentRows}
         onOpenSubagent={handleOpenSubagent}
         onOpenProviderSubagent={handleOpenProviderSubagent}

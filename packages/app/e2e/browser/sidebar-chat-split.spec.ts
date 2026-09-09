@@ -26,14 +26,16 @@ async function openSplit(page: Page, agentId: string, keyboard = false) {
   } else {
     await page.getByTestId("sidebar-open-split-right").click();
   }
-  await expect(sidePanel(page).getByTestId(`workspace-panel-agent_${agentId}`)).toBeVisible();
+  await expect(
+    page.getByTestId("workspace-chat-view-chat-2").getByTestId(`workspace-panel-agent_${agentId}`),
+  ).toBeVisible();
 }
 
 test("O then S opens an independent chat beside the current chat with its own folder and saved draft", async ({
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
-  await page.setViewportSize({ width: 1280, height: 820 });
+  await page.setViewportSize({ width: 1440, height: 960 });
   const left = await seedMockAgentWorkspace({
     repoPrefix: "split-left-folder-",
     title: "Keep primary conversation",
@@ -83,12 +85,15 @@ test("O then S opens an independent chat beside the current chat with its own fo
     await page.reload();
     await expect(leftInput).toHaveValue("Keep the primary draft");
     await expect(
-      sidePanel(page).getByTestId(`workspace-panel-agent_${right.agentId}`),
+      page
+        .getByTestId("workspace-chat-view-chat-2")
+        .getByTestId(`workspace-panel-agent_${right.agentId}`),
     ).toBeVisible();
     await expect(rightInput).toHaveValue("Keep the independent draft");
     await expect(page).toHaveURL(primaryUrl);
     await expect(chatRow(page, left.agentId)).toHaveAttribute("aria-selected", "true");
 
+    await page.setViewportSize({ width: 1280, height: 820 });
     const [leftBounds, rightBounds] = await Promise.all([
       leftPanel.boundingBox(),
       rightPanel.boundingBox(),
@@ -96,7 +101,7 @@ test("O then S opens an independent chat beside the current chat with its own fo
     expect(leftBounds).not.toBeNull();
     expect(rightBounds).not.toBeNull();
     expect(leftBounds!.width).toBeGreaterThanOrEqual(400);
-    expect(rightBounds!.width).toBeGreaterThanOrEqual(240);
+    expect(rightBounds!.width).toBeGreaterThanOrEqual(400);
     expect(rightBounds!.x).toBeGreaterThanOrEqual(leftBounds!.x + leftBounds!.width - 1);
     expect(rightBounds!.x + rightBounds!.width).toBeLessThanOrEqual(1280);
 
@@ -106,11 +111,9 @@ test("O then S opens an independent chat beside the current chat with its own fo
       path: screenshotPath,
       contentType: "image/png",
     });
-    await sidePanel(page).getByTestId(`workspace-side-panel-view-agent_${right.agentId}`).hover();
-    await sidePanel(page)
-      .getByTestId(`workspace-side-panel-close-view-agent_${right.agentId}`)
-      .click();
-    await expect(rightPanel).toHaveCount(0);
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await page.getByTestId("workspace-close-chat-chat-2").click();
+    await expect(rightPanel).toBeHidden();
     await expect(leftInput).toHaveValue("Keep the primary draft");
     await expect(page).toHaveURL(primaryUrl);
     expect(

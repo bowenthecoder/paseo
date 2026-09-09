@@ -1835,6 +1835,18 @@ export const en = {
     output: "Output",
   },
   toolCallGroup: {
+    runningTools: {
+      one: "{{count}} tool running",
+      other: "{{count}} tools running",
+    },
+    failedTools: {
+      one: "{{count}} tool failed",
+      other: "{{count}} tools failed",
+    },
+    canceledTools: {
+      one: "{{count}} tool canceled",
+      other: "{{count}} tools canceled",
+    },
     editedFiles: {
       one: "edited {{count}} file",
       other: "edited {{count}} files",

@@ -110,3 +110,34 @@ test("pane retargeting replaces the viewed agent and duplicate panes collapse to
     }),
   }).toEqual({ duplicate: ["agent-a"], retargeted: ["agent-a", "agent-b"] });
 });
+
+test("compact supporting chat publishes the visible pane instead of the retained main chat", () => {
+  const layout: WorkspaceLayout = {
+    focusedPaneId: "main",
+    root: {
+      kind: "group",
+      group: {
+        id: "root",
+        direction: "horizontal",
+        sizes: [0.5, 0.5],
+        children: [
+          { kind: "pane", pane: { id: "main", tabIds: ["main"], focusedTabId: "main" } },
+          { kind: "pane", pane: { id: "explorer", tabIds: ["task"], focusedTabId: "task" } },
+        ],
+      },
+    },
+  };
+  const tabs: WorkspaceTab[] = [
+    { tabId: "main", target: { kind: "agent", agentId: "main-agent" }, createdAt: 1 },
+    { tabId: "task", target: { kind: "agent", agentId: "task-agent" }, createdAt: 1 },
+  ];
+  expect(
+    selectVisibleAgentIds({
+      layout,
+      tabs,
+      routeFocused: true,
+      focusedPaneOnly: true,
+      visiblePaneId: "explorer",
+    }),
+  ).toEqual(["task-agent"]);
+});

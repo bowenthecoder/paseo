@@ -1,4 +1,6 @@
 import type { Query, QueryCacheNotifyEvent, QueryClient, QueryKey } from "@tanstack/react-query";
+import equal from "fast-deep-equal";
+import { resetProviderUsageQueries } from "@/provider-usage/query-cache";
 import type {
   ListTerminalsResponse,
   MutableDaemonConfig,
@@ -431,6 +433,12 @@ function applyDaemonConfigStatus(input: {
   const payload = input.message.payload;
   if (!isDaemonConfigChangedPayload(payload)) {
     return;
+  }
+  const previous = input.queryClient.getQueryData<MutableDaemonConfig>(
+    daemonConfigQueryKey(input.serverId),
+  );
+  if (!equal(previous?.providers, payload.config.providers)) {
+    void resetProviderUsageQueries(input.queryClient, input.serverId);
   }
   input.queryClient.setQueryData<MutableDaemonConfig>(
     daemonConfigQueryKey(input.serverId),

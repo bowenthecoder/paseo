@@ -1,6 +1,7 @@
-import { useMemo, type ReactNode } from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
+import { WorkspacePaneFocusBoundary } from "@/screens/workspace/workspace-pane-focus-boundary";
 import { RetainedPanel } from "@/components/retained-panel";
 import { TitlebarDragRegion } from "@/components/desktop/titlebar-drag-region";
 import { WorkspacePanelHost } from "@/screens/workspace/workspace-panel-host";
@@ -21,6 +22,8 @@ interface WorkspaceSidePanelProps {
   normalizedServerId: string;
   normalizedWorkspaceId: string;
   isWorkspaceFocused: boolean;
+  isPaneFocused: boolean;
+  onFocusPane: (paneId: string) => void;
   onSelectView: (paneId: string, tabId: string) => void;
   onCloseView: (tabId: string) => Promise<void> | void;
   onClosePanel: () => void;
@@ -41,6 +44,8 @@ export function WorkspaceSidePanel({
   normalizedServerId,
   normalizedWorkspaceId,
   isWorkspaceFocused,
+  isPaneFocused,
+  onFocusPane,
   onSelectView,
   onCloseView,
   onClosePanel,
@@ -59,7 +64,8 @@ export function WorkspaceSidePanel({
     [onSelectView, pane.id],
   );
 
-  return (
+  const focusPane = useCallback(() => onFocusPane(pane.id), [onFocusPane, pane.id]);
+  const content = (
     <RetainedPanel active>
       <WindowChromeRegion corners="top-right">
         <View style={styles.dock} testID="workspace-side-panel">
@@ -84,7 +90,8 @@ export function WorkspaceSidePanel({
               normalizedServerId={normalizedServerId}
               normalizedWorkspaceId={normalizedWorkspaceId}
               isWorkspaceFocused={isWorkspaceFocused}
-              isPaneFocused
+              isPaneFocused={isPaneFocused}
+              onFocusPane={onFocusPane}
               buildPaneContentModel={buildPaneContentModel}
             />
           </View>
@@ -92,6 +99,7 @@ export function WorkspaceSidePanel({
       </WindowChromeRegion>
     </RetainedPanel>
   );
+  return <WorkspacePaneFocusBoundary onFocus={focusPane}>{content}</WorkspacePaneFocusBoundary>;
 }
 
 const styles = StyleSheet.create((theme) => ({

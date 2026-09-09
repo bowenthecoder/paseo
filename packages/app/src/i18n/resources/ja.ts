@@ -1843,6 +1843,18 @@ export const ja: TranslationResources = {
     output: "出力",
   },
   toolCallGroup: {
+    runningTools: {
+      one: "ツール{{count}}件を実行中",
+      other: "ツール{{count}}件を実行中",
+    },
+    failedTools: {
+      one: "ツール{{count}}件が失敗",
+      other: "ツール{{count}}件が失敗",
+    },
+    canceledTools: {
+      one: "ツール{{count}}件をキャンセル",
+      other: "ツール{{count}}件をキャンセル",
+    },
     editedFiles: {
       one: "{{count}}個のファイルを編集",
       other: "{{count}}個のファイルを編集",

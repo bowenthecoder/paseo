@@ -1,6 +1,9 @@
 import { describe, expect, test } from "vitest";
 
-import { resolveCreateAgentTitles } from "./agent/create-agent-title.js";
+import {
+  resolveCreateAgentTitles,
+  resolveAcceptedTitlePrompt,
+} from "./agent/create-agent-title.js";
 
 describe("resolveCreateAgentTitles", () => {
   test("derives a provisional title from prompt when explicit title is absent", () => {
@@ -41,4 +44,34 @@ test("provisional titles omit request boilerplate and end at word boundaries", (
         "I want you to investigate the Amazon tracking failure and then run all the regression tests",
     }).provisionalTitle,
   ).toBe("investigate the Amazon tracking failure and");
+});
+
+test("title prompt skips imported chat history and names attachment-only tasks from metadata", () => {
+  expect(
+    resolveAcceptedTitlePrompt([
+      {
+        type: "text",
+        text: "Old imported conversation",
+        mimeType: "text/plain",
+        contextKind: "chat_history",
+      },
+      { type: "text", text: "Fix the current checkout" },
+    ]),
+  ).toBe("Fix the current checkout");
+  expect(
+    resolveAcceptedTitlePrompt([
+      {
+        type: "uploaded_file",
+        fileName: "inventory.csv",
+        path: "/tmp/inventory.csv",
+        mimeType: "text/csv",
+        size: 42,
+      },
+    ]),
+  ).toBe("Review inventory.csv");
+  expect(
+    resolveAcceptedTitlePrompt([
+      { type: "image", data: "not-read-for-title", mimeType: "image/png" },
+    ]),
+  ).toBe("Review attached image");
 });

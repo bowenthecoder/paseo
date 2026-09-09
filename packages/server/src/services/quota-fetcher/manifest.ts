@@ -1,3 +1,6 @@
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { ProviderOverrideSchema } from "@getpaseo/protocol/provider-config";
 import type {
   ProviderUsageFetcher,
   ProviderUsageFetcherFactoryOptions,
@@ -11,23 +14,58 @@ import { GrokQuotaProvider } from "./providers/grok.js";
 import { KimiQuotaProvider } from "./providers/kimi.js";
 import { MiniMaxQuotaProvider } from "./providers/minimax.js";
 import { ZaiQuotaProvider } from "./providers/zai.js";
+import { unavailableUsage } from "./usage.js";
+
+function subscriptionFetcher(
+  providerId: "claude" | "codex",
+  options: ProviderUsageFetcherFactoryOptions,
+): ProviderUsageFetcher {
+  const config = ProviderOverrideSchema.safeParse(options.providerConfig?.[providerId] ?? {});
+  const environment = {
+    ...(options.environment ?? process.env),
+    ...(config.success ? config.data.env : {}),
+  };
+  const apiRouted =
+    providerId === "claude"
+      ? Boolean(
+          environment.ANTHROPIC_API_KEY ||
+          environment.ANTHROPIC_AUTH_TOKEN ||
+          environment.ANTHROPIC_BASE_URL,
+        )
+      : Boolean(environment.OPENAI_API_KEY || environment.OPENAI_BASE_URL);
+  if (!config.success || apiRouted) {
+    return {
+      providerId,
+      displayName: providerId === "claude" ? "Claude" : "Codex",
+      async fetchUsage() {
+        return unavailableUsage(this);
+      },
+    };
+  }
+  return providerId === "claude"
+    ? new ClaudeQuotaProvider({
+        logger: options.logger,
+        fetch: options.fetch,
+        claudeHome: environment.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"),
+        credentialFileReader: options.credentialFileReader,
+        claudeKeychainReader: options.claudeKeychainReader,
+      })
+    : new CodexQuotaProvider({
+        logger: options.logger,
+        fetch: options.fetch,
+        codexHome: environment.CODEX_HOME || join(homedir(), ".codex"),
+        credentialFileReader: options.credentialFileReader,
+      });
+}
 
 export const PROVIDER_USAGE_FETCHERS: readonly ProviderUsageFetcherManifestEntry[] = [
   {
     providerId: "claude",
-    create: (options) =>
-      new ClaudeQuotaProvider({
-        logger: options.logger,
-        fetch: options.fetch,
-      }),
+    create: (options) => subscriptionFetcher("claude", options),
   },
   {
     providerId: "codex",
-    create: (options) =>
-      new CodexQuotaProvider({
-        logger: options.logger,
-        fetch: options.fetch,
-      }),
+    create: (options) => subscriptionFetcher("codex", options),
   },
   {
     providerId: "copilot",

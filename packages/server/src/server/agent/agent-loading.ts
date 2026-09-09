@@ -86,6 +86,10 @@ export async function ensureAgentLoaded(
     laterInflight.options.broadcastTimeline ||= deps.broadcastTimeline === true;
     return laterInflight.promise;
   }
+  const afterClose = deps.agentManager.getAgent(agentId);
+  if (afterClose) {
+    return afterClose;
+  }
 
   const pendingOptions = {
     broadcastTimeline: deps.broadcastTimeline === true,
