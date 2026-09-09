@@ -97,7 +97,7 @@ clipping; Playwright's CSS-scaled capture cropped the visible composer. See
 
 The installed renderer predates the usage integration. Its original source checkout is release
 `9400a49af670fdb5db4af58e73f8df98588dbea9` plus 47 local changes. All 47 are accounted for in the
-candidate: 32 identical files, 14 evolved implementations and the workspace split menu now being restored through the retained right panel. Both original feature commits are ancestors of the integration branch.
+candidate: 32 identical files, 14 evolved implementations and the workspace split menu restored through the retained right panel. Both original feature commits are ancestors of the integration branch.
 The original subscriptions checkout has 10 local changes; all match its preserved source snapshot
 and are included or superseded in the plugin integration. Live configuration still points to that
 original plugin, so an updated renderer alone would not update live quota/provider behavior.
@@ -142,6 +142,32 @@ tests, desktop typecheck, scoped lint and formatting passed; the original source
 
 Focused checks ran with one worker and isolated test daemons. No full local test suite was run.
 [QA](./qa.md) owns the evidence standard and [Testing](./testing.md) owns test conventions.
+
+The final review found and corrected four additional regressions. Fast O→S now targets the
+opened submenu before its focus animation finishes. A low schedule field opens its model picker
+above the anchor when the space below would hide options behind the usage footer. Provider
+pushes cancel older reads before updating the visible list and cache, including the resolved-promise
+completion window. Diff scrolling retains file identities instead of rebuilding the same interaction
+window on every scroll bucket. Focused regression checks pass for menus (5), picker placement (5),
+provider/cache/router races (53) and diff rendering (41), with app types, scoped lint and formatting.
+
+The saved-project, provider-removal and schedule-host browser flows passed three consecutive runs
+(9 cases). Provider removal passed again after the completion-window correction. The small-Mac
+split flow passes at 1280×820 with both pane widths and independent drafts asserted. Fast scrolling
+passes the unchanged 30-commit budget at 24 commits, including wrapped and split layouts. The
+2,000-file stress case passes at six commits, zero blank headers, 11.1 ms median and 17.6 ms p95
+frames under 6× CPU slowdown. Its initial load took 68 seconds; existing per-file daemon Git and
+highlighting work remains a performance limitation. Evidence is in
+`/tmp/paseo-final-settings-race-browser.log`, `/tmp/paseo-final-fast-scroll-browser.log` and
+`/tmp/paseo-final-completion-many-files-browser.log`.
+
+CI run [34312422542](https://github.com/bowenthecoder/paseo/actions/runs/34312422542) passed all
+non-browser jobs, including 5,115 app tests, Linux/Windows server tests, desktop renderer checks,
+the native browser harness and the Linux packaged smoke. Browser shards 1, 2 and 4 passed;
+shard 3 exposed the schedule picker failure and provider-removal flake fixed above. Final CI must
+run on the committed correction. Exact final source/bundle identities, CI results and packaged
+stress results belong in `candidate-manifest.json` and `final-validation.json` in the review folder;
+earlier preview evidence below is retained as history.
 
 | Area                           | Observed integration result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

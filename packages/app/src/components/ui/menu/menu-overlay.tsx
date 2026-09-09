@@ -408,6 +408,14 @@ export function AnchoredSurface({
   );
 }
 
+function resolveKeyboardSurface(scope: HTMLElement | null) {
+  // Flyouts render in open-page order. The innermost page owns keyboard actions
+  // as soon as it opens, including before its focus frame leaves the parent row.
+  return Array.from(scope?.querySelectorAll<HTMLElement>('[data-menu-surface="true"]') ?? []).at(
+    -1,
+  );
+}
+
 /**
  * The full-screen layer every floating menu surface lives in: a web portal into the overlay
  * root, or a transparent Modal on native. Submenus render inside their parent's layer rather
@@ -436,7 +444,7 @@ export function MenuOverlay({
       }
 
       const target = event.target instanceof Element ? event.target : null;
-      const surface = target?.closest<HTMLElement>('[data-menu-surface="true"]');
+      const surface = resolveKeyboardSurface(webOverlayRef.current);
       if (!surface) return false;
       const items = Array.from(
         surface.querySelectorAll<HTMLElement>(
