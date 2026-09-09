@@ -1,6 +1,5 @@
 import { expect, test } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
-import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
 import {
   expectNewWorkspaceDraft,
   fillNewWorkspaceDraft,
@@ -46,7 +45,6 @@ test.describe("New workspace: the composer is one control in two modes", () => {
   }) => {
     test.setTimeout(60_000);
     await gotoAppShell(page);
-    await waitForSidebarHydration(page);
 
     await openNewWorkspaceComposer(page, {
       projectKey: workspace.projectKey,

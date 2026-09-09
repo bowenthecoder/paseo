@@ -1,6 +1,5 @@
 import { test } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
-import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
 import {
   openNewWorkspaceComposer,
   submitNewWorkspacePrompt,
@@ -53,7 +52,6 @@ test.describe("New workspace: launch target memory", () => {
   }) => {
     test.setTimeout(90_000);
     await gotoAppShell(page);
-    await waitForSidebarHydration(page);
 
     const openNewWorkspace = () =>
       openNewWorkspaceComposer(page, {
