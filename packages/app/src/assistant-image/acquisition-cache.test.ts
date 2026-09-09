@@ -33,6 +33,95 @@ describe("assistant image acquisition cache", () => {
     });
   });
 
+  it("reacquires an invalidated image without evicting unrelated previews", async () => {
+    const cache = createAssistantImageAcquisitionCache<string>({ capacity: 2 });
+    await cache.acquire("image", async () => "invalid image bytes");
+    await cache.acquire("other", async () => "other image");
+
+    cache.invalidate("image");
+    expect(cache.peek("image")).toBeUndefined();
+    expect(cache.peek("other")).toBe("other image");
+
+    await expect(cache.acquire("image", async () => "repaired image")).resolves.toBe(
+      "repaired image",
+    );
+    await expect(cache.acquire("image", async () => "unexpected reread")).resolves.toBe(
+      "repaired image",
+    );
+    expect(cache.size()).toBe(2);
+  });
+
+  it("retains invalidated previews until their last mounted consumer releases them", async () => {
+    const released: string[] = [];
+    const cache = createAssistantImageAcquisitionCache<string>({
+      capacity: 2,
+      onRetain: (value) => () => released.push(value),
+    });
+    const first = cache.acquireRetained("image", async () => "invalid preview");
+    const second = cache.acquireRetained("image", async () => "unused preview");
+    await Promise.all([first.promise, second.promise]);
+
+    cache.invalidate("image");
+    const repaired = cache.acquireRetained("image", async () => "repaired preview");
+    await repaired.promise;
+    expect(released).toEqual([]);
+    first.release();
+    expect(released).toEqual([]);
+    second.release();
+    expect(released).toEqual(["invalid preview"]);
+    expect(cache.peek("image")).toBe("repaired preview");
+    repaired.release();
+    cache.invalidate("image");
+    expect(released).toEqual(["invalid preview", "repaired preview"]);
+  });
+
+  it("does not evict a repaired preview when an older consumer reports a delayed failure", async () => {
+    const released: string[] = [];
+    const cache = createAssistantImageAcquisitionCache<string>({
+      capacity: 2,
+      onRetain: (value) => () => released.push(value),
+    });
+    const first = cache.acquireRetained("image", async () => "invalid preview");
+    const delayed = cache.acquireRetained("image", async () => "unused preview");
+    const failedValue = await first.promise;
+    await delayed.promise;
+    cache.invalidate("image", { value: failedValue });
+    first.release();
+
+    const repaired = cache.acquireRetained("image", async () => "repaired preview");
+    await repaired.promise;
+    cache.invalidate("image", { value: failedValue });
+    delayed.release();
+
+    expect(cache.peek("image")).toBe("repaired preview");
+    expect(released).toEqual(["invalid preview"]);
+    repaired.release();
+    cache.invalidate("image", { value: "repaired preview" });
+    expect(released).toEqual(["invalid preview", "repaired preview"]);
+  });
+
+  it("does not replace a repaired entry when an invalidated read settles later", async () => {
+    const released: string[] = [];
+    let finishStaleRead!: (value: string) => void;
+    const staleRead = new Promise<string>((resolve) => {
+      finishStaleRead = resolve;
+    });
+    const cache = createAssistantImageAcquisitionCache<string>({
+      capacity: 2,
+      onRetain: (value) => () => released.push(value),
+    });
+    const stale = cache.acquireRetained("image", async () => await staleRead);
+    cache.invalidate("image");
+    await cache.acquire("image", async () => "repaired preview");
+    finishStaleRead("stale preview");
+    await stale.promise;
+
+    expect(cache.peek("image")).toBe("repaired preview");
+    expect(released).toEqual([]);
+    stale.release();
+    expect(released).toEqual(["stale preview"]);
+  });
+
   it("bounds successful acquisitions and evicts the least recently used entry", async () => {
     const cache = createAssistantImageAcquisitionCache<string>({ capacity: 2 });
     const located: string[] = [];

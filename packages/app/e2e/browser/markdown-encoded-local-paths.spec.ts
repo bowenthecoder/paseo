@@ -1,12 +1,14 @@
 import path from "node:path";
-import { unlink } from "node:fs/promises";
+import { readFile, unlink, writeFile } from "node:fs/promises";
 import { test, expect } from "../support/fixtures";
 import {
   createSettledMockAgent,
   createSmallAssistantPng,
   expectAssistantImageRendered,
   openAssistantImageTimeline,
+  openExistingImageAgentTabs,
 } from "../support/helpers/assistant-images";
+import { clickSessionRow, openSessions } from "../support/helpers/archive-tab";
 import { delayFileReadResponse } from "../support/helpers/file-read-gate";
 import { seedWorkspace } from "../support/helpers/seed-client";
 
@@ -93,6 +95,53 @@ test("an unavailable local image stays compact and Retry reads the recovered fil
     ).toBeLessThanOrEqual(40);
     await createSmallAssistantPng(workspace, fixture);
     await error.getByRole("button", { name: "Retry", exact: true }).press("Enter");
+    await expectAssistantImageRendered(page, image);
+    await expect(error).toHaveCount(0);
+  } finally {
+    await workspace.cleanup();
+  }
+});
+
+test("a repaired truncated PNG stays valid after Retry, chat remount, and reload", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const workspace = await seedWorkspace({ repoPrefix: "markdown-image-remount-" });
+  try {
+    const fixture = { alt: "Repaired truncated screenshot", fileName: "truncated screenshot.png" };
+    const image = await createSmallAssistantPng(workspace, fixture);
+    const imagePath = path.join(workspace.repoPath, image.relativePath);
+    const bytes = await readFile(imagePath);
+    await writeFile(imagePath, bytes.subarray(0, 8));
+    const imageAgent = await createSettledMockAgent(workspace, "Repair truncated screenshot");
+    const otherAgent = await createSettledMockAgent(workspace, "Keep another chat open");
+    await workspace.client.sendAgentMessage(
+      imageAgent.id,
+      `Emit settled assistant image Markdown: ![${image.alt}](${encodeURI(imagePath)})`,
+    );
+    const result = await workspace.client.waitForFinish(imageAgent.id, 30_000);
+    expect(result.status).toBe("idle");
+    expect(result.final?.lastError).toBeFalsy();
+
+    await openExistingImageAgentTabs(page, { imageAgent, otherAgent });
+    const error = page.getByTestId("assistant-image-error");
+    await expect(error).toContainText("Image unavailable", { timeout: 30_000 });
+    await createSmallAssistantPng(workspace, fixture);
+    await error.getByRole("button", { name: "Retry", exact: true }).click();
+    await expectAssistantImageRendered(page, image);
+
+    // History leaves the workspace route, unmounting the image without resetting caches.
+    const navigationOrigin = await page.evaluate(() => performance.timeOrigin);
+    await unlink(imagePath);
+    await openSessions(page);
+    await expect(page.getByRole("img", { name: image.alt })).toHaveCount(0);
+    await clickSessionRow(page, imageAgent.title);
+    await expectAssistantImageRendered(page, image);
+    expect(await page.evaluate(() => performance.timeOrigin)).toBe(navigationOrigin);
+    await expect(error).toHaveCount(0);
+
+    await createSmallAssistantPng(workspace, fixture);
+    await page.reload();
     await expectAssistantImageRendered(page, image);
     await expect(error).toHaveCount(0);
   } finally {

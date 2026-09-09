@@ -62,6 +62,12 @@ host path when opened, downloaded, or added to chat; root expansion state is sep
 layout store remembers one ordinary pane per workspace. The first side open creates a full-height
 right split around the workspace root; later side opens reuse it.
 
+Horizontal main splits reserve room for each visible pane using the same 400px width budget as
+the workspace shell. Nested columns add their budgets; stacked panes share one. On narrower
+windows, displayed proportions adjust to keep panes readable without changing their saved sizes.
+When the available width is below the combined budget, panes share it proportionally. Wider
+windows restore the saved proportions, and dragging starts from the displayed sizes.
+
 Closing the pane or moving away its final tab removes it normally and clears the remembered id. A
 later side open creates a new pane. There is no hidden side-pane lifecycle.
 

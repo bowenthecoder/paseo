@@ -84,7 +84,7 @@ export type AssistantImageResult =
 interface UseAssistantImageInput {
   source: string;
   occurrenceKey: string;
-  client?: DaemonClient | null;
+  client?: Pick<DaemonClient, "readFile"> | null;
   workspaceRoot?: string;
   serverId?: string;
 }
@@ -100,6 +100,10 @@ type AttachmentAcquisitionState =
   | { status: "loading" }
   | { status: "loaded"; attachment: AttachmentMetadata }
   | { status: "failed"; error: unknown };
+
+function getAcquiredAttachment(state: AttachmentAcquisitionState): AttachmentMetadata | null {
+  return state.status === "loaded" ? state.attachment : null;
+}
 
 interface DataImage {
   mimeType: string;
@@ -252,15 +256,12 @@ function createDataImageAcquisition(input: {
   };
 }
 
+function previewUrlCacheKey(attachment: AttachmentMetadata): string {
+  return `${attachment.id}:${attachment.storageType}:${attachment.storageKey}:${attachment.mimeType}`;
+}
+
 function usePreviewUrl(attachment: AttachmentMetadata | null | undefined): PreviewUrlState {
-  const id = attachment?.id;
-  const storageType = attachment?.storageType;
-  const storageKey = attachment?.storageKey;
-  const mimeType = attachment?.mimeType;
-  const previewKey =
-    id && storageType && storageKey && mimeType
-      ? `${id}:${storageType}:${storageKey}:${mimeType}`
-      : null;
+  const previewKey = attachment ? previewUrlCacheKey(attachment) : null;
   const [entry, setEntry] = useState<{ key: string | null; state: PreviewUrlState }>(() => {
     return {
       key: previewKey,
@@ -410,16 +411,36 @@ export function useAssistantImage({
   );
   const fileAttachment = useAttachmentAcquisition(fileAcquisition);
   const dataImageAttachment = useAttachmentAcquisition(dataImageAcquisition);
-  const filePreview = usePreviewUrl(
-    fileAttachment.status === "loaded" ? fileAttachment.attachment : null,
-  );
-  const dataImagePreview = usePreviewUrl(
-    dataImageAttachment.status === "loaded" ? dataImageAttachment.attachment : null,
-  );
+  const filePreview = usePreviewUrl(getAcquiredAttachment(fileAttachment));
+  const dataImagePreview = usePreviewUrl(getAcquiredAttachment(dataImageAttachment));
   const directUri = resolution?.kind === "direct" && !dataImage ? resolution.uri : null;
   const preview = dataImage ? dataImagePreview : filePreview;
   const previewUri = preview.status === "loaded" ? preview.uri : null;
   const uri = directUri ?? previewUri;
+  const acquisition = dataImage ? dataImageAcquisition : fileAcquisition;
+  const acquired = dataImage ? dataImageAttachment : fileAttachment;
+  const attachment = getAcquiredAttachment(acquired);
+
+  useEffect(() => {
+    // A missing stored preview never reaches Image.onError. Retry must reread its source.
+    if (preview.status === "failed" && acquisition && attachment) {
+      attachmentAcquisitionCache.invalidate(acquisition.key, { value: attachment });
+    }
+  }, [acquisition, attachment, preview.status]);
+
+  const discardFailedPreview = useStableEvent((failedUri: string) => {
+    if (failedUri !== uri) return;
+    if (acquisition && attachment) {
+      attachmentAcquisitionCache.invalidate(acquisition.key, { value: attachment });
+    }
+    if (attachment) {
+      const previewKey = previewUrlCacheKey(attachment);
+      const cachedPreview = previewUrlCache.peek(previewKey);
+      if (cachedPreview?.uri === failedUri) {
+        previewUrlCache.invalidate(previewKey, { value: cachedPreview });
+      }
+    }
+  });
   const knownAspectRatio = useMemo(
     () => getAssistantImageMetadata({ source, workspaceRoot, serverId })?.aspectRatio ?? null,
     [serverId, source, workspaceRoot],
@@ -437,14 +458,18 @@ export function useAssistantImage({
       return createAssistantImageLifecycle();
     },
   );
-  const dispatch = useCallback((event: AssistantImageLifecycleEvent) => {
-    if (event.type === "image_loaded") {
-      rememberLoadedImage(event.uri, event.aspectRatio);
-    } else if (event.type === "failed" && event.uri) {
-      loadedImageCache.delete(event.uri);
-    }
-    dispatchLifecycle(event);
-  }, []);
+  const dispatch = useCallback(
+    (event: AssistantImageLifecycleEvent) => {
+      if (event.type === "image_loaded") {
+        rememberLoadedImage(event.uri, event.aspectRatio);
+      } else if (event.type === "failed" && event.uri) {
+        loadedImageCache.delete(event.uri);
+        discardFailedPreview(event.uri);
+      }
+      dispatchLifecycle(event);
+    },
+    [discardFailedPreview],
+  );
   const renderedImageRef = useRef<unknown>(null);
   const handleImageRef = useCallback((instance: unknown) => {
     renderedImageRef.current = instance;

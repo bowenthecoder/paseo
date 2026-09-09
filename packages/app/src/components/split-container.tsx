@@ -48,6 +48,11 @@ import {
 } from "@/components/split-container-focus";
 import { shouldFocusPaneFromEventTarget } from "@/components/split-container-pane-focus";
 import {
+  isSplitNodeHiddenForPresentation,
+  resolveVisibleGroupFlex,
+  restoreHiddenGroupSizes,
+} from "@/components/split-container-layout";
+import {
   removeWindowChromeCorner,
   WindowChromeRegion,
   WindowChromeSafeArea,
@@ -879,54 +884,6 @@ function SplitGroupChild({
   );
 }
 
-/**
- * Flex grow per child, renormalized so the visible ones always sum to 1.
- *
- * `sizes` are fractions, so a two-pane group is `[0.5, 0.5]`. Hiding one child drops the group's
- * total grow factor to 0.5, and CSS hands children that sum to less than 1 only that fraction of
- * the free space — the other half of the row is simply left empty. Renormalizing is what makes a
- * hidden pane give its space back instead of just going invisible. The stored `sizes` are never
- * touched, so unhiding restores the width the user dragged to.
- */
-function resolveVisibleGroupFlex(
-  children: SplitNode[],
-  sizes: number[],
-  maximizedPaneId: string | null,
-): number[] {
-  const visibleTotal = children.reduce(
-    (total, child, index) =>
-      isSplitNodeHiddenForPresentation(child, maximizedPaneId)
-        ? total
-        : total + (sizes[index] ?? 1),
-    0,
-  );
-  if (visibleTotal <= 0) {
-    return children.map(() => 0);
-  }
-  return children.map((child, index) =>
-    isSplitNodeHiddenForPresentation(child, maximizedPaneId)
-      ? 0
-      : (sizes[index] ?? 1) / visibleTotal,
-  );
-}
-
-function isSplitNodeHiddenForPresentation(
-  node: SplitNode,
-  maximizedPaneId: string | null,
-): boolean {
-  return (
-    isSplitNodeHidden(node) ||
-    Boolean(maximizedPaneId && !splitNodeContainsPane(node, maximizedPaneId))
-  );
-}
-
-function isSplitNodeHidden(node: SplitNode): boolean {
-  if (node.kind === "pane") {
-    return node.pane.hidden === true;
-  }
-  return node.group.children.every(isSplitNodeHidden);
-}
-
 function SplitNodeView({
   node,
   workspaceKey,
@@ -978,8 +935,15 @@ function SplitNodeView({
   const groupSizes =
     storedGroupSizes ?? (node.kind === "group" ? node.group.sizes : EMPTY_SPLIT_SIZES);
   const visibleFlex = useMemo(
-    () => resolveVisibleGroupFlex(groupChildren, groupSizes, maximizedPaneId),
-    [groupChildren, groupSizes, maximizedPaneId],
+    () =>
+      resolveVisibleGroupFlex({
+        children: groupChildren,
+        sizes: groupSizes,
+        maximizedPaneId,
+        direction: groupDirection,
+        containerSize: groupContainerSize,
+      }),
+    [groupChildren, groupSizes, maximizedPaneId, groupDirection, groupContainerSize],
   );
   const resizeFlex = useSharedValue(visibleFlex);
   useEffect(() => {
@@ -987,9 +951,36 @@ function SplitNodeView({
   }, [resizeFlex, visibleFlex]);
   const previewResizeSplit = useCallback(
     (_groupId: string, sizes: number[]) => {
-      resizeFlex.value = resolveVisibleGroupFlex(groupChildren, sizes, maximizedPaneId);
+      resizeFlex.value = resolveVisibleGroupFlex({
+        children: groupChildren,
+        sizes,
+        maximizedPaneId,
+        direction: groupDirection,
+        containerSize: groupContainerSize,
+      });
     },
-    [groupChildren, maximizedPaneId, resizeFlex],
+    [groupChildren, maximizedPaneId, groupDirection, groupContainerSize, resizeFlex],
+  );
+  const commitResizeSplit = useCallback(
+    (resizedGroupId: string, sizes: number[]) => {
+      const nextVisibleFlex = resolveVisibleGroupFlex({
+        children: groupChildren,
+        sizes,
+        maximizedPaneId,
+        direction: groupDirection,
+        containerSize: groupContainerSize,
+      });
+      onResizeSplit(
+        resizedGroupId,
+        restoreHiddenGroupSizes({
+          children: groupChildren,
+          sizes: groupSizes,
+          maximizedPaneId,
+          visibleFlex: nextVisibleFlex,
+        }),
+      );
+    },
+    [groupChildren, groupSizes, maximizedPaneId, groupDirection, groupContainerSize, onResizeSplit],
   );
   const handleGroupLayout = useCallback(
     (event: LayoutChangeEvent) => {
@@ -1116,10 +1107,10 @@ function SplitNodeView({
               direction={node.group.direction}
               groupId={node.group.id}
               index={index}
-              sizes={groupSizes}
+              sizes={visibleFlex}
               containerSize={groupContainerSize}
               onPreviewResizeSplit={previewResizeSplit}
-              onResizeSplit={onResizeSplit}
+              onResizeSplit={commitResizeSplit}
             />
           ) : null}
         </Fragment>

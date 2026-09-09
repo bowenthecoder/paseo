@@ -153,6 +153,7 @@ export interface SeedDaemonClient {
     timeout?: number,
   ): Promise<{ status: string; final?: { lastError?: string | null } | null }>;
   archiveAgent(agentId: string): Promise<{ archivedAt: string }>;
+  deleteAgent: DaemonClient["deleteAgent"];
   refreshAgent(agentId: string): Promise<unknown>;
   fetchAgent(options: {
     agentId: string;

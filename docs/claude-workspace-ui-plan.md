@@ -1,6 +1,6 @@
 # Paseo workspace and agent UI review
 
-Updated: 2026-09-08. Branch: `bowen/claude-workspaces-subagents-20260908`.
+Updated: 2026-09-08. Follow-up branch: `bowen/paseo-preview-fixes-20260908`; original feature branch: `bowen/claude-workspaces-subagents-20260908`.
 
 ## Bowen's requirements and accepted corrections
 
@@ -85,25 +85,34 @@ The complete locally signed review candidate is `packages/desktop/release/review
 
 ## Follow-up: file previews, smaller screens and device chats
 
-The reported preview exposed a real Markdown URL decoding failure: a filename with spaces reached filesystem reads with literal `%20`. The user also requested readable default chat layout on smaller Macs, right-side Markdown/text viewing, and No folder chats on the selected device without a project requirement.
+Worktree: `/Users/bowen/code/paseo-worktrees/paseo-preview-fixes`, branch `bowen/paseo-preview-fixes-20260908`. Another active task checkpointed the earlier shared checkout at `4eba84c` and switched it to a queue branch. This follow-up continues in its own worktree, preserving that checkpoint and the other task.
 
-Design direction:
+Accepted direction: preserve the measured Claude spacing and colors, give the active chat usable width on smaller Macs, open supporting documents beside it, and replace the busy sidebar ring with a quiet warm glow. No folder starts at the selected device's home; the file explorer can browse Parent, Home, Device root, and the working folder using that device's existing permissions.
 
-- Keep the active conversation and composer usable on a laptop, with supporting documents beside it when space allows.
-- Preserve the compact, warm, quiet Claude reference styling already reviewed.
-- Give chat the available width before auxiliary navigation; retain pane state when space changes.
-- Use existing chat typography and the existing rendered Markdown/source viewer for documents.
-- Keep the measured sidebar/main colors and existing selection treatment.
-- Use existing resize behavior; avoid decorative transitions.
-- Make the device selector and chat-with-document view the defining interactions, without a required repository.
+- [x] Decode local Markdown URL paths exactly once; preserve raw filesystem paths, literal percent filenames and inline-code paths.
+- [x] Replace the bulky unknown-size image placeholder with a compact 32 px loading/error row. Retry recovers missing files, corrupt images and missing stored previews. Successful repaired images survive remount; stale failures cannot evict a newer image.
+- [x] Clamp fresh and restored desktop windows to the usable display area. Keep chat/composer visible on smaller screens.
+- [x] Budget sidebar and Explorer widths around visible chat/document panes. Explicitly reopening Chats can hide Explorer or use a temporary drawer; drafts and pane state survive.
+- [x] Constrain displayed split widths while preserving saved proportions. At 800 px, two panes each receive about 399.5 px; a wider window restores the preferred ratio and dragging starts from the displayed divider.
+- [x] Open Markdown/text links to the side by default, preserve explicit stored preferences, add Main/Side link context actions, and support rendered Markdown, source, text, close and return to draft.
+- [x] Submit No folder chats on the selected discovered device; preserve explicit manual group placement and allow returning from a selected folder to device home.
+- [x] Use a small warm sidebar glow that stops on completion, inactivity and reduced motion.
+- [x] Fix Close → immediate History selecting the wrong tab. Filtered directory removals preserve explicitly opened archived details while an authoritative lookup checks existence. Remote deletion and stale replies still remove deleted chats; no new daemon protocol is required.
+- [ ] Refresh the locally signed preview with current profile backup, capture actual current chats, and push the checked follow-up branch.
 
-Follow-up work:
+### Follow-up verification
 
-- [x] Decode Markdown local URL paths once while preserving literal filesystem paths and filenames; compact loading/error row and keyboard Retry recover real files.
-- [x] Fit fresh/restored desktop windows to usable display bounds and verify laptop chat/composer visibility. Fresh/default windows now use the same clamping as saved windows.
-- [ ] Preserve readable chat width beside optional navigation and document panes.
-- [ ] Open chat Markdown/text links to the right, with rendered/source viewing and return to chat.
-- [x] Let No folder submit on the selected discovered device, starting at its home; local and a separately connected host passed browser submission and group placement checks. Global file browsing is under final verification.
-- [ ] Test all follow-up flows, build the updated preview, capture screenshots and push fixes.
+Sixteen distinct Playwright scenarios passed across focused runs with one worker. No full local test suite was run.
 
-Latest visual steering: replace the busy sidebar ring with a subtle warm glow, keep the current spacing/colors, and remove the bulky image loading/error surface. The glow is compositor driven, stops when inactive, and honors reduced motion. A seven-case browser run passed encoded image/document links, failed image retry, local/remote No folder creation, clearing a selected folder, selected folder/group regression, and activity glow lifecycle. Logs: `/tmp/paseo-followup-browser-core.log`.
+| Area                       | Browser scenarios and evidence                                                                                                                                                                                                                                     |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Local image/document paths | Three: encoded spaces/literal percent names, missing-file Retry, corrupt PNG repair with History remount and reload. `/tmp/paseo-followup-image-and-history-final.log` has the final three passes; its separately recorded History failure was subsequently fixed. |
+| Device/folder selection    | Three No folder cases plus the existing folder-to-manual-group regression. `/tmp/paseo-followup-browser-core.log`.                                                                                                                                                 |
+| Quiet activity             | One case verifies measured color/size, animation, reduced motion and completion. Same core log.                                                                                                                                                                    |
+| Documents and global files | Four cases cover rendered/source/text, missing file recovery, Main/Side preference, compact return with draft, Parent/Home/Device root, and files outside the working folder on the correct host. `/tmp/paseo-followup-verified-browser.log`.                      |
+| Smaller screens            | One laptop composer case and two sidebar toggle/drawer cases. Same verified browser log.                                                                                                                                                                           |
+| History/deletion           | One case verifies immediate close/reopen focuses the target and deletion from another client removes it and restores the surviving tab. `/tmp/paseo-history-focus-fixed.log`.                                                                                      |
+
+Focused unit coverage includes path parsing/decoding, image lifecycle and cache resource ownership, saved preferences, no-folder selection, Files navigation, displayed split sizes, responsive sidebar state and desktop window bounds. Fourteen final image-cache/hook checks passed, including stored preview loss and delayed stale errors. The History race was reproduced with real replica/layout stores before fixing it; targeted removal, reconnect and stale-reply checks supplement the browser case.
+
+The complete preview will remain separate from `/Applications/Paseo.app` for the user's requested screenshot review. Production daemon port 6767 is not restarted. Current manual groups and drafts must be preserved during refresh; the installed original still matches its saved backup checksum.

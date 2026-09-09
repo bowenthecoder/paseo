@@ -18,6 +18,7 @@ import {
 
 export interface UseFileLinkResult {
   target: InlinePathTarget | null;
+  canOpenFile: boolean;
   onHoverIn: () => void;
   onPress: () => void;
   open: (source: AssistantFileLinkSource, disposition: OpenFileDisposition) => void;
@@ -127,7 +128,12 @@ export function useFileLink(source: AssistantFileLinkSource): UseFileLinkResult 
     return query.data ?? null;
   }, [query.data, resolution]);
 
-  return useMemo(() => ({ target, onHoverIn, onPress, open }), [target, onHoverIn, onPress, open]);
+  const canOpenFile = resolution.kind === "needsLookup" || resolution.value.kind === "file";
+
+  return useMemo(
+    () => ({ target, canOpenFile, onHoverIn, onPress, open }),
+    [target, canOpenFile, onHoverIn, onPress, open],
+  );
 }
 
 export function useAssistantFileLinkActions(): AssistantFileLinkActions {

@@ -6,6 +6,7 @@ export interface AssistantImageAcquisitionCache<T> {
     key: string,
     locate: () => Promise<T>,
   ): { promise: Promise<T>; value?: T; release: () => void };
+  invalidate(key: string, expected?: { value: T }): void;
   peek(key: string): T | undefined;
   size(): number;
 }
@@ -61,12 +62,18 @@ export function createAssistantImageAcquisitionCache<T>(input: {
   }
   const entries = new Map<string, CacheEntry>();
 
+  const releaseEntry = (entry: CacheEntry) => {
+    entry.release?.();
+    entry.release = null;
+  };
+
   const evict = (key: string, entry: CacheEntry) => {
     if (entries.get(key) === entry) {
       entries.delete(key);
     }
-    entry.release?.();
-    entry.release = null;
+    if (entry.activeConsumers === 0) {
+      releaseEntry(entry);
+    }
   };
 
   const enforceCapacity = () => {
@@ -108,13 +115,11 @@ export function createAssistantImageAcquisitionCache<T>(input: {
     void (async () => {
       try {
         const value = await pending;
-        const release = input.onRetain?.(value) ?? null;
-        if (entries.get(key) === entry) {
-          entry.value = value;
-          entry.resolved = true;
-          entry.release = release;
-        } else {
-          release?.();
+        entry.value = value;
+        entry.resolved = true;
+        entry.release = input.onRetain?.(value) ?? null;
+        if (entries.get(key) !== entry && entry.activeConsumers === 0) {
+          releaseEntry(entry);
         }
       } catch {
         evict(key, entry);
@@ -139,9 +144,18 @@ export function createAssistantImageAcquisitionCache<T>(input: {
           }
           released = true;
           entry.activeConsumers = Math.max(0, entry.activeConsumers - 1);
+          if (entries.get(key) !== entry && entry.activeConsumers === 0) {
+            releaseEntry(entry);
+          }
           enforceCapacity();
         },
       };
+    },
+    invalidate(key, expected) {
+      const entry = entries.get(key);
+      if (entry && (!expected || (entry.resolved && entry.value === expected.value))) {
+        evict(key, entry);
+      }
     },
     peek(key) {
       const entry = entries.get(key);
