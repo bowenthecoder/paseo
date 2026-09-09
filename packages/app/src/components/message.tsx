@@ -826,13 +826,10 @@ interface AssistantMarkdownImageProps {
 function AssistantMarkdownImage(props: AssistantMarkdownImageProps) {
   const [attempt, setAttempt] = useState(0);
   const retry = useCallback(() => setAttempt((current) => current + 1), []);
-  // A new occurrence rereads a changed file instead of retaining an invalid preview.
-  const occurrenceKey = `${props.occurrenceKey}:attempt:${attempt}`;
   return (
     <AssistantMarkdownImageAttempt
       {...props}
-      key={`${props.source}:${occurrenceKey}`}
-      occurrenceKey={occurrenceKey}
+      key={`${props.source}:${props.occurrenceKey}:attempt:${attempt}`}
       onRetry={retry}
     />
   );

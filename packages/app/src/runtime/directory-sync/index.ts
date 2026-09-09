@@ -19,6 +19,7 @@ import {
   stampLegacyWorkspaceIds,
 } from "@/workspace/legacy-daemon-workspaces";
 import type { AgentDirectoryDelta } from "@/utils/agent-directory-sync";
+import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
 import { AgentDirectoryReplica } from "./agent-replica";
 import {
   WorkspaceDirectoryReplica,
@@ -139,7 +140,33 @@ export class DirectorySync {
     },
     private readonly checkpoints?: DirectoryCheckpointStorage,
   ) {
-    this.agents = new AgentDirectoryReplica(serverId, callbacks.onAgentStoppedRunning);
+    this.agents = new AgentDirectoryReplica(serverId, callbacks.onAgentStoppedRunning, {
+      isAgentExplicitlyOpen: (agentId) => {
+        const layouts = useWorkspaceLayoutStore.getState();
+        return Object.entries(layouts.pinnedAgentIdsByWorkspace).some(
+          ([workspaceKey, ids]) =>
+            workspaceKey.startsWith(`${serverId}:`) &&
+            ids.has(agentId) &&
+            layouts
+              .getWorkspaceTabs(workspaceKey)
+              .some((tab) => tab.target.kind === "agent" && tab.target.agentId === agentId),
+        );
+      },
+      verifyAgentExists: async (agentId) => {
+        const connection = this.getOnlineConnection();
+        if (!connection) return null;
+        try {
+          const result = await connection.client.fetchAgent({ agentId });
+          return this.isCurrent(connection.client, connection.source) ? result !== null : null;
+        } catch (error) {
+          if (!this.isCurrent(connection.client, connection.source)) return null;
+          const message = error instanceof Error ? error.message : String(error);
+          if (/^Agent not found(?::|$)/i.test(message)) return false;
+          console.warn("[DirectorySync] Could not verify an opened archived chat", error);
+          return null;
+        }
+      },
+    });
     this.workspaces = new WorkspaceDirectoryReplica(serverId);
   }
 

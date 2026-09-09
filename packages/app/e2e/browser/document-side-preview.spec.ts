@@ -17,6 +17,10 @@ function chatPane(page: Page) {
   return page.getByTestId("message-input-root").filter({ visible: true });
 }
 
+function documentLink(page: Page, filename: string) {
+  return page.locator(`a[href=${JSON.stringify(filename)}]`).filter({ visible: true });
+}
+
 function fileTab(page: Page, filename: string) {
   return page
     .locator('[data-testid^="workspace-tab-file_"]')
@@ -29,18 +33,32 @@ async function closeFile(page: Page, filename: string) {
   await expect(fileTab(page, filename)).toHaveCount(0);
 }
 
+async function documentPaneFraction(page: Page) {
+  const width = (await filePane(page).boundingBox())?.width ?? 0;
+  const paneWidths = await page
+    .locator('[data-testid^="workspace-pane-"]')
+    .filter({ visible: true })
+    .evaluateAll((panes) =>
+      panes.reduce((total, pane) => total + pane.getBoundingClientRect().width, 0),
+    );
+  return width / paneWidths;
+}
+
 async function expectDocumentBesideChat(page: Page) {
   await expect(filePane(page)).toBeVisible();
   await expect(chatPane(page)).toBeVisible();
-  const [document, chat] = await Promise.all([
-    filePane(page).boundingBox(),
-    chatPane(page).boundingBox(),
-  ]);
-  if (!document || !chat) throw new Error("Document and chat must both have visible geometry");
-  expect(document.x).toBeGreaterThanOrEqual(chat.x + chat.width - 1);
-  expect(document.width).toBeGreaterThan(280);
-  expect(chat.width).toBeGreaterThan(280);
-  expect(document.x + document.width).toBeLessThanOrEqual((page.viewportSize()?.width ?? 0) + 1);
+  // Resizing first changes the split's bounds, then the shell yields its sidebar.
+  await expect(async () => {
+    const [document, chat] = await Promise.all([
+      filePane(page).boundingBox(),
+      chatPane(page).boundingBox(),
+    ]);
+    if (!document || !chat) throw new Error("Document and chat must both have visible geometry");
+    expect(document.x).toBeGreaterThanOrEqual(chat.x + chat.width - 1);
+    expect(document.width).toBeGreaterThan(280);
+    expect(chat.width).toBeGreaterThan(280);
+    expect(document.x + document.width).toBeLessThanOrEqual((page.viewportSize()?.width ?? 0) + 1);
+  }).toPass({ timeout: 10_000 });
 }
 
 async function seedDocuments() {
@@ -61,6 +79,13 @@ async function seedDocuments() {
 }
 
 test.describe("Documents alongside the conversation", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      const settings = JSON.parse(localStorage.getItem("@paseo:app-settings") ?? "{}");
+      localStorage.setItem("@paseo:app-settings", JSON.stringify({ ...settings, theme: "claude" }));
+    });
+  });
+
   test("opens Markdown and text on the right, preserves the draft and recovers a missing file", async ({
     page,
   }, testInfo) => {
@@ -70,9 +95,9 @@ test.describe("Documents alongside the conversation", () => {
     const session = await seedDocuments();
     try {
       await openAgentRoute(page, session);
-      await expect(page.getByText("guide.md", { exact: true })).toBeVisible();
+      await expect(documentLink(page, "guide.md")).toBeVisible();
       await fillComposerDraft(page, "Continue after reading");
-      await page.getByText("guide.md", { exact: true }).click();
+      await documentLink(page, "guide.md").click();
       await expectDocumentBesideChat(page);
       await expect(filePane(page).getByText("Preview guide", { exact: true })).toBeVisible();
       await expect(page.getByTestId("file-mode-preview")).toHaveAttribute("aria-selected", "true");
@@ -81,17 +106,45 @@ test.describe("Documents alongside the conversation", () => {
         "# Preview guide",
       );
       await page.getByTestId("file-mode-preview").click();
+      const desktopScreenshot = testInfo.outputPath("markdown-beside-chat.png");
+      await page.screenshot({ path: desktopScreenshot });
       await testInfo.attach("markdown-beside-chat", {
-        body: await page.screenshot(),
+        path: desktopScreenshot,
         contentType: "image/png",
       });
 
       await page.setViewportSize({ width: 800, height: 700 });
       await expectDocumentBesideChat(page);
+      await page.screenshot({
+        path: testInfo.outputPath("markdown-laptop-preview.png"),
+        scale: "css",
+      });
+      await page.setViewportSize({ width: 1920, height: 900 });
+      await expectDocumentBesideChat(page);
+      await expect.poll(() => documentPaneFraction(page)).toBeCloseTo(0.3, 2);
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await expectDocumentBesideChat(page);
+      await expect
+        .poll(async () => (await filePane(page).boundingBox())?.width ?? 0)
+        .toBeCloseTo(400, 0);
+      const beforeDrag = (await filePane(page).boundingBox())!.width;
+      const handle = await page.getByTestId("workspace-split-resize-handle").boundingBox();
+      if (!handle) throw new Error("Document split handle must be visible");
+      await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(handle.x + handle.width / 2 - 50, handle.y + handle.height / 2, {
+        steps: 5,
+      });
+      await page.mouse.up();
+      await expect
+        .poll(async () => (await filePane(page).boundingBox())?.width ?? 0)
+        .toBeCloseTo(beforeDrag + 50, 0);
+      await page.setViewportSize({ width: 800, height: 700 });
+      await expectDocumentBesideChat(page);
       await closeFile(page, "guide.md");
       await expectComposerDraft(page, "Continue after reading");
 
-      await page.getByText("notes.txt", { exact: true }).click();
+      await documentLink(page, "notes.txt").click();
       await expectDocumentBesideChat(page);
       await expect(filePane(page).getByTestId("file-source-editor")).toContainText(
         "A plain text document.",
@@ -100,13 +153,13 @@ test.describe("Documents alongside the conversation", () => {
       await closeFile(page, "notes.txt");
       await expectComposerDraft(page, "Continue after reading");
 
-      await page.getByText("missing.txt", { exact: true }).click();
+      await documentLink(page, "missing.txt").click();
       await expect(page.getByTestId("assistant-file-link-not-found-toast")).toContainText(
         "No file found",
       );
       await expect(chatPane(page)).toBeVisible();
       await writeFile(path.join(session.cwd, "missing.txt"), "Recovered document", "utf8");
-      await page.getByText("missing.txt", { exact: true }).click();
+      await documentLink(page, "missing.txt").click();
       await expectDocumentBesideChat(page);
       await expect(filePane(page).getByTestId("file-source-editor")).toContainText(
         "Recovered document",
@@ -124,13 +177,13 @@ test.describe("Documents alongside the conversation", () => {
     await page.addInitScript(() => {
       localStorage.setItem(
         "@paseo:app-settings",
-        JSON.stringify({ openInSidePane: { chatFiles: false } }),
+        JSON.stringify({ theme: "claude", openInSidePane: { chatFiles: false } }),
       );
     });
     const session = await seedDocuments();
     try {
       await openAgentRoute(page, session);
-      const link = page.getByText("guide.md", { exact: true });
+      const link = documentLink(page, "guide.md");
       await expect(link).toBeVisible();
       await link.click();
       await expect(filePane(page).getByText("Preview guide", { exact: true })).toBeVisible();
@@ -149,20 +202,26 @@ test.describe("Documents alongside the conversation", () => {
 
   test("uses a full-width document on compact screens and returns to the same chat", async ({
     page,
-  }) => {
+  }, testInfo) => {
     await page.setViewportSize({ width: 390, height: 844 });
     const session = await seedDocuments();
     try {
       await openAgentRoute(page, session);
-      await expect(page.getByText("guide.md", { exact: true })).toBeVisible();
+      await expect(documentLink(page, "guide.md")).toBeVisible();
       await fillComposerDraft(page, "Compact draft retained");
-      await page.getByText("guide.md", { exact: true }).click();
+      await documentLink(page, "guide.md").click();
       await expect(filePane(page).getByText("Preview guide", { exact: true })).toBeVisible();
       await expect(chatPane(page)).toHaveCount(0);
       const document = await filePane(page).boundingBox();
       if (!document) throw new Error("Compact document has no geometry");
       expect(document.width).toBeGreaterThan(350);
       expect(document.x + document.width).toBeLessThanOrEqual(391);
+      const compactScreenshot = testInfo.outputPath("markdown-compact-preview.png");
+      await page.screenshot({ path: compactScreenshot });
+      await testInfo.attach("markdown-compact-preview", {
+        path: compactScreenshot,
+        contentType: "image/png",
+      });
       await page.getByTestId("file-mode-source").click();
       await expect(filePane(page).getByTestId("file-source-editor")).toContainText(
         "# Preview guide",

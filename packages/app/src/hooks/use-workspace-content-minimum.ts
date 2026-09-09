@@ -4,15 +4,20 @@ import { useWorkspaceFields } from "@/stores/session-store-hooks";
 import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
 import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
 
-/** Navigation yields its width before shrinking the active chat and supporting panes. */
-export function useWorkspaceContentMinimum(): number {
+export function useActiveWorkspaceLayoutKey(): string | null {
   const selection = useActiveWorkspaceSelection();
   const serverId = selection?.serverId ?? null;
   const routeWorkspaceId = selection?.workspaceId ?? null;
   const descriptorId = useWorkspaceFields(serverId, routeWorkspaceId, (workspace) => workspace.id);
   const workspaceId = descriptorId ?? routeWorkspaceId;
-  const key =
-    serverId && workspaceId ? buildWorkspaceTabPersistenceKey({ serverId, workspaceId }) : null;
+  return serverId && workspaceId
+    ? buildWorkspaceTabPersistenceKey({ serverId, workspaceId })
+    : null;
+}
+
+/** Navigation yields its width before shrinking the active chat and supporting panes. */
+export function useWorkspaceContentMinimum(): number {
+  const key = useActiveWorkspaceLayoutKey();
   return useWorkspaceLayoutStore((state) =>
     resolveWorkspaceContentMinimum(
       key ? state.layoutByWorkspace[key]?.root : undefined,

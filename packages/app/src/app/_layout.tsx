@@ -35,6 +35,7 @@ import { QuittingOverlay } from "@/components/quitting-overlay";
 import { KeyboardShortcutsDialog } from "@/components/keyboard-shortcuts-dialog";
 import { AppDiagnosticHost } from "@/components/app-diagnostic-host";
 import { LeftSidebar } from "@/components/left-sidebar";
+import { DesktopSidebarFrame } from "@/components/desktop-sidebar-frame";
 import { WindowSidebarMenuToggle } from "@/components/headers/menu-header";
 import { DesktopWindowControls } from "@/components/desktop/window-controls";
 import { SidebarModelProvider } from "@/components/sidebar/sidebar-model";
@@ -56,7 +57,6 @@ import {
   canDesktopAppSidebarShare,
   resolveDesktopAppChromeLayout,
   resolveDesktopAppContentMinimum,
-  resolveDesktopSidebarVisibility,
 } from "@/components/desktop-sidebar-layout";
 import { isNative, isWeb } from "@/constants/platform";
 import { HorizontalScrollProvider } from "@/contexts/horizontal-scroll-context";
@@ -92,6 +92,10 @@ import { resolveExplorerSidebarPresentation } from "@/workspace-tabs/explorer-si
 import { KeyboardShiftProvider } from "@/hooks/use-keyboard-shift-style";
 import { useCompactWebViewportZoomLock } from "@/hooks/use-compact-web-viewport-zoom-lock";
 import { useWorkspaceContentMinimum } from "@/hooks/use-workspace-content-minimum";
+import {
+  SidebarMenuControlContext,
+  useResponsiveSidebarControl,
+} from "@/hooks/use-responsive-sidebar-control";
 import { useOpenProject } from "@/hooks/use-open-project";
 import { useAppSettings } from "@/hooks/use-settings";
 import { useStableEvent } from "@/hooks/use-stable-event";
@@ -464,11 +468,8 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
   const keyboardActionDispatcher = useKeyboardActionDispatcher();
   const daemons = useHosts();
   const { settings, updateSettings } = useAppSettings();
-  const toggleMobileAgentList = usePanelStore((state) => state.toggleMobileAgentList);
-  const toggleDesktopAgentList = usePanelStore((state) => state.toggleDesktopAgentList);
   const exitFocusMode = usePanelStore((state) => state.exitFocusMode);
   const isFocusModeEnabled = usePanelStore((state) => state.desktop.focusModeEnabled);
-  const isDesktopAgentListOpen = usePanelStore((state) => state.desktop.agentListOpen);
   const sidebarWidth = usePanelStore((state) => state.sidebarWidth);
   const { width: viewportWidth } = useWindowDimensions();
 
@@ -487,7 +488,24 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
   const isWorkspaceFocusModeEnabled = isWorkspaceRoute && isFocusModeEnabled;
   const chromeEnabled = chromeEnabledOverride ?? daemons.length > 0;
   const hasMountedDesktopSidebar = useLatchedBoolean(chromeEnabled);
-  const toggleAgentList = isCompactLayout ? toggleMobileAgentList : toggleDesktopAgentList;
+  const workspaceMinimumWidth = useWorkspaceContentMinimum();
+  const appContentMinimumWidth = resolveDesktopAppContentMinimum({
+    isSettingsRoute: pathname.includes("/settings"),
+    workspaceMinimumWidth,
+  });
+  const desktopSidebarMounted = hasMountedDesktopSidebar && !isWorkspaceFocusModeEnabled;
+  const sidebarControl = useResponsiveSidebarControl({
+    isCompact: isCompactLayout,
+    desktopEnabled: chromeEnabled && desktopSidebarMounted,
+    canShare: canDesktopAppSidebarShare({
+      contentMinimumWidth: appContentMinimumWidth,
+      requestedSidebarWidth: sidebarWidth,
+      viewportWidth,
+    }),
+    pathname,
+  });
+  const { desktopVisible: desktopSidebarVisible } = sidebarControl;
+  const toggleAgentList = sidebarControl.menu.toggle;
   const toggleDesktopSidebars = useCallback(() => {
     // The focused workspace owns its layout key, its checkout, and therefore the
     // only correct answer to "is the explorer open". Let it decide when there is
@@ -518,23 +536,6 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
   useActiveWorktreeNewAction();
   useGlobalNewWorkspaceAction();
 
-  const workspaceMinimumWidth = useWorkspaceContentMinimum();
-  const appContentMinimumWidth = resolveDesktopAppContentMinimum({
-    isSettingsRoute: pathname.includes("/settings"),
-    workspaceMinimumWidth,
-  });
-  const desktopSidebarMounted = hasMountedDesktopSidebar && !isWorkspaceFocusModeEnabled;
-  const desktopSidebarVisible = resolveDesktopSidebarVisibility({
-    chromeEnabled,
-    isCompactLayout,
-    isMounted: desktopSidebarMounted,
-    isOpen: isDesktopAgentListOpen,
-    canShare: canDesktopAppSidebarShare({
-      contentMinimumWidth: appContentMinimumWidth,
-      requestedSidebarWidth: sidebarWidth,
-      viewportWidth,
-    }),
-  });
   const hasTopLeftWindowControls = useHasWindowChromeObstruction("top-left");
   const appChromeLayout = resolveDesktopAppChromeLayout({
     desktopSidebarRendered: desktopSidebarVisible,
@@ -551,9 +552,15 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
   const workspaceChrome = (
     <View style={rowStyle}>
       {!isCompactLayout ? (
-        <WindowChromeRegion corners={appChromeLayout.sidebarCorners}>
-          {sidebarChrome}
-        </WindowChromeRegion>
+        <DesktopSidebarFrame
+          overlay={sidebarControl.overlay}
+          onClose={sidebarControl.close}
+          scopeRef={sidebarControl.overlayScopeRef}
+        >
+          <WindowChromeRegion corners={appChromeLayout.sidebarCorners}>
+            {sidebarChrome}
+          </WindowChromeRegion>
+        </DesktopSidebarFrame>
       ) : null}
       {usesCompactExplorerHost ? (
         <CompactExplorerSidebarHost
@@ -617,7 +624,11 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
     surface
   );
 
-  return <CommandCenterProvider>{content}</CommandCenterProvider>;
+  return (
+    <SidebarMenuControlContext value={sidebarControl.menu}>
+      <CommandCenterProvider>{content}</CommandCenterProvider>
+    </SidebarMenuControlContext>
+  );
 }
 
 function SidebarChrome({

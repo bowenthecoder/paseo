@@ -220,6 +220,12 @@ export async function expectWorkspaceArchiveOutcome(
 }
 
 export async function closeWorkspaceAgentTab(page: Page, agentId: string): Promise<void> {
+  // Close controls stay mounted at zero opacity until the tab is hovered.
+  await page
+    .getByTestId(`workspace-tab-agent_${agentId}`)
+    .filter({ visible: true })
+    .first()
+    .hover();
   const closeButton = page.getByTestId(`workspace-agent-close-${agentId}`).filter({
     visible: true,
   });

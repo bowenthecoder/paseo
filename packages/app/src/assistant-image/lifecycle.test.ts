@@ -86,6 +86,33 @@ describe("assistant image lifecycle", () => {
     });
   });
 
+  it("preserves known geometry while a failed image retries with a repaired preview", () => {
+    const loading = transitionAssistantImageLifecycle(createAssistantImageLifecycle(), {
+      type: "preview_created",
+      uri: "blob:invalid",
+      aspectRatio: 1.5,
+    });
+    const failed = transitionAssistantImageLifecycle(loading, {
+      type: "failed",
+      uri: "blob:invalid",
+      message: "Image unavailable",
+    });
+    const retrying = transitionAssistantImageLifecycle(failed, {
+      type: "preview_created",
+      uri: "blob:repaired",
+      aspectRatio: 1.5,
+    });
+
+    expect(retrying).toEqual({ status: "loading", uri: "blob:repaired", aspectRatio: 1.5 });
+    expect(
+      transitionAssistantImageLifecycle(retrying, {
+        type: "image_loaded",
+        uri: "blob:repaired",
+        aspectRatio: 1.5,
+      }),
+    ).toEqual({ status: "loaded", uri: "blob:repaired", aspectRatio: 1.5 });
+  });
+
   it("ignores a stale load callback from a replaced URI", () => {
     const current = transitionAssistantImageLifecycle(createAssistantImageLifecycle(), {
       type: "preview_created",
