@@ -1,9 +1,40 @@
 import { afterEach, describe, expect, test } from "vitest";
+import type { SessionOutboundMessage } from "@getpaseo/protocol/messages";
 import { providerSubagentKey, useProviderSubagentStore } from "./provider-store";
 
 const SERVER_ID = "server-1";
 const PARENT_ID = "parent-1";
 const SUBAGENT_ID = "child-1";
+
+type TimelinePage = Extract<
+  SessionOutboundMessage,
+  { type: "agent.provider_subagents.timeline.get.response" }
+>["payload"];
+
+function timelinePage(sequences: number[], overrides: Partial<TimelinePage> = {}): TimelinePage {
+  const maxSeq = Math.max(...sequences);
+  return {
+    requestId: "page",
+    parentAgentId: PARENT_ID,
+    subagentId: SUBAGENT_ID,
+    provider: "codex",
+    direction: "tail",
+    epoch: "epoch-1",
+    reset: false,
+    staleCursor: false,
+    gap: false,
+    window: { minSeq: 1, maxSeq, nextSeq: maxSeq + 1 },
+    hasOlder: Math.min(...sequences) > 1,
+    hasNewer: false,
+    rows: sequences.map((seq) => ({
+      seq,
+      timestamp: `2026-07-12T10:00:${String(seq).padStart(2, "0")}.000Z`,
+      item: { type: "assistant_message", text: `${seq}.` },
+    })),
+    error: null,
+    ...overrides,
+  };
+}
 
 afterEach(() => {
   useProviderSubagentStore.setState({
@@ -424,6 +455,85 @@ describe("provider subagent client store", () => {
       expect.objectContaining({ kind: "assistant_message", text: "Current output." }),
     ]);
   });
+
+  test.each([false, true])(
+    "retains paged task history and its older cursor when the tail refreshes (hasOlder=%s)",
+    (hasOlder) => {
+      const store = useProviderSubagentStore.getState();
+      const older = hasOlder ? [2, 3] : [1, 2, 3];
+      store.replaceTimeline(SERVER_ID, timelinePage([4, 5]));
+      store.replaceTimeline(
+        SERVER_ID,
+        timelinePage(older, { direction: "before", hasOlder, hasNewer: true }),
+      );
+      const key = providerSubagentKey(SERVER_ID, PARENT_ID, SUBAGENT_ID);
+      const before = useProviderSubagentStore.getState().timelines.get(key)!;
+      const cursor = `${before.epoch}:${Math.min(...before.rows.keys())}`;
+
+      store.replaceTimeline(SERVER_ID, timelinePage([4, 5, 6]));
+
+      const refreshed = useProviderSubagentStore.getState().timelines.get(key)!;
+      expect([...refreshed.rows.keys()].sort((left, right) => left - right)).toEqual([
+        ...older,
+        4,
+        5,
+        6,
+      ]);
+      expect(`${refreshed.epoch}:${Math.min(...refreshed.rows.keys())}`).toBe(cursor);
+      expect(refreshed.hasOlder).toBe(hasOlder);
+      expect(refreshed.lastSeq).toBe(6);
+      expect(refreshed.head).toEqual([
+        expect.objectContaining({
+          kind: "assistant_message",
+          text: [...older, 4, 5, 6].map((seq) => `${seq}.`).join(""),
+        }),
+      ]);
+    },
+  );
+
+  test("does not retain a disconnected older island when the refreshed tail is contiguous with newer cached rows", () => {
+    const store = useProviderSubagentStore.getState();
+    store.replaceTimeline(SERVER_ID, timelinePage([1, 2]));
+    store.applyUpdate(SERVER_ID, {
+      kind: "timeline",
+      parentAgentId: PARENT_ID,
+      subagentId: SUBAGENT_ID,
+      provider: "codex",
+      epoch: "epoch-1",
+      seq: 4,
+      timestamp: "2026-07-12T10:00:04.000Z",
+      item: { type: "assistant_message", text: "4." },
+    });
+
+    store.replaceTimeline(SERVER_ID, timelinePage([5, 6]));
+
+    const refreshed = useProviderSubagentStore
+      .getState()
+      .timelines.get(providerSubagentKey(SERVER_ID, PARENT_ID, SUBAGENT_ID))!;
+    expect([...refreshed.rows.keys()].sort((left, right) => left - right)).toEqual([4, 5, 6]);
+    expect(refreshed.hasOlder).toBe(true);
+  });
+
+  test.each([{ reset: true }, { epoch: "epoch-next" }, { gap: true }, { staleCursor: true }])(
+    "replaces older cached task rows when the refreshed tail reports %j",
+    (refresh) => {
+      const store = useProviderSubagentStore.getState();
+      store.replaceTimeline(SERVER_ID, timelinePage([1, 2, 3]));
+
+      store.replaceTimeline(SERVER_ID, timelinePage([3, 4], refresh));
+
+      const refreshed = useProviderSubagentStore
+        .getState()
+        .timelines.get(providerSubagentKey(SERVER_ID, PARENT_ID, SUBAGENT_ID))!;
+      expect([...refreshed.rows.keys()]).toEqual([3, 4]);
+      expect(refreshed.epoch).toBe(refresh.epoch ?? "epoch-1");
+      expect(refreshed.lastSeq).toBe(4);
+      expect(refreshed.hasOlder).toBe(true);
+      expect(refreshed.head).toEqual([
+        expect.objectContaining({ kind: "assistant_message", text: "3.4." }),
+      ]);
+    },
+  );
 
   test("replaces cached rows with an authoritative tail page after a reconnect gap", () => {
     const store = useProviderSubagentStore.getState();

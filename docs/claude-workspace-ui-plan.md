@@ -36,10 +36,12 @@ existing packaging and rollout gate.
 - Right-click a chat and press its displayed letter. **A archives immediately**, P pins/unpins,
   U toggles unread and R renames. Keep fork and delete actions. Menu letters must not execute
   while typing in an input, and archive completion must preserve newer navigation.
-- Use one primary chat with documents, Tasks and managed/provider-native children on the right.
-  This integration replaces the earlier generic Split right/Split below and Main/Side preference
-  implementation. Keep the parent visible and selected while inspecting a child; keep every
-  child's own folder and draft. The layout contract is in [Side panel](./side-panel.md).
+- Keep the primary chat beside documents, Tasks and managed/provider-native children. Restore
+  the earlier **Open in (O) → Open in split view (S)** chat action, as Bowen explicitly requested
+  during the final audit. A second chat on the same device opens on the right with its own folder
+  and draft. Repeated opening reuses that view; closing it does not archive the chat. Current view
+  remains available. Generic split-below and cross-device panes are outside this layout; see
+  [Side panel](./side-panel.md).
 - Generate short meaningful titles, roughly 2–6 words. Preserve manual renames and archived
   conversations against delayed automatic naming.
 - Show supported effort choices for Codex, Claude and Grok 4.6. **No Grok Fast mode**: Bowen
@@ -95,8 +97,7 @@ clipping; Playwright's CSS-scaled capture cropped the visible composer. See
 
 The installed renderer predates the usage integration. Its original source checkout is release
 `9400a49af670fdb5db4af58e73f8df98588dbea9` plus 47 local changes. All 47 are accounted for in the
-candidate: 32 identical files, 14 evolved implementations and the deliberately retired generic
-workspace split menu. Both original feature commits are ancestors of the integration branch.
+candidate: 32 identical files, 14 evolved implementations and the workspace split menu now being restored through the retained right panel. Both original feature commits are ancestors of the integration branch.
 The original subscriptions checkout has 10 local changes; all match its preserved source snapshot
 and are included or superseded in the plugin integration. Live configuration still points to that
 original plugin, so an updated renderer alone would not update live quota/provider behavior.
@@ -109,25 +110,24 @@ or the running production daemons as part of readiness testing.
 The final validation includes new-chat/draft recovery, streamed Markdown/diagrams, image loading
 and zoom, independent chat and sidebar scroll, right-panel resize/return, terminal creation and
 retention, provider effort/context/subscriptions, and subagent output/recovery. Stress checks use
-bounded runs and isolated daemon state. The newest split-view wording is being clarified against
-the merged one-chat-plus-right-panel layout before claiming that requirement complete.
+bounded runs and isolated daemon state. The latest owner clarification restores two distinct chats side by side through the existing right panel. It must pass the same folder, draft, archive and reload checks as other supporting views.
 
 ## Source being combined
 
-| Input                 | Checkpoint                                                | Meaning                                                                                                          |
-| --------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Original app features | `85d2c46` on `bowen/claude-workspaces-subagents-20260908` | Earlier published review source, including feature commit `5164b55`                                              |
-| Preview fixes         | `a38a19c80` on `bowen/paseo-preview-fixes-20260908`       | Encoded images, quiet glow, No folder, document/small-window and History fixes                                   |
-| Held composer queue   | `ec7c8221e`                                               | Merged into the app integration branch at `abbb668d3`                                                            |
-| Single-chat layout    | `76ed838`                                                 | Combined with fixes for routing, migration, selection, drafts and test coverage                                  |
-| Oversized responses   | `88e3f885d`                                               | Pending daemon input: byte-budget timeline pages and isolate oversized response failures; review before merging. |
-| Subscriptions         | `efe9f9c`                                                 | Registration/quota, unknown-value handling, Tool logs and the latest Routines registry from `f1ed0ed`            |
+| Input                 | Checkpoint                                                | Meaning                                                                                                                                                               |
+| --------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Original app features | `85d2c46` on `bowen/claude-workspaces-subagents-20260908` | Earlier published review source, including feature commit `5164b55`                                                                                                   |
+| Preview fixes         | `a38a19c80` on `bowen/paseo-preview-fixes-20260908`       | Encoded images, quiet glow, No folder, document/small-window and History fixes                                                                                        |
+| Held composer queue   | `ec7c8221e`                                               | Merged into the app integration branch at `abbb668d3`                                                                                                                 |
+| Single-chat layout    | `76ed838`                                                 | Combined with fixes for routing, migration, selection, drafts and test coverage                                                                                       |
+| Oversized responses   | `b7a94dae4`                                               | Held-session handoff, rebased onto `517f88b27`: byte-budget timeline pages and isolate oversized response failures; reviewed corrections are required before merging. |
+| Subscriptions         | `efe9f9c`                                                 | Registration/quota, unknown-value handling, Tool logs and the latest Routines registry from `f1ed0ed`                                                                 |
 
 The app integration combines the feature, preview, queue and single-chat inputs. A final worktree audit also found the separate oversized-response daemon fix; it is backed up and under integration review. Source worktrees owned by the other tasks
 remain clean and unchanged at the checkpoints above. Review branches:
 [app integration](https://github.com/bowenthecoder/paseo/tree/bowen/paseo-integration-20260908) and
 [subscriptions integration](https://github.com/bowenthecoder/paseo-subscriptions/tree/bowen/paseo-integration-20260908).
-The combined app and regression migration were pushed at `632468262`; the subscriptions integration was pushed at
+The combined app and regression fixes were pushed at `517f88b27`; the subscriptions integration was pushed at
 `efe9f9c`. Draft reviews are [app #1](https://github.com/bowenthecoder/paseo/pull/1) and
 [subscriptions #1](https://github.com/bowenthecoder/paseo-subscriptions/pull/1).
 
@@ -146,7 +146,7 @@ Focused checks ran with one worker and isolated test daemons. No full local test
 | Real Codex / Claude / Grok     | Eight final cases passed: three native subagent flows, four real replies with supported effort and subscription/context usage (both Codex accounts), and one short-title flow.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Subscriptions                  | Registration (15), quota (18), Tool logs (9) and Routines (289) focused checks passed. Types and real plugin bundles passed. The installed-plugin browser flow passes verbose/compact activity, both toggle directions and reload persistence with no page exceptions. Lint retains five baseline findings in usage files and eleven across the broader plugin; these fixes added none.                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | App quality                    | Full repository formatting, lint (zero warnings/errors) and full workspace typecheck passed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| Packaged app                   | Electron export, desktop build, ARM64 package and local signature verification passed for the preceding preview. The latest real Electron browser harness passes viewport, inactive capture, focus continuity, native browser tools, selection and right-panel geometry; its redundant Escape was removed because menu selection already dismisses the menu. The recovery changes require a refreshed package. This is a locally signed preview, not a notarized public release.                                                                                                                                                                                                                                                                                                                                                                     |
+| Packaged app                   | Electron export, desktop build, ARM64 package and local signature verification passed for the preceding preview. The latest real Electron browser harness passes viewport, inactive capture, focus continuity, native browser tools, selection and right-panel geometry; its redundant Escape was removed because menu selection already dismisses the menu. The updated renderer at `517f88b27` has since passed a real packaged startup/CLI/terminal smoke and ten isolated chat/document switch cycles, draft recovery, encoded files and UI submission. The restored split and final transport corrections still require a refreshed package. This is a locally signed preview, not a notarized public release.                                                                                                                                  |
 | Actual-chat preview            | Refreshed the separate preview at 22:06 EDT. Manual groups match the backup exactly; the nonempty saved draft is retained. Migration pruned two empty draft records. Screenshots at the current display size and 1280×820 show the chat/composer with no image errors.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Source publication / CI        | Both integration branches are pushed with draft PRs. Full review CI is tracked on the app PR. Fork Actions registration was enabled. The first full run [34302543655](https://github.com/bowenthecoder/paseo/actions/runs/34302543655) was canceled after identifying obsolete sidebar selectors and two server fixture omissions. Its app tests (5,039), SDK, relay, CLI shards, Windows desktop tests and quality checks passed. The next run [34305191577](https://github.com/bowenthecoder/paseo/actions/runs/34305191577) passed 5,045 app tests, Linux and Windows server tests, SDK/relay/CLI, Windows desktop tests, quality checks, and all 34 desktop renderer cases. It reproduced the extra-Escape native harness issue, now fixed and passing locally. The current recovery fixes and remaining browser results still require final CI. |
 | Installed app / live daemons   | Held for the requested screenshot review. The installed app and production daemons have not been replaced or restarted.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -157,6 +157,8 @@ The fresh profile backup is
 `preview-after-refresh.json` and `preview-small-mac.json` record dimensions, bundle identity and
 preservation checks. The temporary small-window instance was closed after capture; the main
 review preview remains available. Capture did not navigate or resize the user's main preview.
+
+The separate `docs/codex-output-and-auto-title-plan.md` is preserved as requested by the Held-session handoff. It is explicitly a plan; its future extensions are not claimed as implemented behavior.
 
 Final focused browser evidence is spread across the regression, recovery and impact batches;
 red runs were followed by targeted fixes and rechecks. Key logs:
@@ -180,6 +182,7 @@ red runs were followed by targeted fixes and rechecks. Key logs:
 - `/tmp/paseo-subscriptions-unknown-quota-{red,unit,types,lint}.log`: 18 quota cases and types pass; unknown metrics no longer become false zeroes. The fix is in `c6551ae`; the latest Routines registry was then merged at `efe9f9c`, and both plugin bundles were compiled again.
 
 - `/tmp/paseo-integration-changes-diagram-browser.log`: 36 of 38 cases passed, including comparison handoff, live Changes updates, file operations, resizing and scrolling. The remaining collapse hover fixture and cached diagram reload issue were resolved and passed in the final two-case recheck.
+- `/tmp/paseo-restored-claude-actions-browser.log`: all 14 cases pass: independent two-folder chat splits, O→S, Current view, close/reload, immediate A, pins/groups/dragging, keyboard navigation, native Tasks retry and retained older history, and Codex/Claude/Grok/compact task views.
 - `/tmp/paseo-integration-final-two-browser.log`: both final cases pass, including daemon Markdown equality, unchanged iframe identity while streaming/completing, and a rendered SVG after reload.
 - `/tmp/paseo-subscriptions-latest-registry-{tests,types}.log`: all 289 registry checks and typecheck pass after merging the latest original plugin source.
 - `/tmp/paseo-github-search-{before-fix,server-tests,app-tests}.log`: all-failed search reads reproduce a false empty result, then pass the correction with partial results/auth states retained.
@@ -198,7 +201,8 @@ iOS/Android devices were not exercised in this pass; compact Chromium and macOS 
 - [x] Push both integration branches and start the full CI run.
 - [x] Resolve and recheck image controls, small-screen model selection, focus/terminal actions and Escape routing.
 - [x] Finish the remaining diagram reload and folder hover checks.
-- [ ] Integrate the newly found oversized-response daemon input after correcting its pagination and byte-limit issues.
+- [x] Finish the restored chat-split and retained-task-history browser checks (14/14 pass).
+- [ ] Integrate the Held-session oversized-response handoff after correcting its pagination and byte-limit issues.
 - [ ] Rebuild the matching app/server/plugin candidate and rerun final artifact and bounded stress checks.
 - [ ] Resolve or explicitly account for the full CI results.
 - [ ] Complete screenshot review before installed-app and live daemon/plugin rollout.

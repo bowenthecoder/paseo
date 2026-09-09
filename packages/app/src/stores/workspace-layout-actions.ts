@@ -939,6 +939,45 @@ function isSingleChatRoot(root: SplitNodeInternal): boolean {
   );
 }
 
+type WorkspaceTargetHostResolver = {
+  target: WorkspaceTabTarget,
+  previousHost?: PaneHost,
+) => PaneHost;
+
+const resolveDefaultTargetHost: WorkspaceTargetHostResolver = (target, previousHost) => {
+  if (target.kind === "new_tab") return previousHost ?? "main";
+  if (target.kind === "agent" && target.view === "split") return "explorer";
+  return panelSupportsHost(target.kind, "main") ? "main" : "explorer";
+};
+
+function resolveFlattenedPaneFocus(input: {
+  layout: WorkspaceLayout;
+  panes: SplitPane[];
+  chatTabs: WorkspaceTab[];
+  sideTabs: WorkspaceTab[];
+}): { chatTabId: string | null; sideTabId: string | null; sideHidden: boolean } {
+  const { layout, panes, chatTabs, sideTabs } = input;
+  const explorerPane = panes.find((pane) => pane.id === EXPLORER_SIDEBAR_PANE_ID) ?? null;
+  const focusedPane = panes.find((pane) => pane.id === layout.focusedPaneId) ?? null;
+  const chatTabIds = new Set(chatTabs.map((tab) => tab.tabId));
+  const sideTabIds = new Set(sideTabs.map((tab) => tab.tabId));
+  const focusedTabId = focusedPane?.focusedTabId ?? null;
+  const explorerFocusedTabId = explorerPane?.focusedTabId ?? null;
+  const oldMainFocusedTabId = panes.find((pane) => pane.id === DEFAULT_PANE_ID)?.focusedTabId;
+  const focusedSideTabId = focusedTabId && sideTabIds.has(focusedTabId) ? focusedTabId : null;
+  const parentOfFocusedTab = focusedTabId ? layout.parentTabIdByTabId?.[focusedTabId] : null;
+  const chatTabId =
+    [focusedTabId, oldMainFocusedTabId, parentOfFocusedTab].find(
+      (id) => id && chatTabIds.has(id),
+    ) ?? null;
+  const sideTabId =
+    focusedSideTabId ??
+    (explorerFocusedTabId && sideTabIds.has(explorerFocusedTabId) ? explorerFocusedTabId : null);
+  let sideHidden = explorerPane ? explorerPane.hidden === true : true;
+  if (focusedSideTabId && focusedPane?.hidden !== true) sideHidden = false;
+  return { chatTabId, sideTabId, sideHidden };
+}
+
 /**
  * Collapses any pane tree into the only shape this app renders: one chat pane and one side
  * panel. Tabs keep their ids and move to whichever of the two the panel supports, so a layout

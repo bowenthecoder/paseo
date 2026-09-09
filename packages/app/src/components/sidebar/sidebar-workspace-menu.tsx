@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/context-menu";
 import { useSidebarUnreadStore } from "@/stores/sidebar-unread-store";
 import { WorkspaceChatActions } from "./workspace-chat-actions";
+import { WorkspaceOpenMenuTrigger, workspaceOpenMenuPage } from "./workspace-open-menu";
 import { MoveChatToGroupTrigger, moveChatToGroupPage } from "./chat-group-menu";
 import { OpenInFileManagerMenuItem } from "@/workspace/open-in-file-manager/menu-item";
 import { resolveSidebarWorkspaceAccessibilityLabel } from "@/components/sidebar/sidebar-workspace-title";
@@ -242,6 +243,7 @@ function SidebarWorkspaceMenuItems({
   );
   return (
     <>
+      {agentId && serverId && workspaceId ? <WorkspaceOpenMenuTrigger /> : null}
       {agentId ? <DropdownMenuSeparator /> : null}
       {onTogglePin ? (
         <WorkspaceMenuItem
@@ -359,7 +361,13 @@ export function SidebarWorkspaceMenu({
     [serverId, workspaceId, workspaceLabels],
   );
   const labelPages = useWorkspaceLabelMenuPages(agentId ? null : workspaceTarget);
-  const pages = [...labelPages, moveChatToGroupPage(workspaceKey)];
+  const pages = [
+    ...(agentId && serverId && workspaceId
+      ? [workspaceOpenMenuPage(serverId, workspaceId, agentId)]
+      : []),
+    ...labelPages,
+    moveChatToGroupPage(workspaceKey),
+  ];
   return (
     <DropdownMenu compactMode="sheet" open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger
@@ -475,7 +483,11 @@ export function SidebarWorkspaceContextMenu({
     [workspace],
   );
   const labelPages = useWorkspaceLabelMenuPages(agentId ? null : workspaceTarget);
-  const pages = [...labelPages, moveChatToGroupPage(workspaceKey)];
+  const pages = [
+    ...(agentId ? [workspaceOpenMenuPage(workspace.serverId, workspace.workspaceId, agentId)] : []),
+    ...labelPages,
+    moveChatToGroupPage(workspaceKey),
+  ];
 
   const togglePin = useSidebarWorkspacePinController();
   const handleTogglePin = useCallback(() => togglePin(workspace), [togglePin, workspace]);
