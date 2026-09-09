@@ -103,7 +103,9 @@ import type { WorkspaceLabelService } from "./workspace-labels/index.js";
 import {
   APPLICATION_SOCKET_LEASE_CHECK_INTERVAL_MS,
   ApplicationSocketLease,
+  MAX_PHYSICAL_FRAME_BYTES,
   MAX_PHYSICAL_SOCKET_BUFFERED_BYTES,
+  isOversizedPhysicalFrame,
   outboundFrameByteLength,
   physicalSocketHasCapacity,
   sendBoundedPhysicalFrame,
@@ -1124,11 +1126,65 @@ export class VoiceAssistantWebSocketServer {
     }
 
     const payloadBytes = outboundFrameByteLength(payload);
+    if (isOversizedPhysicalFrame(payloadBytes)) {
+      this.rejectOversizedOutboundMessage(writableSockets, message, payloadBytes);
+      return;
+    }
     for (const ws of writableSockets) {
       this.sendFrameToClient(ws, payload, payloadBytes, () => {
         this.runtimeMetrics.recordOutboundMessage(message, ws.bufferedAmount);
       });
     }
+  }
+
+  // A single message that can never fit the socket bound is a daemon-side bug in
+  // whatever produced it, not a client that stopped draining. Closing the socket
+  // for it makes the client reconnect, resend the same request, and loop forever
+  // with "Transport closed (code 1006)" - so drop just this frame, say what it
+  // was, and answer a request with rpc_error so the caller fails fast instead.
+  private rejectOversizedOutboundMessage(
+    sockets: WebSocketLike[],
+    message: WSOutboundMessage,
+    payloadBytes: number,
+  ): void {
+    const sessionMessage = message.type === "session" ? message.message : null;
+    const record = sessionMessage as { payload?: unknown; requestId?: unknown } | null;
+    const payload =
+      record && typeof record.payload === "object" && record.payload
+        ? (record.payload as { requestId?: unknown; agentId?: unknown })
+        : null;
+    let requestId: string | null = null;
+    if (typeof payload?.requestId === "string") {
+      requestId = payload.requestId;
+    } else if (typeof record?.requestId === "string") {
+      requestId = record.requestId;
+    }
+    this.incrementRuntimeCounter("oversizedFrameDropped");
+    this.logger.warn(
+      {
+        messageType: message.type,
+        sessionMessageType: sessionMessage?.type ?? null,
+        requestId,
+        agentId: typeof payload?.agentId === "string" ? payload.agentId : null,
+        frameBytes: payloadBytes,
+        maxFrameBytes: MAX_PHYSICAL_FRAME_BYTES,
+      },
+      "ws_frame_oversized_dropped",
+    );
+    if (!sessionMessage || !requestId) return;
+    const errorMessage: WSOutboundMessage = {
+      type: "session",
+      message: {
+        type: "rpc_error",
+        payload: {
+          requestId,
+          requestType: sessionMessage.type,
+          error: `Response too large to deliver (${payloadBytes} bytes; limit ${MAX_PHYSICAL_FRAME_BYTES})`,
+          code: "response_too_large",
+        },
+      },
+    };
+    this.sendMessageToSockets(sockets, errorMessage);
   }
 
   private sendBinaryToClient(ws: WebSocketLike, frame: Uint8Array): void {
@@ -1143,6 +1199,7 @@ export class VoiceAssistantWebSocketServer {
         socket: ws,
         frame,
         onHighWater: () => this.closeAtOutboundHighWater(ws),
+        onOversized: (frameBytes) => this.dropOversizedFrame(frameBytes),
       });
       if (!sent) {
         throw new Error("Physical WebSocket is not open");
@@ -1166,11 +1223,20 @@ export class VoiceAssistantWebSocketServer {
         frame,
         frameBytes,
         onHighWater: () => this.closeAtOutboundHighWater(ws),
+        onOversized: (bytes) => this.dropOversizedFrame(bytes),
       });
       if (sent) recordSent();
     } catch (err) {
       this.logger.warn({ err }, "ws_send_failed");
     }
+  }
+
+  private dropOversizedFrame(frameBytes: number): void {
+    this.incrementRuntimeCounter("oversizedFrameDropped");
+    this.logger.warn(
+      { frameBytes, maxFrameBytes: MAX_PHYSICAL_FRAME_BYTES },
+      "ws_frame_oversized_dropped",
+    );
   }
 
   private ensureOutboundCapacity(ws: WebSocketLike, frameBytes: number): boolean {

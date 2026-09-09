@@ -420,6 +420,34 @@ describe("wire compatibility", () => {
     expect(currentParsed.payload.entries[0]?.collapsed).toContain("reasoning_merge");
   });
 
+  test("trims a timeline page that would not fit one socket frame and keeps paging cursors honest", async () => {
+    const bigText = "x".repeat(5 * 1024 * 1024);
+    const rows: AgentTimelineRow[] = [1, 2, 3].map((seq) => ({
+      seq,
+      timestamp: `2026-05-02T00:00:0${seq}.000Z`,
+      item: { type: "user_message", text: bigText },
+    }));
+
+    const response = await emitTimelineResponse({
+      rows,
+      request: { direction: "tail", limit: 0 },
+    });
+
+    expect(response.payload.error).toBeNull();
+    expect(response.payload.entries.map((entry) => entry.seqStart)).toEqual([3]);
+    expect(response.payload.hasOlder).toBe(true);
+    expect(response.payload.startCursor).toEqual({ epoch: response.payload.epoch, seq: 3 });
+    expect(response.payload.endCursor).toEqual({ epoch: response.payload.epoch, seq: 3 });
+    expect(Buffer.byteLength(JSON.stringify(response))).toBeLessThan(8 * 1024 * 1024);
+
+    const older = await emitTimelineResponse({
+      rows,
+      request: { direction: "before", cursor: { epoch: response.payload.epoch, seq: 3 }, limit: 0 },
+    });
+    expect(older.payload.entries.map((entry) => entry.seqStart)).toEqual([2]);
+    expect(older.payload.hasOlder).toBe(true);
+  });
+
   test("carries canonical turn IDs to new clients while legacy schemas ignore them", async () => {
     const response = await emitTimelineResponse({
       rows: [
