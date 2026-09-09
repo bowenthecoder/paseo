@@ -1716,6 +1716,7 @@ export const zhCN: TranslationResources = {
     backdrop: "菜单背景",
   },
   subagents: {
+    viewChild: "查看",
     loadFailed: "无法加载此任务。",
     connectToLoad: "请连接到此主机以加载任务。",
     tasksTitle: "任务",
@@ -1837,6 +1838,10 @@ export const zhCN: TranslationResources = {
     searches: {
       one: "搜索了 {{count}} 次",
       other: "搜索了 {{count}} 次",
+    },
+    subagents: {
+      one: "启动了 1 个子代理",
+      other: "启动了 {{count}} 个子代理",
     },
     otherTools: {
       one: "使用了 {{count}} 个其他工具",

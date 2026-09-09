@@ -154,6 +154,8 @@ function escapeRegExp(text: string): string {
 export async function launchAgent(input: {
   page: Page;
   provider: RewindFlowProvider;
+  /** A custom provider id built on `provider`, such as the Subscriptions account "codex-a". */
+  providerId?: string;
   cwd: string;
   mode: "full-access";
   providerConfig?: {
@@ -189,6 +191,7 @@ export async function launchAgent(input: {
   const agent = await client.createAgent({
     ...fullAccessConfig(input.provider),
     ...input.providerConfig,
+    ...(input.providerId ? { provider: input.providerId } : {}),
     cwd: input.cwd,
     workspaceId: createdWorkspace.workspace.id,
     title: `rewind-flow-${input.provider}-${randomUUID()}`,

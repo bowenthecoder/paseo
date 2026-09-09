@@ -19,6 +19,7 @@ function summary(overrides: Partial<OverviewSummary> = {}): OverviewSummary {
     commands: none,
     reads: none,
     searches: none,
+    agents: none,
     others: none,
     paseoCalls: none,
     editedFileCount: 0,
@@ -27,6 +28,7 @@ function summary(overrides: Partial<OverviewSummary> = {}): OverviewSummary {
     readFileNames: [],
     commandCount: 0,
     searchCount: 0,
+    agentCount: 0,
     otherToolCount: 0,
     paseoCallCount: 0,
     failedToolCount: 0,
@@ -71,6 +73,27 @@ describe("overview summary text", () => {
       "Edited 4 files (1 failed), created a file, ran 3 commands, read 5 files",
     );
     expect(buildOverviewDiffText(value)).toBe("+44 -100");
+  });
+
+  it("counts subagent launches on their own instead of as other tools", () => {
+    expect(
+      buildOverviewSummaryText(
+        summary({ agents: { total: 12, failed: 0 }, agentCount: 12 }),
+        translate,
+      ),
+    ).toBe("Launched 12 subagents");
+    expect(
+      buildOverviewSummaryText(
+        summary({
+          commands: { total: 1, failed: 0 },
+          commandCount: 1,
+          agents: { total: 1, failed: 1 },
+          agentCount: 1,
+          failedToolCount: 1,
+        }),
+        translate,
+      ),
+    ).toBe("Ran 1 command, launched a subagent (1 failed)");
   });
 
   it("names only failures when nothing succeeded, and appends canceled and running work", () => {

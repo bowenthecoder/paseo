@@ -1735,6 +1735,7 @@ export const ar: TranslationResources = {
     backdrop: "خلفية القائمة",
   },
   subagents: {
+    viewChild: "عرض",
     loadFailed: "تعذر تحميل هذه المهمة.",
     connectToLoad: "اتصل بهذا المضيف لتحميل المهمة.",
     tasksTitle: "المهام",
@@ -1856,6 +1857,10 @@ export const ar: TranslationResources = {
     searches: {
       one: "بحث {{count}} مرة",
       other: "بحث {{count}} مرات",
+    },
+    subagents: {
+      one: "شغّل وكيلًا فرعيًا واحدًا",
+      other: "شغّل {{count}} وكلاء فرعيين",
     },
     otherTools: {
       one: "استخدم {{count}} أداة أخرى",

@@ -1766,6 +1766,7 @@ export const ru: TranslationResources = {
     backdrop: "Фон меню",
   },
   subagents: {
+    viewChild: "Открыть",
     loadFailed: "Не удалось загрузить эту задачу.",
     connectToLoad: "Подключитесь к этому хосту, чтобы загрузить задачу.",
     tasksTitle: "Задачи",
@@ -1888,6 +1889,10 @@ export const ru: TranslationResources = {
     searches: {
       one: "выполнен {{count}} поиск",
       other: "выполнены поисковые запросы ({{count}})",
+    },
+    subagents: {
+      one: "запустил субагента",
+      other: "запустил {{count}} субагентов",
     },
     otherTools: {
       one: "использован {{count}} другой инструмент",

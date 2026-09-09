@@ -102,6 +102,24 @@ export function refreshProviderSubagents(
   return request;
 }
 
+/**
+ * The child a parent's tool call launched, if its provider announced one. Claude's Task/Agent
+ * children carry the launching tool call id; a child whose id is the tool call id also matches.
+ */
+export function findProviderSubagentForToolCall(
+  descriptors: ReadonlyMap<string, ProviderSubagentDescriptorPayload>,
+  serverId: string,
+  parentAgentId: string,
+  toolCallId: string,
+): ProviderSubagentDescriptorPayload | null {
+  const prefix = parentPrefix(serverId, parentAgentId);
+  for (const [key, descriptor] of descriptors) {
+    if (!key.startsWith(prefix)) continue;
+    if (descriptor.toolCallId === toolCallId || descriptor.id === toolCallId) return descriptor;
+  }
+  return null;
+}
+
 function parentPrefix(serverId: string, parentAgentId: string): string {
   return `${serverId}\0${parentAgentId}\0`;
 }

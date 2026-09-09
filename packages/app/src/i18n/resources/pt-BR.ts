@@ -1768,6 +1768,7 @@ export const ptBR: TranslationResources = {
     backdrop: "Fundo do menu",
   },
   subagents: {
+    viewChild: "Ver",
     loadFailed: "Não foi possível carregar esta tarefa.",
     connectToLoad: "Conecte-se a este host para carregar a tarefa.",
     tasksTitle: "Tarefas",
@@ -1889,6 +1890,10 @@ export const ptBR: TranslationResources = {
     searches: {
       one: "pesquisou {{count}} vez",
       other: "pesquisou {{count}} vezes",
+    },
+    subagents: {
+      one: "iniciou um subagente",
+      other: "iniciou {{count}} subagentes",
     },
     otherTools: {
       one: "usou {{count}} outra ferramenta",

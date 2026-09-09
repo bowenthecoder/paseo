@@ -71,6 +71,11 @@ export function usePaneContext(): PaneContextValue {
   return value;
 }
 
+/** The pane a card sits in, or null when it renders outside a pane (sheets, previews). */
+export function useOptionalPaneContext(): PaneContextValue | null {
+  return useContext(PaneContext);
+}
+
 export function usePaneFocus(): PaneFocusContextValue {
   const value = useContext(PaneFocusContext);
   invariant(value, "PaneFocusContext is required");

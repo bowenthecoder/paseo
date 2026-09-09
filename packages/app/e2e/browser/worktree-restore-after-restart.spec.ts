@@ -98,6 +98,8 @@ test.describe("Worktree restore after daemon restart", () => {
     createdProjectIds.add(worktree.projectKey);
     createdWorktreeDirectories.add(worktree.workspaceDirectory);
 
+    // This test covers persisted placement, so the idle provider adapter avoids
+    // an unrelated external CLI cold start before the archive/restart assertions.
     const agent = await createMockIdleAgent(client, {
       cwd: worktree.workspaceDirectory,
       workspaceId: worktree.workspaceId,

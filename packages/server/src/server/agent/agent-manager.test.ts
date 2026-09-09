@@ -10921,6 +10921,219 @@ test("first accepted prompt names an empty-created chat once without delaying it
   }
 });
 
+test("wakes an idle Codex parent once the last spawned child settles", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-codex-wake-"));
+  const storage = new AgentStorage(join(workdir, "agents"), logger);
+  const prompts: string[] = [];
+  class PromptRecordingSession extends TestAgentSession {
+    override async startTurn(prompt?: AgentPromptInput): Promise<{ turnId: string }> {
+      prompts.push(typeof prompt === "string" ? prompt : JSON.stringify(prompt));
+      return super.startTurn();
+    }
+  }
+  class PromptRecordingClient extends TestAgentClient {
+    readonly sessions: PromptRecordingSession[] = [];
+    override async createSession(config: AgentSessionConfig): Promise<AgentSession> {
+      const session = new PromptRecordingSession(config);
+      this.sessions.push(session);
+      return session;
+    }
+  }
+  const client = new PromptRecordingClient();
+  const manager = new AgentManager({ clients: { codex: client }, registry: storage, logger });
+  try {
+    await manager.createAgent({ provider: "codex", cwd: workdir, title: "Fan-out" }, undefined, {
+      workspaceId: undefined,
+    });
+    const session = client.sessions[0]!;
+    const child = (id: string, status: "running" | "completed" | "failed") =>
+      session.pushEvent({
+        type: "provider_subagent",
+        provider: "codex",
+        event: { type: "upsert", id, title: id, status },
+      });
+    child("child-1", "running");
+    child("child-2", "running");
+    child("child-1", "completed");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    // One child is still working: nothing to say yet.
+    expect(prompts).toEqual([]);
+    child("child-2", "failed");
+    await vi.waitFor(() => expect(prompts).toHaveLength(1), { timeout: 3000 });
+    expect(prompts[0]).toContain("<paseo-system>");
+    expect(prompts[0]).toContain("Your 2 sub-agents have finished:");
+    expect(prompts[0]).toContain("- child-1: completed");
+    expect(prompts[0]).toContain("- child-2: failed");
+    expect(prompts[0]).toContain("collaboration.wait_agent");
+    // A presentation-only repeat of a finished child is not news.
+    child("child-2", "failed");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(prompts).toHaveLength(1);
+  } finally {
+    await Promise.all(manager.listAgents().map((agent) => manager.closeAgent(agent.id)));
+    rmSync(workdir, { recursive: true, force: true });
+  }
+});
+
+describe("Codex parent completion fallback", () => {
+  async function fixture() {
+    const workdir = mkdtempSync(join(tmpdir(), "agent-manager-codex-fallback-"));
+    const prompts: string[] = [];
+    let rejectNextStart = false;
+    class RecordingSession extends TestAgentSession {
+      override async startTurn(prompt?: AgentPromptInput): Promise<{ turnId: string }> {
+        if (rejectNextStart) {
+          rejectNextStart = false;
+          throw new Error("Temporary admission failure");
+        }
+        prompts.push(typeof prompt === "string" ? prompt : JSON.stringify(prompt));
+        return super.startTurn();
+      }
+    }
+    let session!: RecordingSession;
+    class Client extends TestAgentClient {
+      override async createSession(config: AgentSessionConfig): Promise<AgentSession> {
+        session = new RecordingSession(config);
+        return session;
+      }
+    }
+    const manager = new AgentManager({
+      clients: { codex: new Client() },
+      registry: new AgentStorage(join(workdir, "agents"), logger),
+      logger,
+    });
+    const parent = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+      workspaceId: undefined,
+    });
+    const child = (status: "running" | "completed", id = "child") =>
+      session.pushEvent({
+        type: "provider_subagent",
+        provider: "codex",
+        event: { type: "upsert", id, status },
+      });
+    const settle = async () => {
+      child("running");
+      child("completed");
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    };
+    const cleanup = async () => {
+      await Promise.all(manager.listAgents().map((agent) => manager.closeAgent(agent.id)));
+      rmSync(workdir, { recursive: true, force: true });
+    };
+    return {
+      manager,
+      parent,
+      session,
+      prompts,
+      child,
+      settle,
+      cleanup,
+      rejectNextStart: () => {
+        rejectNextStart = true;
+      },
+    };
+  }
+
+  test("does not wake for terminal replay or presentation-only updates", async () => {
+    const f = await fixture();
+    try {
+      f.child("completed");
+      f.session.pushEvent({
+        type: "provider_subagent",
+        provider: "codex",
+        event: { type: "upsert", id: "child", subtitle: "1k tokens" },
+      });
+      await new Promise((resolve) => setTimeout(resolve, 1150));
+      expect(f.prompts).toEqual([]);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  test("lets a native parent continuation cancel the deferred prompt", async () => {
+    const f = await fixture();
+    try {
+      await f.settle();
+      f.session.pushEvent({ type: "turn_started", provider: "codex", turnId: "native" });
+      f.session.pushEvent({ type: "turn_completed", provider: "codex", turnId: "native" });
+      await new Promise((resolve) => setTimeout(resolve, 1150));
+      expect(f.prompts).toEqual([]);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  test.each([false, true])(
+    "active-tail settlement continues only without later parent output (output=%s)",
+    async (output) => {
+      const f = await fixture();
+      try {
+        f.session.pushEvent({ type: "turn_started", provider: "codex", turnId: "native" });
+        await f.settle();
+        if (output)
+          f.session.pushEvent({
+            type: "timeline",
+            provider: "codex",
+            turnId: "native",
+            item: { type: "assistant_message", text: "Collected the result." },
+          });
+        f.session.pushEvent({ type: "turn_completed", provider: "codex", turnId: "native" });
+        if (output) {
+          await new Promise((resolve) => setTimeout(resolve, 1150));
+          expect(f.prompts).toEqual([]);
+        } else {
+          await vi.waitFor(() => expect(f.prompts).toHaveLength(1), { timeout: 3000 });
+        }
+      } finally {
+        await f.cleanup();
+      }
+    },
+  );
+
+  test("retains the completion after failed provider admission until idle recovery", async () => {
+    const f = await fixture();
+    try {
+      f.rejectNextStart();
+      await f.settle();
+      await vi.waitFor(() => expect(f.manager.getAgent(f.parent.id)?.lifecycle).toBe("error"), {
+        timeout: 3000,
+      });
+      expect(f.prompts).toEqual([]);
+      f.session.pushEvent({ type: "turn_completed", provider: "codex", turnId: "recovered" });
+      await vi.waitFor(() => expect(f.prompts).toHaveLength(1), { timeout: 3000 });
+      f.child("completed");
+      await new Promise((resolve) => setTimeout(resolve, 1150));
+      expect(f.prompts).toHaveLength(1);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  test("a user turn accepted during the grace period cancels the fallback", async () => {
+    const f = await fixture();
+    try {
+      await f.settle();
+      await f.manager.runAgent(f.parent.id, "I will collect the results now");
+      await new Promise((resolve) => setTimeout(resolve, 1150));
+      expect(f.prompts).toEqual(["I will collect the results now"]);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  test("archiving cancels a pending wake", async () => {
+    const f = await fixture();
+    try {
+      await f.settle();
+      await f.manager.archiveAgent(f.parent.id);
+      await new Promise((resolve) => setTimeout(resolve, 1150));
+      expect(f.prompts).toEqual([]);
+    } finally {
+      await f.cleanup();
+    }
+  });
+});
+
 test("legacy names that are only the raw first prompt get generated names, typed names stay", async () => {
   const workdir = mkdtempSync(join(tmpdir(), "agent-manager-title-backfill-"));
   const storage = new AgentStorage(join(workdir, "agents"), logger);

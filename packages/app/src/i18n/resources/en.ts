@@ -1747,6 +1747,7 @@ export const en = {
     backdrop: "Menu backdrop",
   },
   subagents: {
+    viewChild: "View",
     loadFailed: "Could not load this task.",
     connectToLoad: "Connect to this host to load the task.",
     tasksTitle: "Tasks",
@@ -1868,6 +1869,10 @@ export const en = {
     searches: {
       one: "searched {{count}} time",
       other: "searched {{count}} times",
+    },
+    subagents: {
+      one: "launched a subagent",
+      other: "launched {{count}} subagents",
     },
     otherTools: {
       one: "used {{count}} tool",
