@@ -104,6 +104,8 @@ export const ar: TranslationResources = {
       sendMessage: "أرسل رسالة",
       queue: "طابور",
       send: "يرسل",
+      holdQueue: "طابور",
+      holdQueueMessage: "إضافة الرسالة إلى قائمة الانتظار دون إرسالها",
     },
     cancel: {
       cancelingAgent: "وكيل الإلغاء",
@@ -132,6 +134,9 @@ export const ar: TranslationResources = {
       dropFilesHere: "Drop files here",
       editQueuedMessage: "تحرير الرسالة في قائمة الانتظار",
       sendQueuedMessageNow: "إرسال رسالة في قائمة الانتظار الآن",
+      removeQueuedMessage: "إزالة الرسالة من قائمة الانتظار",
+      heldQueuedMessage: "محتجزة",
+      sendAllHeldMessages: "إرسال الكل",
       openImage: "فتح مرفق الصورة",
       removeImage: "إزالة مرفق الصورة",
       removeFile: "Remove file attachment",

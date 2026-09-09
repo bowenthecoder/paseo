@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { applyClearDraftRecord, pruneFinalizedDraftRecords, toDraftInputIfReady } from "./state";
+import {
+  applyClearDraftRecord,
+  collectReferencedAttachmentIdsFromState,
+  pruneFinalizedDraftRecords,
+  toDraftInputIfReady,
+} from "./state";
 
 describe("draft-store lifecycle", () => {
   it("prunes finalized tombstones after TTL", () => {
@@ -167,5 +172,39 @@ describe("draft-store normalization", () => {
       text: "Keep this prompt",
       attachments: [pickerAttachment],
     });
+  });
+});
+
+describe("draft-store attachment retention", () => {
+  it("keeps an image referenced only by a persisted queued message", () => {
+    const referenced = collectReferencedAttachmentIdsFromState({
+      drafts: {},
+      createModalDraft: null,
+      queues: {
+        server: {
+          agent: [
+            {
+              id: "held",
+              text: "look at this",
+              hold: true,
+              attachments: [
+                {
+                  kind: "image",
+                  metadata: {
+                    id: "img-held",
+                    mimeType: "image/png",
+                    storageType: "web-indexeddb",
+                    storageKey: "key",
+                    createdAt: 1,
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+
+    expect([...referenced]).toEqual(["img-held"]);
   });
 });

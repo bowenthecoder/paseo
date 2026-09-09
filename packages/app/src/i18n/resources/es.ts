@@ -104,6 +104,8 @@ export const es: TranslationResources = {
       sendMessage: "enviar mensaje",
       queue: "Cola",
       send: "Enviar",
+      holdQueue: "Cola",
+      holdQueueMessage: "Poner el mensaje en cola sin enviarlo",
     },
     cancel: {
       cancelingAgent: "Agente de cancelación",
@@ -132,6 +134,9 @@ export const es: TranslationResources = {
       dropFilesHere: "Drop files here",
       editQueuedMessage: "Editar mensaje en cola",
       sendQueuedMessageNow: "Enviar mensaje en cola ahora",
+      removeQueuedMessage: "Quitar mensaje de la cola",
+      heldQueuedMessage: "En espera",
+      sendAllHeldMessages: "Enviar todo",
       openImage: "Abrir imagen adjunta",
       removeImage: "Quitar imagen adjunta",
       removeFile: "Remove file attachment",

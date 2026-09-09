@@ -104,6 +104,8 @@ export const ptBR: TranslationResources = {
       sendMessage: "Enviar mensagem",
       queue: "Fila",
       send: "Enviar",
+      holdQueue: "Fila",
+      holdQueueMessage: "Enfileirar mensagem sem enviar",
     },
     cancel: {
       cancelingAgent: "Cancelando agente",
@@ -132,6 +134,9 @@ export const ptBR: TranslationResources = {
       dropFilesHere: "Solte arquivos aqui",
       editQueuedMessage: "Editar mensagem na fila",
       sendQueuedMessageNow: "Enviar mensagem da fila agora",
+      removeQueuedMessage: "Remover mensagem da fila",
+      heldQueuedMessage: "Retida",
+      sendAllHeldMessages: "Enviar tudo",
       openImage: "Abrir anexo de imagem",
       removeImage: "Remover anexo de imagem",
       removeFile: "Remover anexo de arquivo",

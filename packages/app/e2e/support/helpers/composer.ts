@@ -61,6 +61,11 @@ export async function sendDraftToQueue(page: Page): Promise<void> {
   await composerInput(page).press("Control+Enter");
 }
 
+/** The explicit hold action: Cmd/Ctrl+Shift+Enter queues the draft without sending it. */
+export async function holdDraftInQueue(page: Page): Promise<void> {
+  await composerInput(page).press("Control+Shift+Enter");
+}
+
 export async function expectQueuedMessageButton(page: Page): Promise<void> {
   await expect(page.getByRole("button", { name: "Send queued message now" })).toBeVisible({
     timeout: 10_000,

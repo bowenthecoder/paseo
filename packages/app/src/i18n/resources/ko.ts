@@ -104,6 +104,8 @@ export const ko: TranslationResources = {
       sendMessage: "메시지 보내기",
       queue: "대기열",
       send: "보내기",
+      holdQueue: "대기열",
+      holdQueueMessage: "보내지 않고 메시지를 대기열에 추가",
     },
     cancel: {
       cancelingAgent: "에이전트 취소 중",
@@ -132,6 +134,9 @@ export const ko: TranslationResources = {
       dropFilesHere: "여기에 파일을 끌어다 놓으세요",
       editQueuedMessage: "대기 중인 메시지 편집",
       sendQueuedMessageNow: "대기 중인 메시지 지금 보내기",
+      removeQueuedMessage: "대기 중인 메시지 제거",
+      heldQueuedMessage: "보류됨",
+      sendAllHeldMessages: "모두 보내기",
       openImage: "이미지 첨부 열기",
       removeImage: "이미지 첨부 제거",
       removeFile: "파일 첨부 제거",
