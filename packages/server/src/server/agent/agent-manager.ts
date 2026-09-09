@@ -72,7 +72,7 @@ import {
   type PendingForegroundRun,
 } from "./agent-run-state.js";
 import { invokeRewindCapability, type RewindMode } from "./rewind/rewind.js";
-import { isSystemInjectedEnvelope } from "./agent-prompt.js";
+import { formatSystemNotificationPrompt, isSystemInjectedEnvelope } from "./agent-prompt.js";
 import { stripInternalPaseoMcpServer, withRuntimePaseoMcpServer } from "./runtime-mcp-config.js";
 import { resolveCreateAgentTitles, resolveAcceptedTitlePrompt } from "./create-agent-title.js";
 import type { PaseoToolCatalogFactory } from "./tools/types.js";
@@ -687,6 +687,17 @@ export class AgentManager {
   private readonly agents = new Map<string, LiveManagedAgent>();
   private readonly timelineStore = new InMemoryAgentTimelineStore();
   private readonly providerSubagents = new ProviderSubagentStore();
+  /**
+   * Codex children that settled without subsequent parent output, waiting to be announced. Claude's
+   * own process wakes its parent with a task notification; Codex's collaboration tools do not,
+   * so the daemon tells an idle Codex parent once its last running child has settled.
+   */
+  private readonly settledCodexChildrenByParent = new Map<
+    string,
+    Map<string, ProviderSubagentDescriptor>
+  >();
+  private readonly codexParentWakeTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly codexParentWakesInFlight = new Set<string>();
   private readonly agentsAwaitingInitialSnapshotPersist = new Set<string>();
   private readonly sessionEventTails = new Map<string, Promise<void>>();
   private readonly steerEventBarriers = new Map<string, SteerEventBarrier>();
@@ -2433,6 +2444,7 @@ export class AgentManager {
       if (isReplacement) {
         agent.pendingReplacement = false;
       }
+      if (agent.provider === "codex") this.clearPendingCodexWake(agent.id);
       const turnStartedAt = new Date();
       pendingRun.start = { status: "started", turnId };
       agent.activeForegroundTurnId = turnId;
@@ -3575,6 +3587,7 @@ export class AgentManager {
     cancelReason: string,
   ): ManagedAgentClosed {
     this.agentStreamCoalescer.flushAndDiscard(agent.id);
+    this.clearPendingCodexWake(agent.id);
     this.agents.delete(agent.id);
     this.previousStatuses.delete(agent.id);
     if (agent.unsubscribeSession) {
@@ -3705,14 +3718,136 @@ export class AgentManager {
     }
   }
 
+  private clearPendingCodexWake(parentAgentId: string): void {
+    const timer = this.codexParentWakeTimers.get(parentAgentId);
+    if (timer) clearTimeout(timer);
+    this.codexParentWakeTimers.delete(parentAgentId);
+    this.settledCodexChildrenByParent.delete(parentAgentId);
+  }
+
+  private noteSettledCodexChild(
+    agent: ActiveManagedAgent,
+    provider: AgentProvider,
+    update: ProviderSubagentStoreEvent,
+    previous: ProviderSubagentDescriptor | null,
+  ): void {
+    if (provider !== "codex") return;
+    if (update.type === "remove") {
+      this.settledCodexChildrenByParent.get(agent.id)?.delete(update.subagentId);
+      this.scheduleCodexParentWake(agent.id);
+      return;
+    }
+    if (update.type !== "upsert") return;
+    const child = update.subagent;
+    if (child.status === "running") {
+      this.settledCodexChildrenByParent.get(agent.id)?.delete(child.id);
+      return;
+    }
+    // Only a live running -> terminal transition is news. A later usage/title update or a
+    // terminal descriptor replay must never manufacture another completion notification.
+    if (previous?.status === "running") {
+      const settled = this.settledCodexChildrenByParent.get(agent.id) ?? new Map();
+      settled.set(child.id, child);
+      this.settledCodexChildrenByParent.set(agent.id, settled);
+    }
+    this.scheduleCodexParentWake(agent.id);
+  }
+
+  private scheduleCodexParentWake(parentAgentId: string): void {
+    if (!this.settledCodexChildrenByParent.get(parentAgentId)?.size) return;
+    if (
+      this.codexParentWakeTimers.has(parentAgentId) ||
+      this.codexParentWakesInFlight.has(parentAgentId)
+    )
+      return;
+    const parent = this.agents.get(parentAgentId);
+    if (!parent || parent.lifecycle !== "idle") return;
+    if (this.providerSubagents.list(parentAgentId).some((child) => child.status === "running"))
+      return;
+    // Give the provider's native parent continuation a chance to arrive. Its turn_started (or
+    // further parent output) retires this fallback, avoiding a second prompt for the same work.
+    const timer = setTimeout(() => {
+      this.codexParentWakeTimers.delete(parentAgentId);
+      void this.wakeIdleCodexParent(parentAgentId);
+    }, 1000);
+    timer.unref();
+    this.codexParentWakeTimers.set(parentAgentId, timer);
+  }
+
+  private async wakeIdleCodexParent(parentAgentId: string): Promise<void> {
+    if (this.codexParentWakesInFlight.has(parentAgentId)) return;
+    this.codexParentWakesInFlight.add(parentAgentId);
+    try {
+      await this.drainSessionEvents(parentAgentId);
+      const parent = this.agents.get(parentAgentId);
+      const settled = this.settledCodexChildrenByParent.get(parentAgentId);
+      if (
+        !parent ||
+        parent.lifecycle !== "idle" ||
+        !settled?.size ||
+        this.hasInFlightRun(parentAgentId)
+      )
+        return;
+      if (this.providerSubagents.list(parentAgentId).some((child) => child.status === "running"))
+        return;
+      const batch = [...settled.values()];
+      const noun = batch.length === 1 ? "sub-agent has" : "sub-agents have";
+      const prompt = formatSystemNotificationPrompt(
+        [
+          `Your ${batch.length} ${noun} finished:`,
+          ...batch.map((child) => `- ${child.title ?? child.id}: ${child.status}`),
+          "Collect each result with collaboration.wait_agent, then continue the task.",
+        ].join("\n"),
+      );
+      // streamAgent reserves the run synchronously. Never steer or replace a turn that started
+      // during the grace period, and do not consume the batch until startTurn is accepted.
+      const iterator = this.streamAgent(parentAgentId, prompt);
+      await iterator.next();
+      for (const child of batch) {
+        if (settled.get(child.id) === child) settled.delete(child.id);
+      }
+      void (async () => {
+        try {
+          for await (const _ of iterator) {
+            /* Events are broadcast by the manager. */
+          }
+        } catch (error) {
+          this.logger.warn(
+            { err: error, agentId: parentAgentId },
+            "Codex parent continuation failed",
+          );
+        }
+      })();
+    } catch (error) {
+      this.logger.warn(
+        { err: error, agentId: parentAgentId },
+        "Failed to wake a Codex parent after its sub-agents finished",
+      );
+    } finally {
+      this.codexParentWakesInFlight.delete(parentAgentId);
+    }
+  }
+
   private async dispatchSessionEvent(
     agent: ActiveManagedAgent,
     event: AgentStreamEvent,
   ): Promise<void> {
     if (event.type === "provider_subagent") {
+      const previous = this.providerSubagents.get(agent.id, event.event.id);
       const update = this.providerSubagents.apply(agent.id, event.provider, event.event);
       this.dispatch({ type: "provider_subagent", event: update });
+      this.noteSettledCodexChild(agent, event.provider, update, previous);
       return;
+    }
+    if (
+      event.provider === "codex" &&
+      (event.type === "turn_started" ||
+        (event.type === "timeline" &&
+          event.item.type === "assistant_message" &&
+          event.item.text.trim()))
+    ) {
+      // A native/new turn or parent output after settlement already continued the parent.
+      this.clearPendingCodexWake(agent.id);
     }
     const turnId = getAgentStreamEventTurnId(event);
     const matchingWaiters = this.runs.getMatchingWaiters(agent, turnId);
@@ -4649,6 +4784,8 @@ export class AgentManager {
   }
 
   private emitState(agent: ManagedAgent, options?: { persist?: boolean }): void {
+    if (agent.provider === "codex" && agent.lifecycle === "idle")
+      this.scheduleCodexParentWake(agent.id);
     // Keep attention as an edge-triggered unread signal, not a level signal.
     this.checkAndSetAttention(agent);
     if (options?.persist !== false) {

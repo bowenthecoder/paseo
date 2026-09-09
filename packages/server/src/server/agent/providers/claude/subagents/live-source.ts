@@ -39,12 +39,16 @@ interface TaskStartedMessage {
   task_type?: string;
   prompt?: string;
   skip_transcript?: boolean;
+  is_backgrounded?: boolean;
 }
 
 /** Task-tool subagents. Backgrounded shell commands announce as `local_bash`. */
 const CLAUDE_SUBAGENT_TASK_TYPE = "local_agent";
 /** Workflow executions use the same announced task lifecycle as Task-tool subagents. */
 const CLAUDE_WORKFLOW_TASK_TYPE = "local_workflow";
+/** A shell command Claude moved to the background; it is a task, not a subagent. */
+const CLAUDE_SHELL_TASK_TYPE = "local_bash";
+const SHELL_TASK_SUBTITLE = "background command";
 
 /**
  * Not every announced task belongs in the subagents track. Verified on the wire:
@@ -57,6 +61,10 @@ const CLAUDE_WORKFLOW_TASK_TYPE = "local_workflow";
  * alone puts `sleep 20` in the subagents track. Releases that predate `task_type` are covered
  * by requiring a subagent type instead.
  */
+function isTerminalTaskStatus(status: string | undefined): boolean {
+  return status !== undefined && status !== "running" && status !== "pending";
+}
+
 function isProviderSubagentTask(message: TaskStartedMessage): boolean {
   if (message.task_type) {
     return (
@@ -171,6 +179,10 @@ export class ClaudeTaskProtocolSource {
    * them, so a turn ending is not evidence that they stopped.
    */
   private readonly backgroundedIds = new Set<string>();
+  /** Live background commands, task id to tool_use id. They are rows, never subagents. */
+  private readonly shellTaskIdByTaskId = new Map<string, string>();
+  /** Foreground commands that would become rows if Claude backgrounds them. */
+  private readonly foregroundShellByTaskId = new Map<string, { id: string; title: string }>();
   /** Last status emitted per subagent, so a redundant announcement is not re-broadcast. */
   private readonly lastStatusById = new Map<string, ProviderSubagentStatus>();
   /** Claude facts stay inside the provider boundary; clients receive one compact subtitle. */
@@ -264,6 +276,8 @@ export class ClaudeTaskProtocolSource {
     this.lastWorkflowResultByTaskId.clear();
     this.idsWithExistingParentToolCard.clear();
     this.backgroundedIds.clear();
+    this.shellTaskIdByTaskId.clear();
+    this.foregroundShellByTaskId.clear();
     this.lastStatusById.clear();
     this.presentationById.clear();
     this.lastSubtitleById.clear();
@@ -301,7 +315,45 @@ export class ClaudeTaskProtocolSource {
       this.lastStatusById.set(id, "failed");
       observations.push({ kind: "status", id, status: "failed" });
     }
+    for (const id of this.shellTaskIdByTaskId.values()) {
+      observations.push({ kind: "remove", id });
+    }
+    this.shellTaskIdByTaskId.clear();
+    this.foregroundShellByTaskId.clear();
     return observations;
+  }
+
+  /**
+   * A backgrounded shell command is not a subagent, but while it runs the chat is waiting on
+   * it, so it takes a row in the Tasks list and a count in the pill. The row leaves when the
+   * command settles; the outcome card in the transcript is the durable record. Commands that
+   * start in the foreground only earn a row if Claude backgrounds them.
+   */
+  private observeShellTaskStarted(message: TaskStartedMessage, id: string): SubagentObservation[] {
+    const title = readString(message.description) ?? "Background command";
+    if (message.is_backgrounded === false) {
+      this.foregroundShellByTaskId.set(message.task_id, { id, title });
+      return [];
+    }
+    return this.announceShellTask(message.task_id, id, title);
+  }
+
+  private announceShellTask(taskId: string, id: string, title: string): SubagentObservation[] {
+    this.foregroundShellByTaskId.delete(taskId);
+    this.shellTaskIdByTaskId.set(taskId, id);
+    return [
+      { kind: "declared", id, title, toolCallId: id },
+      { kind: "subtitle", id, subtitle: SHELL_TASK_SUBTITLE },
+      { kind: "timeline", id, item: { type: "user_message", text: title } },
+    ];
+  }
+
+  private settleShellTask(taskId: string): SubagentObservation[] {
+    this.foregroundShellByTaskId.delete(taskId);
+    const id = this.shellTaskIdByTaskId.get(taskId);
+    if (!id) return [];
+    this.shellTaskIdByTaskId.delete(taskId);
+    return [{ kind: "remove", id }];
   }
 
   private observeTaskStarted(message: TaskStartedMessage): SubagentObservation[] {
@@ -311,7 +363,11 @@ export class ClaudeTaskProtocolSource {
 
     const id = readString(message.tool_use_id);
     // skip_transcript marks ambient housekeeping the transcript should not show.
-    if (!id || message.skip_transcript === true || !isProviderSubagentTask(message)) return [];
+    if (!id || message.skip_transcript === true) return [];
+    if (message.task_type === CLAUDE_SHELL_TASK_TYPE) {
+      return this.observeShellTaskStarted(message, id);
+    }
+    if (!isProviderSubagentTask(message)) return [];
 
     this.sawTaskStarted = true;
     const existingId = this.subagentIdByTaskId.get(message.task_id);
@@ -378,6 +434,22 @@ export class ClaudeTaskProtocolSource {
   }
 
   private observeTaskUpdated(message: TaskUpdatedMessage): SubagentObservation[] {
+    const foregroundShell = this.foregroundShellByTaskId.get(message.task_id);
+    if (foregroundShell) {
+      if (isTerminalTaskStatus(message.patch?.status)) {
+        this.foregroundShellByTaskId.delete(message.task_id);
+        return [];
+      }
+      if (message.patch?.is_backgrounded === true) {
+        return this.announceShellTask(message.task_id, foregroundShell.id, foregroundShell.title);
+      }
+      return [];
+    }
+    if (this.shellTaskIdByTaskId.has(message.task_id)) {
+      return isTerminalTaskStatus(message.patch?.status)
+        ? this.settleShellTask(message.task_id)
+        : [];
+    }
     const id = this.subagentIdByTaskId.get(message.task_id);
     const backgrounded = message.patch?.is_backgrounded;
     if (id && typeof backgrounded === "boolean") {
@@ -388,6 +460,10 @@ export class ClaudeTaskProtocolSource {
   }
 
   private observeTaskNotification(message: TaskNotificationMessage): SubagentObservation[] {
+    if (this.shellTaskIdByTaskId.has(message.task_id)) {
+      return this.settleShellTask(message.task_id);
+    }
+    this.foregroundShellByTaskId.delete(message.task_id);
     const observations = this.observeWorkflowResult(message);
     observations.push(...this.observeUsage(message.task_id, message.usage));
     observations.push(...this.observeStatus(message.task_id, message.status));

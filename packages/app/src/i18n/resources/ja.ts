@@ -1736,6 +1736,7 @@ export const ja: TranslationResources = {
     backdrop: "メニューの背景",
   },
   subagents: {
+    viewChild: "表示",
     loadFailed: "このタスクを読み込めませんでした。",
     connectToLoad: "タスクを読み込むには、このホストに接続してください。",
     tasksTitle: "タスク",
@@ -1858,6 +1859,10 @@ export const ja: TranslationResources = {
     searches: {
       one: "{{count}}回検索",
       other: "{{count}}回検索",
+    },
+    subagents: {
+      one: "サブエージェントを1つ起動",
+      other: "サブエージェントを{{count}}つ起動",
     },
     otherTools: {
       one: "その他のツールを{{count}}回使用",

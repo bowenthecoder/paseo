@@ -1728,6 +1728,7 @@ export const ko: TranslationResources = {
     backdrop: "메뉴 배경",
   },
   subagents: {
+    viewChild: "보기",
     loadFailed: "이 작업을 불러올 수 없습니다.",
     connectToLoad: "작업을 불러오려면 이 호스트에 연결하세요.",
     tasksTitle: "작업",
@@ -1849,6 +1850,10 @@ export const ko: TranslationResources = {
     searches: {
       one: "{{count}}회 검색함",
       other: "{{count}}회 검색함",
+    },
+    subagents: {
+      one: "하위 에이전트 1개 실행",
+      other: "하위 에이전트 {{count}}개 실행",
     },
     otherTools: {
       one: "기타 도구 {{count}}개 사용함",

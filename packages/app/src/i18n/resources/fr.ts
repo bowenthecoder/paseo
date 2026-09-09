@@ -1768,6 +1768,7 @@ export const fr: TranslationResources = {
     backdrop: "Toile de fond du menu",
   },
   subagents: {
+    viewChild: "Voir",
     loadFailed: "Impossible de charger cette tâche.",
     connectToLoad: "Connectez-vous à cet hôte pour charger la tâche.",
     tasksTitle: "Tâches",
@@ -1890,6 +1891,10 @@ export const fr: TranslationResources = {
     searches: {
       one: "a effectué {{count}} recherche",
       other: "a effectué {{count}} recherches",
+    },
+    subagents: {
+      one: "a lancé un sous-agent",
+      other: "a lancé {{count}} sous-agents",
     },
     otherTools: {
       one: "a utilisé {{count}} autre outil",

@@ -5,7 +5,7 @@ import { metroTest as test } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
 import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import {
-  createIdleAgent,
+  createMockIdleAgent,
   expectSessionRowArchived,
   openSessions,
 } from "../support/helpers/archive-tab";
@@ -98,7 +98,9 @@ test.describe("Worktree restore after daemon restart", () => {
     createdProjectIds.add(worktree.projectKey);
     createdWorktreeDirectories.add(worktree.workspaceDirectory);
 
-    const agent = await createIdleAgent(client, {
+    // This test covers persisted placement, so the idle provider adapter avoids
+    // an unrelated external CLI cold start before the archive/restart assertions.
+    const agent = await createMockIdleAgent(client, {
       cwd: worktree.workspaceDirectory,
       workspaceId: worktree.workspaceId,
       title: `restart-restore-${randomUUID().slice(0, 8)}`,

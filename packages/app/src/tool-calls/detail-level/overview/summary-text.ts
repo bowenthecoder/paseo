@@ -68,6 +68,15 @@ export function buildOverviewSummaryText(
       ),
     );
   }
+  if (summary.agents.total > 0) {
+    parts.push(
+      withFailures(
+        translate,
+        plural(translate, "toolCallGroup.subagents", summary.agents.total),
+        summary.agents,
+      ),
+    );
+  }
   if (summary.others.total > 0) {
     parts.push(
       withFailures(

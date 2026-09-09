@@ -136,6 +136,62 @@ until 14 September), and recorded in the review folder before the candidate is r
    showed its error screen on every launch. Build 1 had the same fault. Removing the last view
    of a row now removes the row. Verified with a store test built from the captured layout.
 
+## Third request — subagents that behave like Claude Code (9 September 2026, night)
+
+Bowen watched a chat go quiet after it launched background subagents and asked that Paseo
+behave like the Claude Code CLI: when subagents finish, the parent chat picks up again on its
+own; every open subagent can be clicked and read, like the Claude Code app; the same for Codex;
+and "just use Claude Code and mirror its output" so these differences stop appearing. The proof
+he asked for is a real task that launches twelve subagents.
+
+What is already true, and what the plan changes:
+
+1. **Runtime.** The daemon already runs the real Claude Code process through the Agent SDK and
+   mirrors its event stream; there is no second implementation to switch to. Background work is
+   announced by that process (`task_started`, `task_progress`, `task_notification`,
+   `background_tasks_changed`). A `task_notification` that arrives while no turn is open starts
+   an autonomous turn (`providers/claude/agent.ts`, `shouldStartAutonomousTurn`), which is how the
+   parent continues. Anything that still looks stopped is a projection gap, and this request is
+   verified against the real process rather than reasoned about.
+2. **Verification first.** A real-provider browser spec launches twelve background subagents
+   from one Claude chat, then checks: the parent's turn ends with a launch marker, the track pill
+   counts twelve running children, the parent resumes by itself and prints a completion marker
+   without any user input, the Tasks list shows twelve rows with their final states, and each row
+   opens a readable child transcript. The same spec shape runs against Codex with its native
+   sub-agent tools. Failures found by that spec are the work items below.
+3. **Waiting state.** While the parent is idle but children still run, the chat must say so
+   (the track pill plus a working state on the parent), instead of looking finished.
+4. **Click to view.** Every child in the Tasks list and every Task card in the transcript opens
+   the child's view on the right, for Claude and Codex alike.
+
+Findings from the twelve-child run (`e2e/browser/subagent-fanout.real.spec.ts`, real Claude 1,
+Sonnet):
+
+- **The parent already comes back.** Twelve background children, each sleeping 25 s, were
+  launched in one turn; the parent ended its turn, the pill read "1 running task" with the
+  Tasks list showing all twelve, and the parent then produced fourteen autonomous turns on its
+  own until "FANOUT_DONE", with no input from anyone. The Claude Code process delivered three
+  of the twelve notifications twice; the model commented on the duplicates. That is the
+  process's behaviour, not Paseo's, and it does not stop the parent.
+- **Every child is viewable.** Each Tasks row opens the child's read-only transcript; three of
+  twelve were opened in the run. What was missing was a way in from the transcript, so a Task
+  card now carries a "View" control (`useSubagentLinkForToolCall`) that opens the same view when
+  its provider announced the child it launched (`toolCallId` on the descriptor).
+- **The grouped line names launches.** Subagent launches used to count as "used 12 tools"; the
+  overview now has an agent category and reads "Launched 12 subagents".
+- **Codex needed the daemon's help.** Through the Codex 1 account (`codex-a`, `gpt-5.6-sol`,
+  native `collaboration.spawn_agent`) the twelve children ran three at a time (Codex's
+  `max_threads`), the launch line read "Launched 9 subagents, 3 tools running", and the parent
+  never came back: Codex's collaboration tools only report children when the parent calls
+  `wait_agent`. The daemon now tells an idle Codex parent, once its last running child has
+  settled, which children finished and to collect them (`AgentManager.wakeIdleCodexParent`, a
+  `<paseo-system>` notification in a new idle turn). Native continuation takes priority;
+  subsequent parent output retires pending notifications. Only a real running-to-finished
+  transition can schedule a wake-up, and it never interrupts a user or native turn.
+- **Background commands count too.** The other way a chat looked stopped was a shell command
+  Claude had moved to the background: nothing showed while it ran. It now takes a row in the
+  Tasks list ("background command") and a count in the pill until it settles.
+
 ## Backups and worktrees
 
 | Resource                             | Location or status                                                                                                     |

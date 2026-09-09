@@ -171,7 +171,7 @@ The rows combine two kinds of children:
 parentAgentId === thisAgent.id  AND  !archivedAt
 ```
 
-- **Provider subagents** are child executions owned by Claude, Codex, Grok, or OpenCode. They are not inserted into `AgentManager` as managed agents. Providers emit a separate descriptor and timeline stream through `agent.provider_subagents.*`; the client keeps that state outside the normal agent store and merges only the presentation rows into the track.
+- **Provider subagents** are child executions owned by Claude, Codex, Grok, or OpenCode. They are not inserted into `AgentManager` as managed agents. Providers emit a separate descriptor and timeline stream through `agent.provider_subagents.*`; the client keeps that state outside the normal agent store and merges only the presentation rows into the track. A shell command Claude moved to the background is not a subagent, but the chat is waiting on it, so it takes a row (subtitle "background command") and a count in the pill until it settles; its outcome card in the transcript is the durable record (`providers/claude/subagents/live-source.ts`). Codex children never wake their parent on their own, so the daemon sends an idle Codex parent one `<paseo-system>` prompt naming the children that settled after it went idle (`AgentManager.wakeIdleCodexParent`).
 
 On desktop, clicking either kind opens its view on the right while the parent stays visible and
 selected in the sidebar. The Tasks list remains available in the panel rail. A managed child has

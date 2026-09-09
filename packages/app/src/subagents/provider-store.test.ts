@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, test } from "vitest";
 import type { SessionOutboundMessage } from "@getpaseo/protocol/messages";
-import { providerSubagentKey, useProviderSubagentStore } from "./provider-store";
+import {
+  findProviderSubagentForToolCall,
+  providerSubagentKey,
+  useProviderSubagentStore,
+} from "./provider-store";
 
 const SERVER_ID = "server-1";
 const PARENT_ID = "parent-1";
@@ -140,6 +144,33 @@ describe("provider subagent client store", () => {
         text: "Older history.New live output.",
       }),
     ]);
+  });
+
+  test("finds the child a parent's tool call launched, and only under that parent", () => {
+    const subagents = useProviderSubagentStore.getState();
+    const child = {
+      id: SUBAGENT_ID,
+      parentAgentId: PARENT_ID,
+      provider: "claude" as const,
+      title: "fanout_child_1",
+      description: null,
+      status: "running" as const,
+      createdAt: "2026-07-12T10:00:00.000Z",
+      updatedAt: "2026-07-12T10:00:00.000Z",
+      toolCallId: "call-1",
+    };
+    subagents.applyUpdate(SERVER_ID, { kind: "upsert", subagent: child });
+    const { descriptors } = useProviderSubagentStore.getState();
+    expect(findProviderSubagentForToolCall(descriptors, SERVER_ID, PARENT_ID, "call-1")?.id).toBe(
+      SUBAGENT_ID,
+    );
+    expect(
+      findProviderSubagentForToolCall(descriptors, SERVER_ID, PARENT_ID, SUBAGENT_ID)?.id,
+    ).toBe(SUBAGENT_ID);
+    expect(findProviderSubagentForToolCall(descriptors, SERVER_ID, "other-parent", "call-1")).toBe(
+      null,
+    );
+    expect(findProviderSubagentForToolCall(descriptors, SERVER_ID, PARENT_ID, "call-2")).toBe(null);
   });
 
   test("removes timelines for children no longer returned by the provider", () => {

@@ -741,6 +741,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
               itemId={item.id}
               onInlineDetailsExpandedChangeByItemId={setInlineDetailsExpanded}
               toolName={data.name}
+              toolCallId={data.callId}
               error={data.error}
               status={data.status}
               detail={data.detail}

@@ -1764,6 +1764,7 @@ export const es: TranslationResources = {
     backdrop: "Fondo del menú",
   },
   subagents: {
+    viewChild: "Ver",
     loadFailed: "No se pudo cargar esta tarea.",
     connectToLoad: "Conéctate a este equipo para cargar la tarea.",
     tasksTitle: "Tareas",
@@ -1885,6 +1886,10 @@ export const es: TranslationResources = {
     searches: {
       one: "buscó {{count}} vez",
       other: "buscó {{count}} veces",
+    },
+    subagents: {
+      one: "lanzó un subagente",
+      other: "lanzó {{count}} subagentes",
     },
     otherTools: {
       one: "usó {{count}} herramienta adicional",

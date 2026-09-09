@@ -11,6 +11,7 @@ export type OverviewCategory =
   | "command"
   | "read"
   | "search"
+  | "agent"
   | "other"
   | "paseo";
 
@@ -26,6 +27,8 @@ export interface OverviewSummary {
   commands: OverviewCategoryCount;
   reads: OverviewCategoryCount;
   searches: OverviewCategoryCount;
+  /** Subagent launches (Claude's Task/Agent, Codex's spawn_agent, OpenCode's task). */
+  agents: OverviewCategoryCount;
   others: OverviewCategoryCount;
   paseoCalls: OverviewCategoryCount;
   /** Unique files behind `edits`, `creates` and `reads`; names let one read say which file. */
@@ -35,6 +38,7 @@ export interface OverviewSummary {
   readFileNames: string[];
   commandCount: number;
   searchCount: number;
+  agentCount: number;
   otherToolCount: number;
   paseoCallCount: number;
   failedToolCount: number;
@@ -66,6 +70,7 @@ const NAME_CATEGORY_RULES: ReadonlyArray<[RegExp, OverviewCategory]> = [
   [/^(?:write|create|new_file)\b/, "create"],
   [/^(?:edit|update|patch|replace|apply_patch|str_replace)\b/, "edit"],
   [/^(?:bash|shell|run|exec|execute|command|terminal|zsh|sh)\b/, "command"],
+  [/^(?:task|agent|workflow|spawn_agent|collaboration\.spawn_agent|subagent|sub_agent)\b/, "agent"],
 ];
 
 /** Tools that only report a title (Grok's "Search tools", "List") still land in a category. */
@@ -90,6 +95,8 @@ function categoryOf(descriptor: ToolCallDescriptor, normalizedName: string): Ove
       return "read";
     case "search":
       return "search";
+    case "sub_agent":
+      return "agent";
     default:
       break;
   }
@@ -141,6 +148,7 @@ export function buildOverviewGroup(run: ToolCallRun): OverviewToolCallGroup {
     command: emptyCount(),
     read: emptyCount(),
     search: emptyCount(),
+    agent: emptyCount(),
     other: emptyCount(),
     paseo: emptyCount(),
   };
@@ -189,6 +197,7 @@ export function buildOverviewGroup(run: ToolCallRun): OverviewToolCallGroup {
     commands: counts.command,
     reads: counts.read,
     searches: counts.search,
+    agents: counts.agent,
     others: counts.other,
     paseoCalls: counts.paseo,
     editedFileCount: editedFiles.size,
@@ -197,6 +206,7 @@ export function buildOverviewGroup(run: ToolCallRun): OverviewToolCallGroup {
     readFileNames: [...readFiles.values()],
     commandCount: counts.command.total,
     searchCount: counts.search.total,
+    agentCount: counts.agent.total,
     otherToolCount: counts.other.total,
     paseoCallCount: counts.paseo.total,
     failedToolCount,
