@@ -351,22 +351,19 @@ function getWorkspaceLayout(
   );
 }
 
+/** Focus belongs to the chat: the side panel is a dock, not somewhere the workspace lives. */
 function keepWorkspaceFocusOutOfExplorerSidebar(
   layout: WorkspaceLayout,
-  explorerSidebarPaneId: string | null,
   preferredMainPaneId?: string | null,
 ): WorkspaceLayout {
-  if (!explorerSidebarPaneId || layout.focusedPaneId !== explorerSidebarPaneId) {
+  if (layout.focusedPaneId !== EXPLORER_SIDEBAR_PANE_ID) {
     return layout;
   }
-  const panes = collectAllPanes(layout.root);
-  const preferredPane = panes.find(
-    (pane) => pane.id === preferredMainPaneId && pane.id !== explorerSidebarPaneId,
-  );
+  const panes = collectAllPanes(layout.root).filter((pane) => pane.id !== EXPLORER_SIDEBAR_PANE_ID);
   const mainPane =
-    preferredPane ??
-    panes.find((pane) => pane.id === DEFAULT_PANE_ID && pane.id !== explorerSidebarPaneId) ??
-    panes.find((pane) => pane.id !== explorerSidebarPaneId);
+    panes.find((pane) => pane.id === preferredMainPaneId) ??
+    panes.find((pane) => pane.id === DEFAULT_PANE_ID) ??
+    panes[0];
   return { ...layout, focusedPaneId: mainPane?.id ?? null };
 }
 
@@ -522,7 +519,6 @@ export function createWorkspaceLayoutStore(
           }
           const focusedLayout = keepWorkspaceFocusOutOfExplorerSidebar(
             result.layout,
-            EXPLORER_SIDEBAR_PANE_ID,
             placement.layout.focusedPaneId,
           );
           // A terminal, tree or browser can only live in the side panel, so an explicit open
@@ -598,7 +594,6 @@ export function createWorkspaceLayoutStore(
                 ...state.layoutByWorkspace,
                 [normalizedWorkspaceKey]: keepWorkspaceFocusOutOfExplorerSidebar(
                   revealedLayout,
-                  EXPLORER_SIDEBAR_PANE_ID,
                   currentLayout.focusedPaneId,
                 ),
               },
@@ -661,7 +656,6 @@ export function createWorkspaceLayoutStore(
             const nextLayout = nextLayoutBeforeFocusNormalization
               ? keepWorkspaceFocusOutOfExplorerSidebar(
                   nextLayoutBeforeFocusNormalization,
-                  EXPLORER_SIDEBAR_PANE_ID,
                   layout.focusedPaneId,
                 )
               : null;
@@ -834,7 +828,6 @@ export function createWorkspaceLayoutStore(
 
           set((state) => {
             const rawLayout = getWorkspaceLayout(state.layoutByWorkspace, normalizedWorkspaceKey);
-            const explorerSidebarPaneId = EXPLORER_SIDEBAR_PANE_ID;
             const currentLayout = keepWorkspaceFocusOutOfExplorerSidebar(
               rawLayout,
               rawLayout.focusedPaneId,
