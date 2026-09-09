@@ -26,6 +26,7 @@ import {
   type DraftLifecycleState,
   type DraftRecord,
   type DraftStoreState,
+  type QueuedDraftMessage,
 } from "./state";
 import {
   migrateDraftInput,
@@ -34,9 +35,14 @@ import {
   PersistedDraftStoreSchema,
 } from "./migration";
 import { createDraftPersistStorage } from "./persistence";
+import {
+  hydrateQueuedMessagesIntoSessions,
+  startQueuedMessageMirror,
+  type QueuePersistence,
+} from "./queue-mirror";
 import { createValidatedPersistStorage } from "@/storage/validated-persist-storage";
 
-export type { DraftInput, DraftLifecycleState } from "./state";
+export type { DraftInput, DraftLifecycleState, QueuedDraftMessage } from "./state";
 
 interface DraftStoreActions {
   getDraftInput: (draftKey: string) => DraftInput | undefined;
@@ -54,6 +60,8 @@ interface DraftStoreActions {
   getCreateModalDraft: () => DraftInput | null;
   saveCreateModalDraft: (draft: DraftInput | null) => void;
   collectActiveAttachmentIds: () => string[];
+  readServerQueues: (serverId: string) => Record<string, QueuedDraftMessage[]>;
+  writeServerQueues: (serverId: string, queues: Record<string, QueuedDraftMessage[]>) => void;
 }
 
 interface DraftStoreRuntimeState {
@@ -253,6 +261,7 @@ export const useDraftStore = create<DraftStore>()(
     (set, get) => ({
       drafts: {},
       createModalDraft: null,
+      queues: {},
       attachmentFocusRequestByDraftKey: {},
 
       getDraftInput: (draftKey) => {
@@ -414,12 +423,28 @@ export const useDraftStore = create<DraftStore>()(
       collectActiveAttachmentIds: () => {
         return Array.from(collectReferencedAttachmentIdsFromState(get()).values());
       },
+
+      readServerQueues: (serverId) => get().queues[serverId] ?? {},
+
+      writeServerQueues: (serverId, queues) => {
+        set((state) => {
+          const nextQueues = { ...state.queues };
+          if (Object.keys(queues).length === 0) {
+            if (!(serverId in nextQueues)) return state;
+            delete nextQueues[serverId];
+          } else {
+            nextQueues[serverId] = queues;
+          }
+          return { ...state, queues: nextQueues };
+        });
+        scheduleAttachmentGc();
+      },
     }),
     {
       name: "paseo-drafts",
       version: DRAFT_STORE_VERSION,
       storage: draftPersistStorage,
-      partialize: ({ drafts, createModalDraft }) => ({ drafts, createModalDraft }),
+      partialize: ({ drafts, createModalDraft, queues }) => ({ drafts, createModalDraft, queues }),
       migrate: (state) =>
         migratePersistedState(state, {
           migrateLegacyImages,
@@ -428,9 +453,18 @@ export const useDraftStore = create<DraftStore>()(
       onRehydrateStorage: () => {
         return () => {
           void migrateAllLegacyDrafts();
+          hydrateQueuedMessagesIntoSessions(queuePersistence);
           scheduleAttachmentGc();
         };
       },
     },
   ),
 );
+
+const queuePersistence: QueuePersistence = {
+  readServerQueues: (serverId) => useDraftStore.getState().readServerQueues(serverId),
+  writeServerQueues: (serverId, queues) =>
+    useDraftStore.getState().writeServerQueues(serverId, queues),
+};
+
+startQueuedMessageMirror(queuePersistence);

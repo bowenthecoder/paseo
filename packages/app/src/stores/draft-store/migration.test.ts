@@ -318,3 +318,93 @@ describe("draft-store migration", () => {
     expect(backing.values.has("paseo-drafts")).toBe(true);
   });
 });
+
+describe("queue migration", () => {
+  it("gives a pre-queue payload an empty queue map", async () => {
+    const migrated = await migratePersistedState(
+      { drafts: {}, createModalDraft: null },
+      { migrateLegacyImages: passThroughMigrateLegacyImages, nowMs: 1700000000000 },
+    );
+
+    expect(migrated.queues).toEqual({});
+  });
+
+  it("keeps queued messages per server and agent, hold flag and all", async () => {
+    const migrated = await migratePersistedState(
+      {
+        drafts: {},
+        createModalDraft: null,
+        queues: {
+          server: {
+            agent: [
+              { id: "held", text: "wait for me", attachments: [], hold: true },
+              { id: "auto", text: "drain me", attachments: [] },
+            ],
+            other: [{ id: "elsewhere", text: "another agent", attachments: [] }],
+          },
+        },
+      },
+      { migrateLegacyImages: passThroughMigrateLegacyImages, nowMs: 1700000000000 },
+    );
+
+    expect(migrated.queues.server?.agent).toEqual([
+      { id: "held", text: "wait for me", attachments: [], hold: true },
+      { id: "auto", text: "drain me", attachments: [] },
+    ]);
+    expect(migrated.queues.server?.other).toHaveLength(1);
+  });
+
+  it("normalizes legacy attachment kinds and drops workspace-only ones", async () => {
+    const migrated = await migratePersistedState(
+      {
+        drafts: {},
+        createModalDraft: null,
+        queues: {
+          server: {
+            agent: [
+              {
+                id: "queued",
+                text: "look at this",
+                attachments: [githubPrAttachment(7), workspaceReviewAttachment()],
+              },
+            ],
+          },
+        },
+      },
+      { migrateLegacyImages: passThroughMigrateLegacyImages, nowMs: 1700000000000 },
+    );
+
+    const attachments = migrated.queues.server?.agent?.[0]?.attachments ?? [];
+    expect(attachments).toHaveLength(1);
+    expect(attachments[0]).toMatchObject({ kind: "github_pr", item: { kind: "change_request" } });
+  });
+
+  it("drops agents and servers whose queue is empty", async () => {
+    const migrated = await migratePersistedState(
+      { drafts: {}, createModalDraft: null, queues: { server: { agent: [] } } },
+      { migrateLegacyImages: passThroughMigrateLegacyImages, nowMs: 1700000000000 },
+    );
+
+    expect(migrated.queues).toEqual({});
+  });
+
+  it("survives a stored payload whose queue entry is malformed", async () => {
+    const backing = createMemoryStorage();
+    backing.values.set(
+      "paseo-drafts",
+      JSON.stringify({
+        state: { drafts: {}, createModalDraft: null, queues: { server: { agent: ["nope"] } } },
+        version: 5,
+      }),
+    );
+    const storage = createValidatedPersistStorage(backing, PersistedDraftStoreSchema);
+
+    const stored = await storage.getItem("paseo-drafts");
+    const migrated = await migratePersistedState(stored?.state, {
+      migrateLegacyImages: passThroughMigrateLegacyImages,
+      nowMs: 1700000000000,
+    });
+
+    expect(migrated.queues).toEqual({});
+  });
+});
