@@ -25,7 +25,9 @@ function includeParentWorkspaceTasks(input: {
   const childrenByParent = new Map<string, Agent[]>();
   const queue: string[] = [];
   for (const agent of input.agentsById.values()) {
-    if (agentBelongsToWorkspace(agent, input.workspaceId)) queue.push(agent.id);
+    if (agentBelongsToWorkspace(agent, input.workspaceId) || input.knownAgentIds.has(agent.id)) {
+      queue.push(agent.id);
+    }
     if (agent.parentAgentId) {
       const children = childrenByParent.get(agent.parentAgentId) ?? [];
       children.push(agent);
@@ -46,10 +48,27 @@ function includeParentWorkspaceTasks(input: {
   }
 }
 
+function includeSplitChats(input: {
+  ids: Iterable<string> | undefined;
+  agentsById: Map<string, Agent>;
+  sessionAgents: Map<string, Agent> | undefined;
+  knownAgentIds: Set<string>;
+  activeAgentIds: Set<string>;
+}): void {
+  for (const id of input.ids ?? []) {
+    const agent = input.agentsById.get(id);
+    if (!agent) continue;
+    input.knownAgentIds.add(id);
+    if (!agent.archivedAt && input.sessionAgents?.has(id)) input.activeAgentIds.add(id);
+  }
+}
+
 export function deriveWorkspaceAgentVisibility(input: {
   sessionAgents: Map<string, Agent> | undefined;
   agentDetails?: Map<string, Agent> | undefined;
   workspaceId: string | null | undefined;
+  /** Only chats explicitly opened in this workspace's split, including other folders. */
+  splitAgentIds?: Iterable<string>;
 }): WorkspaceAgentVisibility {
   const { sessionAgents, agentDetails } = input;
   const workspaceId = normalizeWorkspaceOpaqueId(input.workspaceId);
@@ -87,6 +106,13 @@ export function deriveWorkspaceAgentVisibility(input: {
     }
     knownAgentIds.add(agent.id);
   }
+  includeSplitChats({
+    ids: input.splitAgentIds,
+    agentsById,
+    sessionAgents,
+    knownAgentIds,
+    activeAgentIds,
+  });
   includeParentWorkspaceTasks({
     agentsById,
     sessionAgents,

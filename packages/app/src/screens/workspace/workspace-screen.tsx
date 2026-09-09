@@ -1414,6 +1414,18 @@ function WorkspaceScreenContent({
     ),
   });
 
+  const workspaceLayout = useWorkspaceLayoutStore((state) =>
+    persistenceKey ? (state.layoutByWorkspace[persistenceKey] ?? null) : null,
+  );
+  const splitAgentIds = useMemo(
+    () =>
+      workspaceLayout
+        ? collectAllTabs(workspaceLayout.root).flatMap((tab) =>
+            tab.target.kind === "agent" && tab.target.view === "split" ? [tab.target.agentId] : [],
+          )
+        : [],
+    [workspaceLayout],
+  );
   const workspaceAgentVisibility = useStoreWithEqualityFn(
     useSessionStore,
     (state) =>
@@ -1421,6 +1433,7 @@ function WorkspaceScreenContent({
         sessionAgents: state.sessions[normalizedServerId]?.agents,
         agentDetails: state.sessions[normalizedServerId]?.agentDetails,
         workspaceId: normalizedWorkspaceId,
+        splitAgentIds,
       }),
     workspaceAgentVisibilityEqual,
   );
@@ -1545,9 +1558,6 @@ function WorkspaceScreenContent({
     return () => handler.remove();
   }, [isExplorerSidebarShowing, isMobile, isRouteFocused, showMobileAgent]);
 
-  const workspaceLayout = useWorkspaceLayoutStore((state) =>
-    persistenceKey ? (state.layoutByWorkspace[persistenceKey] ?? null) : null,
-  );
   const explorerSidebarPaneId = useWorkspaceLayoutStore((state) =>
     persistenceKey ? selectExplorerSidebarPaneId(state, persistenceKey) : null,
   );
@@ -2190,6 +2200,16 @@ function WorkspaceScreenContent({
   const handleCloseAgentTab = useCallback(
     async (input: { tabId: string; agentId: string }) => {
       const { tabId, agentId } = input;
+      const target = persistenceKey
+        ? useWorkspaceLayoutStore
+            .getState()
+            .getWorkspaceTabs(persistenceKey)
+            .find((tab) => tab.tabId === tabId)?.target
+        : null;
+      if (target?.kind === "agent" && target.view === "split") {
+        await closeTab(tabId, async () => closeWorkspaceTabWithCleanup({ tabId, target }));
+        return;
+      }
       await closeTab(tabId, async () => {
         if (!normalizedServerId) {
           return;

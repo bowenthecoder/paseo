@@ -2,17 +2,25 @@
 
 A workspace shows one primary chat. Documents, Files, Changes, terminals, the in-app browser,
 Setup, pull requests, Tasks and child conversations open in the right-hand panel. Opening a child
-keeps its parent visible, selected in the sidebar, and ready to resume. There is no chat tab strip
-or arbitrary split tree.
+keeps its parent visible, selected in the sidebar, and ready to resume. To compare independent
+chats, right-click a chat and choose **Open in → Open in split view**, or press **O**, then **S**
+while the menu is open. The current chat stays on the left. There is no chat tab strip or arbitrary
+split tree.
 
 ## Routing and saved layouts
 
 `packages/app/src/panels/panel-manifest.ts` declares which hosts a built-in panel supports.
 `packages/app/src/workspace-tabs/target-host.ts` resolves each target in its workspace context:
-root conversations and drafts use `main`; Tasks, provider-native children and managed children
-opened from their parent use `explorer`. A child opened in its own workspace can be that
+root conversations and drafts default to `main`; explicit chat splits, Tasks, provider-native
+children and managed children opened from their parent use `explorer`. A child opened in its own workspace can be that
 workspace's primary conversation. Opening its files uses the child's device and working folder,
 not the parent's. Layout placement does not change agent ownership or parentage.
+
+Independent split chats keep their own folder, input draft and queued messages across reloads.
+Closing a split view leaves its chat active; **Archive (A)** archives that chat and closes its
+open views. **Current view** opens the selected chat normally. Chat splits are side by side on
+wide layouts and require both chats to be on the same device. Splitting below and mixing devices
+within one workspace are not supported; narrow layouts explain that a wider window is needed.
 
 Plugin panels honor their declared locations. A contribution that supports the side panel opens
 there; a main-only contribution remains supported. Preserve an unavailable plugin's saved

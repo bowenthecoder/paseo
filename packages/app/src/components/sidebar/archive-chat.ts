@@ -9,14 +9,22 @@ interface ArchiveSidebarChatInput extends ArchiveAgentInput {
 export async function archiveSidebarChat(input: ArchiveSidebarChatInput): Promise<void> {
   const workspaceKey = `${input.serverId}:${input.workspaceId}`;
   const store = useWorkspaceLayoutStore.getState();
-  const tabs = store.getWorkspaceTabs(workspaceKey);
 
   // Close before the RPC: a later History reopen or chat selection belongs to the user.
-  store.unpinAgent(workspaceKey, input.agentId);
-  store.hideAgent(workspaceKey, input.agentId);
-  for (const tab of tabs) {
-    if (tab.target.kind === "agent" && tab.target.agentId === input.agentId) {
-      store.closeTab(workspaceKey, tab.tabId);
+  // A chat may also be displayed beside another folder's chat on the same device.
+  const keys = new Set([
+    workspaceKey,
+    ...Object.keys(store.layoutByWorkspace).filter((key) => key.startsWith(`${input.serverId}:`)),
+  ]);
+  for (const key of keys) {
+    const tabs = store
+      .getWorkspaceTabs(key)
+      .filter((tab) => tab.target.kind === "agent" && tab.target.agentId === input.agentId);
+    if (key !== workspaceKey && tabs.length === 0) continue;
+    store.unpinAgent(key, input.agentId);
+    store.hideAgent(key, input.agentId);
+    for (const tab of tabs) {
+      store.closeTab(key, tab.tabId);
     }
   }
   await input.archiveAgent({ serverId: input.serverId, agentId: input.agentId });

@@ -940,6 +940,7 @@ type WorkspaceTargetHostResolver = (
 
 const resolveDefaultTargetHost: WorkspaceTargetHostResolver = (target, previousHost) => {
   if (target.kind === "new_tab") return previousHost ?? "main";
+  if (target.kind === "agent" && target.view === "split") return "explorer";
   return panelSupportsHost(target.kind, "main") ? "main" : "explorer";
 };
 

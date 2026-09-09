@@ -145,7 +145,11 @@ const WorkspaceTabTargetStorageSchema = z.discriminatedUnion("kind", [
     draftId: z.string(),
     setup: WorkspaceDraftTabSetupStorageSchema.optional(),
   }),
-  z.strictObject({ kind: z.literal("agent"), agentId: z.string() }),
+  z.strictObject({
+    kind: z.literal("agent"),
+    agentId: z.string(),
+    view: z.literal("split").optional(),
+  }),
   z.strictObject({ kind: z.literal("subagents"), parentAgentId: z.string() }),
   z.strictObject({
     kind: z.literal("provider_subagent"),
@@ -415,7 +419,7 @@ function getOpenTabPlacement(
       (tab) => tab.target.kind === "agent" && tab.target.agentId === target.agentId,
     );
     requestedHost = undefined;
-    if (savedTab) {
+    if (savedTab?.target.kind === "agent" && savedTab.target.view === target.view) {
       requestedHost =
         findPaneContainingTab(layout.root, savedTab.tabId)?.id === EXPLORER_SIDEBAR_PANE_ID
           ? "explorer"

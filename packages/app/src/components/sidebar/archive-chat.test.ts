@@ -98,6 +98,50 @@ describe("sidebar chat archive", () => {
     ).toBeUndefined();
   });
 
+  it("closes the archived chat's splits across this device while preserving other hosts and later reopens", async () => {
+    const store = useWorkspaceLayoutStore.getState();
+    const otherFolder = `${SERVER_ID}:other-folder`;
+    const otherHost = "another-host:other-folder";
+    openChat("archived-chat");
+    for (const key of [otherFolder, otherHost]) {
+      store.openTab({
+        workspaceKey: key,
+        target: { kind: "agent", agentId: "primary-chat" },
+        intent: "reveal",
+      });
+      store.openTab({
+        workspaceKey: key,
+        target: { kind: "agent", agentId: "archived-chat", view: "split" },
+        intent: "reveal",
+        pin: true,
+      });
+    }
+    const archive = pendingArchive();
+    const hasArchivedChat = (key: string) =>
+      useWorkspaceLayoutStore
+        .getState()
+        .getWorkspaceTabs(key)
+        .some((tab) => tab.target.kind === "agent" && tab.target.agentId === "archived-chat");
+    expect(hasArchivedChat(WORKSPACE_KEY)).toBe(false);
+    expect(hasArchivedChat(otherFolder)).toBe(false);
+    expect(hasArchivedChat(otherHost)).toBe(true);
+    const reopened = store.openTab({
+      workspaceKey: otherFolder,
+      target: { kind: "agent", agentId: "archived-chat", view: "split" },
+      intent: "reveal",
+      pin: true,
+    });
+    archive.complete();
+    await archive.operation;
+    expect(hasArchivedChat(otherFolder)).toBe(true);
+    expect(
+      findPaneById(
+        useWorkspaceLayoutStore.getState().layoutByWorkspace[otherFolder].root,
+        "explorer",
+      )?.focusedTabId,
+    ).toBe(reopened);
+  });
+
   it("leaves a newer chat selection alone after the archive completes", async () => {
     openChat("archived-chat");
     const archive = pendingArchive();

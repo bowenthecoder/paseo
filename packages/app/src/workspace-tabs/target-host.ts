@@ -11,6 +11,7 @@ function resolveAgentTargetHost(
   target: Extract<WorkspaceTabTarget, { kind: "agent" }>,
   previousHost?: PaneHost,
 ): PaneHost {
+  if (target.view === "split") return "explorer";
   const sessions = useSessionStore.getState().sessions;
   const serverId = Object.keys(sessions)
     .sort((left, right) => right.length - left.length)
@@ -55,7 +56,7 @@ function resolvePluginTargetHost(
     : "main";
 }
 
-/** Root conversations stay in main; child tasks and supporting tools use the dock. */
+/** Chats default to main; explicit split views, child tasks and tools use the dock. */
 export function resolveWorkspaceTargetHost(
   workspaceKey: string,
   target: WorkspaceTabTarget,

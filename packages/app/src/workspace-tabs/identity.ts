@@ -20,7 +20,9 @@ export function normalizeWorkspaceTabTarget(
   }
   if (value.kind === "agent") {
     const agentId = trimNonEmpty(value.agentId);
-    return agentId ? { kind: "agent", agentId } : null;
+    return agentId
+      ? { kind: "agent", agentId, ...(value.view === "split" ? { view: "split" as const } : {}) }
+      : null;
   }
   if (value.kind === "subagents") {
     const parentAgentId = trimNonEmpty(value.parentAgentId);
@@ -111,7 +113,7 @@ export function workspaceTabTargetsEqual(
     return left.draftId === right.draftId && workspaceDraftTabSetupsEqual(left.setup, right.setup);
   }
   if (left.kind === "agent" && right.kind === "agent") {
-    return left.agentId === right.agentId;
+    return left.agentId === right.agentId && left.view === right.view;
   }
   if (left.kind === "provider_subagent" && right.kind === "provider_subagent") {
     return left.parentAgentId === right.parentAgentId && left.subagentId === right.subagentId;
