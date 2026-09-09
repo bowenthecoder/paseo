@@ -33,7 +33,7 @@ test("O then S opens an independent chat beside the current chat with its own fo
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
-  await page.setViewportSize({ width: 1440, height: 960 });
+  await page.setViewportSize({ width: 1280, height: 820 });
   const left = await seedMockAgentWorkspace({
     repoPrefix: "split-left-folder-",
     title: "Keep primary conversation",
@@ -88,6 +88,17 @@ test("O then S opens an independent chat beside the current chat with its own fo
     await expect(rightInput).toHaveValue("Keep the independent draft");
     await expect(page).toHaveURL(primaryUrl);
     await expect(chatRow(page, left.agentId)).toHaveAttribute("aria-selected", "true");
+
+    const [leftBounds, rightBounds] = await Promise.all([
+      leftPanel.boundingBox(),
+      rightPanel.boundingBox(),
+    ]);
+    expect(leftBounds).not.toBeNull();
+    expect(rightBounds).not.toBeNull();
+    expect(leftBounds!.width).toBeGreaterThanOrEqual(400);
+    expect(rightBounds!.width).toBeGreaterThanOrEqual(240);
+    expect(rightBounds!.x).toBeGreaterThanOrEqual(leftBounds!.x + leftBounds!.width - 1);
+    expect(rightBounds!.x + rightBounds!.width).toBeLessThanOrEqual(1280);
 
     const screenshotPath = testInfo.outputPath("two-independent-chats.png");
     await page.screenshot({ path: screenshotPath });

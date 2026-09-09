@@ -84,6 +84,66 @@ describe("menu letters while opening", () => {
     expect(rootAction).not.toHaveBeenCalled();
   });
 
+  it.each(["s", "a"])(
+    "runs submenu letter %s before focus leaves its parent trigger",
+    (shortcut) => {
+      const rootAction = vi.fn();
+      const childAction = vi.fn();
+      function Submenu() {
+        const [open, setOpen] = React.useState(false);
+        const openChild = React.useCallback(() => setOpen(true), []);
+        return (
+          <MenuOverlay visible onClose={vi.fn()}>
+            <>
+              <div data-menu-surface="true">
+                <button
+                  type="button"
+                  data-menu-item="true"
+                  data-menu-shortcut="o"
+                  onClick={openChild}
+                >
+                  Open in
+                </button>
+                <button
+                  type="button"
+                  data-menu-item="true"
+                  data-menu-shortcut="a"
+                  onClick={rootAction}
+                >
+                  Archive chat
+                </button>
+              </div>
+              {open ? (
+                <div data-menu-surface="true">
+                  <button
+                    type="button"
+                    data-menu-item="true"
+                    data-menu-shortcut={shortcut}
+                    onClick={childAction}
+                  >
+                    Submenu action
+                  </button>
+                </div>
+              ) : null}
+            </>
+          </MenuOverlay>
+        );
+      }
+      const { getByRole } = render(<Submenu />);
+      const trigger = getByRole("button", { name: "Open in" });
+      trigger.focus();
+
+      fireEvent.keyDown(trigger, { key: "o" });
+
+      expect(getByRole("button", { name: "Submenu action" })).toBeDefined();
+      expect(document.activeElement).toBe(trigger);
+      fireEvent.keyDown(trigger, { key: shortcut });
+
+      expect(childAction).toHaveBeenCalledOnce();
+      expect(rootAction).not.toHaveBeenCalled();
+    },
+  );
+
   it("preserves text input inside a menu page", () => {
     const action = vi.fn();
     const { getByRole } = render(

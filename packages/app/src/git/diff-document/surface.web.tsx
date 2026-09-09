@@ -7,9 +7,10 @@ import type { ReviewableDiffTarget } from "@/utils/diff-layout";
 import { DocumentFileHeader } from "./document-file-header";
 import {
   diffHeaderViewportKey,
-  diffInteractionWindowTop,
   diffMaterializationWindow,
+  retainDiffInteractionWindow,
   resolveVisibleFileSections,
+  type DiffInteractionWindow,
 } from "./header-layout";
 import { hitTestDiffDocument, selectedSourceText } from "./hit-testing";
 import { retainHorizontalOffsetMapForPaths } from "./horizontal-offsets";
@@ -71,10 +72,10 @@ export function DiffSurface(props: DiffSurfaceProps) {
   const forcePaintRef = useRef(true);
   const canvasWindowRef = useRef({ top: 0, height: 0 });
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
-  const [fileWindowTop, setFileWindowTop] = useState(0);
-  const [interactionFiles, setInteractionFiles] = useState<
-    ReturnType<typeof buildDiffDocumentModel>["files"]
-  >([]);
+  const [interactionWindow, setInteractionWindow] = useState<DiffInteractionWindow>({
+    top: 0,
+    paths: [],
+  });
   const [hoveredAffordance, setHoveredAffordance] = useState<{
     hit: Extract<DiffHit, { kind: "cell" }>;
     left: number;
@@ -147,11 +148,11 @@ export function DiffSurface(props: DiffSurfaceProps) {
         binary: t("workspace.git.diff.binaryFile"),
         tooLarge: t("workspace.git.diff.tooLarge"),
       },
-      materializationWindow: diffMaterializationWindow(fileWindowTop, viewport.height),
+      materializationWindow: diffMaterializationWindow(interactionWindow.top, viewport.height),
     });
     return next;
   }, [
-    fileWindowTop,
+    interactionWindow.top,
     measurement,
     props.collapsedFilePaths,
     props.displayPreferences.layout,
@@ -167,6 +168,16 @@ export function DiffSurface(props: DiffSurfaceProps) {
     workspaceCache,
   ]);
   modelRef.current = model;
+  const interactionFiles = useMemo(
+    () =>
+      resolveVisibleFileSections({
+        files: model.files,
+        scrollTop: interactionWindow.top,
+        viewportHeight: viewport.height,
+        overscan: viewport.height * 2,
+      }).files,
+    [interactionWindow.top, model.files, viewport.height],
+  );
 
   const paint = useCallback(() => {
     frameRef.current = null;
@@ -392,18 +403,12 @@ export function DiffSurface(props: DiffSurfaceProps) {
   }, [props.files]);
   const updateInteractionFiles = useCallback(
     (scrollTop: number) => {
-      const windowTop = diffInteractionWindowTop(scrollTop, viewport.height);
-      setFileWindowTop((current) => (current === windowTop ? current : windowTop));
-      const next = resolveVisibleFileSections({
-        files: model.files,
-        scrollTop: windowTop,
-        viewportHeight: viewport.height,
-        overscan: viewport.height * 2,
-      }).files;
-      setInteractionFiles((current) =>
-        current.length === next.length && current[0] === next[0] && current.at(-1) === next.at(-1)
-          ? current
-          : next,
+      setInteractionWindow((current) =>
+        retainDiffInteractionWindow(current, {
+          files: model.files,
+          scrollTop,
+          viewportHeight: viewport.height,
+        }),
       );
     },
     [model.files, viewport.height],

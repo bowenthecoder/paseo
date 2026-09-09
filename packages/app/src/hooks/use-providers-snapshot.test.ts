@@ -201,6 +201,26 @@ describe("refreshAndApplyProvidersSnapshot", () => {
     queryClient = new QueryClient();
   });
 
+  it("still reports provider read failures", async () => {
+    const failure = new Error("Provider connection lost");
+    const client: ProvidersSnapshotClient = {
+      getProvidersSnapshot: async () => {
+        throw failure;
+      },
+      refreshProvidersSnapshot: async () => ({ acknowledged: true, requestId: "refresh-1" }),
+    };
+
+    await expect(
+      refreshAndApplyProvidersSnapshot({
+        client,
+        queryClient,
+        serverId,
+        cwd: null,
+        cache: createCache(),
+      }),
+    ).rejects.toBe(failure);
+  });
+
   it("refreshes then re-fetches the home snapshot and writes it into the home query cache", async () => {
     const client = createClient({
       snapshots: [providersSnapshot([codexEntry("ready", [readyCodexModel])])],
@@ -323,8 +343,154 @@ describe("applyProvidersSnapshotUpdate", () => {
     };
   }
 
-  it("routes updates to the home query cache when the message carries no cwd", () => {
-    applyProvidersSnapshotUpdate({
+  it("keeps a removal push when the earlier query has resolved but has not applied its result", async () => {
+    const queryKey = providersSnapshotQueryKey(serverId);
+    const pendingRead = queryClient.prefetchQuery({
+      queryKey,
+      queryFn: () =>
+        providersSnapshot([
+          { provider: "junie", source: "custom", status: "loading", enabled: true },
+        ]),
+    });
+    await Promise.resolve();
+
+    await applyProvidersSnapshotUpdate({ serverId, queryClient, message: updateMessage([]) });
+    await pendingRead;
+
+    expect(queryClient.getQueryData(queryKey)).toMatchObject({ entries: [] });
+  });
+
+  it("keeps the last provider push when updates overlap cancellation of an older query", async () => {
+    const queryKey = providersSnapshotQueryKey(serverId);
+    const pendingRead = queryClient.prefetchQuery({
+      queryKey,
+      queryFn: () => providersSnapshot([codexEntry("loading")]),
+    });
+    await Promise.resolve();
+    const cache = createCache();
+    const installed = updateMessage([codexEntry("ready", [readyCodexModel])]);
+    installed.payload.snapshotHash = "installed";
+    installed.payload.compactSnapshot = compactProviderSnapshot(installed.payload.entries);
+    const removed = updateMessage([]);
+    removed.payload.snapshotHash = "removed";
+    removed.payload.compactSnapshot = compactProviderSnapshot([]);
+
+    await Promise.all([
+      applyProvidersSnapshotUpdate({ serverId, queryClient, message: installed, cache }),
+      applyProvidersSnapshotUpdate({ serverId, queryClient, message: removed, cache }),
+      pendingRead,
+    ]);
+
+    expect(queryClient.getQueryData(queryKey)).toMatchObject({ entries: [] });
+    expect(cache.writes.map((write) => write.hash)).toEqual(["installed", "removed"]);
+  });
+
+  it.each(["query", "refresh"] as const)(
+    "keeps a provider removed when an older %s finishes persisting after the removal push",
+    async (readKind) => {
+      const entries: ProviderSnapshotEntry[] = [
+        { provider: "junie", source: "custom", status: "loading", enabled: true },
+      ];
+      let resumeWrite!: () => void;
+      let markWriteStarted!: () => void;
+      const writeStarted = new Promise<void>((resolve) => {
+        markWriteStarted = resolve;
+      });
+      const writeBlocked = new Promise<void>((resolve) => {
+        resumeWrite = resolve;
+      });
+      const cache: ProviderSnapshotCache = {
+        read: async () => null,
+        write: async () => {
+          markWriteStarted();
+          await writeBlocked;
+        },
+      };
+      const client = createClient({
+        snapshots: [
+          {
+            ...providersSnapshot(entries),
+            snapshotHash: "before-removal",
+            compactSnapshot: compactProviderSnapshot(entries),
+          },
+        ],
+      });
+      const queryKey = providersSnapshotQueryKey(serverId);
+      const pendingRead =
+        readKind === "query"
+          ? queryClient.prefetchQuery({
+              queryKey,
+              queryFn: () => fetchProvidersSnapshot({ client, serverId, cwd: null, cache }),
+            })
+          : refreshAndApplyProvidersSnapshot({ client, queryClient, serverId, cwd: null, cache });
+
+      await writeStarted;
+      await applyProvidersSnapshotUpdate({
+        serverId,
+        queryClient,
+        message: updateMessage([]),
+        cache,
+      });
+      resumeWrite();
+      await pendingRead;
+
+      expect(queryClient.getQueryData(queryKey)).toMatchObject({
+        entries: [],
+        requestId: "providers_snapshot_update",
+      });
+      expect(queryClient.getQueryState(queryKey)?.error).toBeNull();
+    },
+  );
+
+  it("does not persist an older response arriving after a provider removal push", async () => {
+    const entries: ProviderSnapshotEntry[] = [
+      { provider: "junie", source: "custom", status: "loading", enabled: true },
+    ];
+    let resolveSnapshot!: (snapshot: GetProvidersSnapshotResult) => void;
+    let markRequestStarted!: () => void;
+    const requestStarted = new Promise<void>((resolve) => {
+      markRequestStarted = resolve;
+    });
+    const pendingSnapshot = new Promise<GetProvidersSnapshotResult>((resolve) => {
+      resolveSnapshot = resolve;
+    });
+    const client: ProvidersSnapshotClient = {
+      async getProvidersSnapshot() {
+        markRequestStarted();
+        return pendingSnapshot;
+      },
+      refreshProvidersSnapshot: async () => ({ acknowledged: true, requestId: "refresh-1" }),
+    };
+    const cache = createCache();
+    const queryKey = providersSnapshotQueryKey(serverId);
+    let pendingFetch!: Promise<GetProvidersSnapshotResult>;
+    const pendingRead = queryClient.prefetchQuery({
+      queryKey,
+      queryFn: ({ signal }) => {
+        pendingFetch = fetchProvidersSnapshot({ client, serverId, cwd: null, cache, signal });
+        return pendingFetch;
+      },
+    });
+    await requestStarted;
+
+    const message = updateMessage([]);
+    message.payload.compactSnapshot = compactProviderSnapshot([]);
+    message.payload.snapshotHash = "after-removal";
+    await applyProvidersSnapshotUpdate({ serverId, queryClient, message, cache });
+    resolveSnapshot({
+      ...providersSnapshot(entries),
+      snapshotHash: "before-removal",
+      compactSnapshot: compactProviderSnapshot(entries),
+    });
+    await pendingFetch.catch(() => undefined);
+    await pendingRead;
+
+    expect(cache.writes.map((write) => write.hash)).toEqual(["after-removal"]);
+    expect(queryClient.getQueryData(queryKey)).toMatchObject({ entries: [] });
+  });
+
+  it("routes updates to the home query cache when the message carries no cwd", async () => {
+    await applyProvidersSnapshotUpdate({
       serverId,
       queryClient,
       message: updateMessage([codexEntry("ready", [readyCodexModel])]),
@@ -337,10 +503,10 @@ describe("applyProvidersSnapshotUpdate", () => {
     });
   });
 
-  it("routes workspace updates to the matching scope without touching siblings", () => {
+  it("routes workspace updates to the matching scope without touching siblings", async () => {
     queryClient.setQueryData(providersSnapshotQueryKey(serverId, "/repo-b"), providersSnapshot([]));
 
-    applyProvidersSnapshotUpdate({
+    await applyProvidersSnapshotUpdate({
       serverId,
       queryClient,
       message: updateMessage([codexEntry("ready", [readyCodexModel])], "/repo-a"),
@@ -356,7 +522,7 @@ describe("applyProvidersSnapshotUpdate", () => {
     );
   });
 
-  it("persists compact push updates", () => {
+  it("persists compact push updates", async () => {
     const entries = [codexEntry("ready", [readyCodexModel])];
     const compactSnapshot = compactProviderSnapshot(entries);
     const cache = createCache();
@@ -364,7 +530,7 @@ describe("applyProvidersSnapshotUpdate", () => {
     message.payload.compactSnapshot = compactSnapshot;
     message.payload.snapshotHash = "push-hash";
 
-    applyProvidersSnapshotUpdate({ serverId, queryClient, message, cache });
+    await applyProvidersSnapshotUpdate({ serverId, queryClient, message, cache });
 
     expect(cache.writes).toEqual([
       {
@@ -377,7 +543,7 @@ describe("applyProvidersSnapshotUpdate", () => {
     ]);
   });
 
-  it("applies Windows daemon updates to app-normalized workspace paths", () => {
+  it("applies Windows daemon updates to app-normalized workspace paths", async () => {
     const workspaceCwd = "C:/Users/Ezekiel Bulver/project";
     const daemonCwd = "C:\\Users\\Ezekiel Bulver\\project";
     queryClient.setQueryData(
@@ -385,7 +551,7 @@ describe("applyProvidersSnapshotUpdate", () => {
       providersSnapshot([codexEntry("loading")]),
     );
 
-    applyProvidersSnapshotUpdate({
+    await applyProvidersSnapshotUpdate({
       serverId,
       queryClient,
       message: updateMessage([codexEntry("ready", [readyCodexModel])], daemonCwd),
@@ -398,14 +564,14 @@ describe("applyProvidersSnapshotUpdate", () => {
     });
   });
 
-  it("invalidates cached agent commands when a provider snapshot update arrives", () => {
+  it("invalidates cached agent commands when a provider snapshot update arrives", async () => {
     const commandsKey = draftAgentCommandsQueryKey({
       serverId,
       draftConfig: { provider: "codex", cwd: "/repo-a" },
     });
     queryClient.setQueryData(commandsKey, [{ name: "compact", description: "", argumentHint: "" }]);
 
-    applyProvidersSnapshotUpdate({
+    await applyProvidersSnapshotUpdate({
       serverId,
       queryClient,
       message: updateMessage([codexEntry("ready", [readyCodexModel])], "/repo-a"),

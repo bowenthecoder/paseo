@@ -409,12 +409,9 @@ export function AnchoredSurface({
   );
 }
 
-function resolveKeyboardSurface(scope: HTMLElement | null, target: Element | null) {
-  const focusedSurface = target?.closest<HTMLElement>('[data-menu-surface="true"]');
-  if (focusedSurface && scope?.contains(focusedSurface)) return focusedSurface;
-  // Right-click letters can arrive before the opening animation moves focus
-  // from the chat row. The top overlay already owns these keys, so use its
-  // innermost page until focus catches up.
+function resolveKeyboardSurface(scope: HTMLElement | null) {
+  // Flyouts render in open-page order. The innermost page owns keyboard actions
+  // as soon as it opens, including before its focus frame leaves the parent row.
   return Array.from(scope?.querySelectorAll<HTMLElement>('[data-menu-surface="true"]') ?? []).at(
     -1,
   );
@@ -449,7 +446,7 @@ export function MenuOverlay({
       }
 
       const target = event.target instanceof Element ? event.target : null;
-      const surface = resolveKeyboardSurface(webOverlayRef.current, target);
+      const surface = resolveKeyboardSurface(webOverlayRef.current);
       if (!surface) return false;
       const items = Array.from(
         surface.querySelectorAll<HTMLElement>(

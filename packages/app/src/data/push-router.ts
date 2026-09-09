@@ -185,16 +185,19 @@ export function invalidateServerDataQueriesAfterReconnect(input: {
   }
 }
 
-export function applyProvidersSnapshotUpdate(input: {
+export async function applyProvidersSnapshotUpdate(input: {
   serverId: string;
   queryClient: QueryClient;
   message: ProvidersSnapshotUpdate;
   cache?: ProviderSnapshotCache;
-}): void {
+}): Promise<void> {
   if (input.message.type !== "providers_snapshot_update") {
     return;
   }
   const queryKey = providersSnapshotQueryKey(input.serverId, input.message.payload.cwd);
+  // Let pending reads finish cancellation, including any already-resolved continuation,
+  // before writing the newer push. Otherwise an older provider list can return afterward.
+  await input.queryClient.cancelQueries({ queryKey, exact: true });
   input.queryClient.setQueryData(queryKey, {
     entries: input.message.payload.entries,
     generatedAt: input.message.payload.generatedAt,
@@ -283,7 +286,7 @@ export function mountServerDataPushRouter(input: PushRouterInput): () => void {
     reconcileSubscriptions();
   });
   const unsubscribeProviders = input.client.on("providers_snapshot_update", (message) => {
-    applyProvidersSnapshotUpdate({
+    void applyProvidersSnapshotUpdate({
       queryClient: input.queryClient,
       serverId: input.serverId,
       message,

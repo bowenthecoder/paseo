@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   diffHeaderViewportKey,
   diffInteractionWindowTop,
+  retainDiffInteractionWindow,
   resolveVisibleFileSections,
 } from "./header-layout";
 import type { DiffFileSection } from "./types";
@@ -64,6 +65,76 @@ describe("diff interaction window", () => {
     expect(diffInteractionWindowTop(0, 500)).toBe(0);
     expect(diffInteractionWindowTop(999, 500)).toBe(0);
     expect(diffInteractionWindowTop(1_000, 500)).toBe(1_000);
+  });
+
+  it("retains the materialization window across scroll buckets inside one large file", () => {
+    const files = [section(0, 0, 40_000, false), section(1, 40_000, 60_000, false)];
+    const current = { top: 0, paths: [files[0]!.path] };
+
+    expect(
+      retainDiffInteractionWindow(current, { files, scrollTop: 20_000, viewportHeight: 600 }),
+    ).toBe(current);
+  });
+
+  it("advances materialization and shells together when another file enters overscan", () => {
+    const files = [section(0, 0, 4_000, false), section(1, 4_000, 40_000, false)];
+    const current = { top: 0, paths: [files[0]!.path] };
+
+    const next = retainDiffInteractionWindow(current, {
+      files,
+      scrollTop: 2_400,
+      viewportHeight: 600,
+    });
+
+    expect(next).toEqual({ top: 2_400, paths: files.map((file) => file.path) });
+  });
+
+  it("retains the window when materialization refreshes section objects", () => {
+    const files = [collapsedFile(0), collapsedFile(1), collapsedFile(2)];
+    const current = { top: 0, paths: files.map((file) => file.path) };
+    const updatedFiles = [files[0]!, { ...files[1]!, contentWidth: 800 }, files[2]!];
+
+    const next = retainDiffInteractionWindow(current, {
+      files: updatedFiles,
+      scrollTop: 0,
+      viewportHeight: 600,
+    });
+
+    expect(next).toBe(current);
+  });
+
+  it("refreshes a replaced middle file even when the first and last paths are unchanged", () => {
+    const files = [collapsedFile(0), collapsedFile(1), collapsedFile(2)];
+    const current = { top: 0, paths: files.map((file) => file.path) };
+    const updatedFiles = [files[0]!, { ...files[1]!, path: "replacement.ts" }, files[2]!];
+
+    const next = retainDiffInteractionWindow(current, {
+      files: updatedFiles,
+      scrollTop: 0,
+      viewportHeight: 600,
+    });
+
+    expect(next).not.toBe(current);
+    expect(next.paths).toEqual(["file-0.ts", "replacement.ts", "file-2.ts"]);
+  });
+
+  it("keeps many-file shells bounded when moving to a distant part of the document", () => {
+    const files = Array.from({ length: 2_000 }, (_, index) => collapsedFile(index));
+    const initial = retainDiffInteractionWindow(
+      { top: 0, paths: [] },
+      { files, scrollTop: 0, viewportHeight: 600 },
+    );
+
+    const next = retainDiffInteractionWindow(initial, {
+      files,
+      scrollTop: 30_000,
+      viewportHeight: 600,
+    });
+
+    expect(next.top).toBe(30_000);
+    expect(next.paths).toHaveLength(100);
+    expect(next.paths[0]).toBe("file-960.ts");
+    expect(next.paths.at(-1)).toBe("file-1059.ts");
   });
 });
 

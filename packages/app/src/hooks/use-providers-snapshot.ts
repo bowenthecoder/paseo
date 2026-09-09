@@ -1,5 +1,11 @@
 import { useCallback, useMemo } from "react";
-import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import {
+  CancelledError,
+  isCancelledError,
+  useMutation,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import type { AgentProvider, ProviderSnapshotEntry } from "@getpaseo/protocol/agent-types";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
@@ -32,17 +38,27 @@ export type ProvidersSnapshotClient = Pick<
   "getProvidersSnapshot" | "refreshProvidersSnapshot"
 >;
 
+function throwIfSnapshotFetchCancelled(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw new CancelledError({ revert: true });
+  }
+}
+
 export async function fetchProvidersSnapshot(input: {
   client: ProvidersSnapshotClient;
   serverId: string;
   cwd: string | null;
   cache?: ProviderSnapshotCache;
+  signal?: AbortSignal;
 }): Promise<GetProvidersSnapshotResult> {
+  throwIfSnapshotFetchCancelled(input.signal);
   const cache = input.cache ?? providerSnapshotCache;
   const cached = await cache.read(input.serverId, input.cwd);
+  throwIfSnapshotFetchCancelled(input.signal);
   const snapshot = await input.client.getProvidersSnapshot(
     providersSnapshotRequestOptions({ cwd: input.cwd, ifNoneMatch: cached?.hash }),
   );
+  throwIfSnapshotFetchCancelled(input.signal);
   if (snapshot.notModified) {
     if (!cached) {
       throw new ProviderSnapshotCacheMissError();
@@ -57,6 +73,7 @@ export async function fetchProvidersSnapshot(input: {
       generatedAt: snapshot.generatedAt,
       compactSnapshot: snapshot.compactSnapshot,
     });
+    throwIfSnapshotFetchCancelled(input.signal);
   }
   return snapshot;
 }
@@ -72,13 +89,29 @@ export async function refreshAndApplyProvidersSnapshot(input: {
   const refreshResult = await input.client.refreshProvidersSnapshot(
     providersSnapshotRequestOptions({ cwd: input.cwd, providers: input.providers }),
   );
-  const snapshot = await fetchProvidersSnapshot({
-    client: input.client,
-    serverId: input.serverId,
-    cwd: input.cwd,
-    cache: input.cache,
-  });
-  input.queryClient.setQueryData(providersSnapshotQueryKey(input.serverId, input.cwd), snapshot);
+  const queryKey = providersSnapshotQueryKey(input.serverId, input.cwd);
+  await input.queryClient.cancelQueries({ queryKey, exact: true });
+  try {
+    await input.queryClient.fetchQuery({
+      queryKey,
+      staleTime: 0,
+      gcTime: Infinity,
+      meta: input.queryClient.getQueryCache().find({ queryKey, exact: true })?.meta,
+      queryFn: ({ signal }) =>
+        fetchProvidersSnapshot({
+          client: input.client,
+          serverId: input.serverId,
+          cwd: input.cwd,
+          cache: input.cache,
+          signal,
+        }),
+    });
+  } catch (error) {
+    // A newer push can supersede this read after the daemon acknowledged the refresh.
+    if (!isCancelledError(error)) {
+      throw error;
+    }
+  }
   void input.queryClient.invalidateQueries({
     queryKey: agentCommandsQueryRoot(input.serverId),
     exact: false,
@@ -145,11 +178,11 @@ export function useProvidersSnapshot(
     queryKey,
     enabled: Boolean(enabled && supportsSnapshot && serverId && client && isConnected),
     pushEvent: "providers_snapshot_update",
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!client || !serverId) {
         throw new Error(t("workspace.terminal.hostDisconnected"));
       }
-      return fetchProvidersSnapshot({ client, serverId, cwd });
+      return fetchProvidersSnapshot({ client, serverId, cwd, signal });
     },
   });
 
@@ -213,6 +246,6 @@ export function prefetchProvidersSnapshot(
   void singletonQueryClient.prefetchQuery({
     queryKey,
     staleTime: Infinity,
-    queryFn: () => fetchProvidersSnapshot({ client, serverId, cwd }),
+    queryFn: ({ signal }) => fetchProvidersSnapshot({ client, serverId, cwd, signal }),
   });
 }
