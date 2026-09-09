@@ -120,3 +120,72 @@ test("the awaitable physical send rejects callback errors", async () => {
     }),
   ).rejects.toThrow("send failed");
 });
+
+test("a frame larger than the whole bound is reported as oversized, not as high water", () => {
+  const sent: Array<string | Uint8Array | ArrayBuffer> = [];
+  let highWater = 0;
+  const oversized: number[] = [];
+  const socket = {
+    readyState: 1,
+    bufferedAmount: 0,
+    send: (data: string | Uint8Array | ArrayBuffer) => sent.push(data),
+  };
+
+  const accepted = sendBoundedPhysicalFrame({
+    socket,
+    frame: "x".repeat(MAX_PHYSICAL_SOCKET_BUFFERED_BYTES + 1),
+    onHighWater: () => {
+      highWater += 1;
+    },
+    onOversized: (frameBytes) => oversized.push(frameBytes),
+  });
+
+  expect(accepted).toBe(false);
+  expect(sent).toEqual([]);
+  expect(highWater).toBe(0);
+  expect(oversized).toEqual([MAX_PHYSICAL_SOCKET_BUFFERED_BYTES + 1]);
+});
+
+test("an oversized frame still closes at high water when no oversized handler is given", () => {
+  let highWater = 0;
+  const socket = {
+    readyState: 1,
+    bufferedAmount: 0,
+    send: () => undefined,
+  };
+
+  const accepted = sendBoundedPhysicalFrame({
+    socket,
+    frame: new Uint8Array(1),
+    frameBytes: MAX_PHYSICAL_SOCKET_BUFFERED_BYTES + 1,
+    onHighWater: () => {
+      highWater += 1;
+    },
+  });
+
+  expect(accepted).toBe(false);
+  expect(highWater).toBe(1);
+});
+
+test("a stalled socket still hits high water even when an oversized handler is given", async () => {
+  let highWater = 0;
+  const oversized: number[] = [];
+  const socket = {
+    readyState: 1,
+    bufferedAmount: MAX_PHYSICAL_SOCKET_BUFFERED_BYTES,
+    send: () => undefined,
+  };
+
+  const accepted = await sendBoundedPhysicalFrameAndWait({
+    socket,
+    frame: new Uint8Array(1),
+    onHighWater: () => {
+      highWater += 1;
+    },
+    onOversized: (frameBytes) => oversized.push(frameBytes),
+  });
+
+  expect(accepted).toBe(false);
+  expect(highWater).toBe(1);
+  expect(oversized).toEqual([]);
+});
