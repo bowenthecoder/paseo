@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_DESKTOP_SETTINGS } from "../settings/desktop-settings";
 import { getBundledCliShimPath } from "../integrations/cli-install";
-import { createDaemonCommandHandlers } from "./daemon-manager";
+import { createDaemonCommandHandlers, isOwnedDesktopDaemonRunningSync } from "./daemon-manager";
+import { stopDesktopManagedDaemonOnQuitIfNeeded } from "./quit-lifecycle";
 
 const mocks = vi.hoisted(() => ({
   paseoHome: "/tmp/paseo-desktop-daemon-manager-test-home",
@@ -166,6 +167,110 @@ describe("daemon-manager commands", () => {
     });
 
     expect(mocks.runExternalCliJsonCommand).toHaveBeenCalledWith(["daemon", "status", "--json"]);
+  });
+
+  it("does not stop another desktop profile's daemon after attaching to it", async () => {
+    mkdirSync(mocks.paseoHome, { recursive: true });
+    writeFileSync(
+      `${mocks.paseoHome}/paseo.pid`,
+      JSON.stringify({ pid: process.pid, desktopManaged: true }),
+    );
+    mocks.runExternalCliJsonCommand.mockResolvedValue({
+      localDaemon: "running",
+      connectedDaemon: "reachable",
+      serverId: "existing-daemon",
+      pid: process.pid,
+      listen: "127.0.0.1:6767",
+      daemonVersion: "1.2.3",
+      desktopManaged: true,
+    });
+    const handlers = createDaemonCommandHandlers();
+    await handlers.start_desktop_daemon();
+    const stopDaemon = vi.fn();
+    const showShutdownFeedback = vi.fn();
+
+    await expect(
+      stopDesktopManagedDaemonOnQuitIfNeeded({
+        settingsStore: { get: async () => DEFAULT_DESKTOP_SETTINGS },
+        isDesktopManagedDaemonRunning: isOwnedDesktopDaemonRunningSync,
+        stopDaemon,
+        showShutdownFeedback,
+      }),
+    ).resolves.toBe(false);
+
+    expect(mocks.spawnProcess).not.toHaveBeenCalled();
+    expect(stopDaemon).not.toHaveBeenCalled();
+    expect(showShutdownFeedback).not.toHaveBeenCalled();
+  });
+
+  it("stops its own supervisor on quit and releases ownership when the child exits", async () => {
+    vi.useFakeTimers();
+    const child = createMockChildProcess();
+    child.pid = process.pid;
+    mkdirSync(mocks.paseoHome, { recursive: true });
+    const writeLock = (pid: number) =>
+      writeFileSync(`${mocks.paseoHome}/paseo.pid`, JSON.stringify({ pid, desktopManaged: true }));
+    writeLock(child.pid);
+    mocks.spawnProcess.mockReturnValue(child);
+    mocks.runExternalCliJsonCommand
+      .mockResolvedValueOnce({ localDaemon: "stopped" })
+      .mockResolvedValue({
+        localDaemon: "running",
+        connectedDaemon: "reachable",
+        serverId: "own-daemon",
+        pid: child.pid,
+        listen: "127.0.0.1:6767",
+        daemonVersion: "1.2.3",
+        desktopManaged: true,
+      });
+
+    try {
+      const startup = createDaemonCommandHandlers().start_desktop_daemon();
+      await vi.advanceTimersByTimeAsync(1200);
+      await startup;
+      expect(isOwnedDesktopDaemonRunningSync()).toBe(true);
+
+      writeLock(child.pid + 1);
+      expect(isOwnedDesktopDaemonRunningSync()).toBe(false);
+      writeLock(child.pid);
+
+      const stopDaemon = vi.fn(async () => {
+        child.emit("exit", 0, null);
+      });
+      await expect(
+        stopDesktopManagedDaemonOnQuitIfNeeded({
+          settingsStore: { get: async () => DEFAULT_DESKTOP_SETTINGS },
+          isDesktopManagedDaemonRunning: isOwnedDesktopDaemonRunningSync,
+          stopDaemon,
+          showShutdownFeedback: vi.fn(),
+        }),
+      ).resolves.toBe(true);
+      expect(stopDaemon).toHaveBeenCalledOnce();
+      expect(isOwnedDesktopDaemonRunningSync()).toBe(false);
+    } finally {
+      child.emit("exit", 0, null);
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not retain quit ownership after a supervisor fails to start", async () => {
+    const child = createMockChildProcess();
+    child.pid = process.pid;
+    mkdirSync(mocks.paseoHome, { recursive: true });
+    writeFileSync(
+      `${mocks.paseoHome}/paseo.pid`,
+      JSON.stringify({ pid: child.pid, desktopManaged: true }),
+    );
+    mocks.runExternalCliJsonCommand.mockResolvedValue({ localDaemon: "stopped" });
+    mocks.spawnProcess.mockImplementation(() => {
+      scheduleFailedStartup(child);
+      return child;
+    });
+
+    await expect(createDaemonCommandHandlers().start_desktop_daemon()).rejects.toThrow(
+      "Daemon failed to start: exit code 1",
+    );
+    expect(isOwnedDesktopDaemonRunningSync()).toBe(false);
   });
 
   it("routes running desktop daemon stops through external CLI daemon stop", async () => {

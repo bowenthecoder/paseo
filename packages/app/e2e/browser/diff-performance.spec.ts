@@ -53,6 +53,7 @@ diffPerfDescribe("Diff canvas performance", () => {
       cdp = await page.context().newCDPSession(page);
       await cdp.send("Emulation.setCPUThrottlingRate", { rate: CPU_SLOWDOWN });
       const elapsedMs = await openFirstReviewEditor(page);
+      console.log(`[perf] Review editor ready: ${elapsedMs.toFixed(1)}ms`);
       expect(elapsedMs).toBeLessThanOrEqual(200 * CPU_SLOWDOWN);
     } finally {
       await cdp?.send("Emulation.setCPUThrottlingRate", { rate: 1 }).catch(() => undefined);
@@ -428,8 +429,11 @@ async function openFirstReviewEditor(page: Page): Promise<number> {
   ]);
   if (!bodyBounds) throw new Error("Expanded diff body has no bounds");
   const lineHeight = Math.round(fontSize * 1.5);
+  await page.mouse.move(bodyBounds.x + 20, bodyBounds.y + lineHeight * 1.5);
+  const addReview = page.getByRole("button", { name: "Add review comment" });
+  await expect(addReview).toBeVisible();
   const startedAt = performance.now();
-  await page.mouse.click(bodyBounds.x + 120, bodyBounds.y + lineHeight * 1.5);
+  await addReview.click();
   await expect(page.getByTestId("inline-review-editor")).toBeVisible();
   return performance.now() - startedAt;
 }

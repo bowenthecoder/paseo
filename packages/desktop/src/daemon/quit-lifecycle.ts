@@ -2,6 +2,7 @@ import type { DesktopSettingsStore } from "../settings/desktop-settings.js";
 
 interface QuitLifecycleSettings {
   daemon: {
+    manageBuiltInDaemon: boolean;
     keepRunningAfterQuit: boolean;
   };
 }
@@ -53,7 +54,7 @@ export function registerExternalQuitSignals({
 }
 
 export function shouldStopDesktopManagedDaemonOnQuit(settings: QuitLifecycleSettings): boolean {
-  return !settings.daemon.keepRunningAfterQuit;
+  return settings.daemon.manageBuiltInDaemon && !settings.daemon.keepRunningAfterQuit;
 }
 
 export async function stopDesktopManagedDaemonOnQuitIfNeeded(
