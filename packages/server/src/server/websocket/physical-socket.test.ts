@@ -189,3 +189,29 @@ test("a stalled socket still hits high water even when an oversized handler is g
   expect(highWater).toBe(1);
   expect(oversized).toEqual([]);
 });
+
+test.each([sendBoundedPhysicalFrame, sendBoundedPhysicalFrameAndWait])(
+  "rejects oversized frames even when the transport does not report buffered bytes (%#)",
+  async (send) => {
+    let sent = 0;
+    let highWater = 0;
+    const oversized: number[] = [];
+    const accepted = await send({
+      socket: {
+        readyState: 1,
+        send: () => {
+          sent += 1;
+        },
+      },
+      frame: new Uint8Array(MAX_PHYSICAL_SOCKET_BUFFERED_BYTES + 1),
+      onHighWater: () => {
+        highWater += 1;
+      },
+      onOversized: (bytes) => oversized.push(bytes),
+    });
+    expect(accepted).toBe(false);
+    expect(sent).toBe(0);
+    expect(highWater).toBe(0);
+    expect(oversized).toEqual([MAX_PHYSICAL_SOCKET_BUFFERED_BYTES + 1]);
+  },
+);

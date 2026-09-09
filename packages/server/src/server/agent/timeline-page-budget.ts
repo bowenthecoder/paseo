@@ -11,6 +11,7 @@ export type TimelinePageDirection = "tail" | "before" | "after";
 export interface BudgetedTimelineEntry {
   seqStart: number;
   seqEnd: number;
+  sourceSeqRanges?: Array<{ startSeq: number; endSeq: number }>;
 }
 
 export interface TimelinePageBudgetInput<T extends BudgetedTimelineEntry> {
@@ -21,8 +22,8 @@ export interface TimelinePageBudgetInput<T extends BudgetedTimelineEntry> {
   hasOlder: boolean;
   hasNewer: boolean;
   maxBytes?: number;
-  maxStringChars?: number;
   measure?: (entry: T) => number;
+  shrinkEntry?: (entry: T, maxBytes: number) => T;
 }
 
 export interface TimelinePageBudgetResult<T extends BudgetedTimelineEntry> {
@@ -41,83 +42,55 @@ export function measureJsonBytes(value: unknown): number {
 }
 
 /**
- * Deep-copies `value` with every string longer than `maxChars` cut to that length and
- * marked. Returns the original reference untouched when nothing needed cutting.
- */
-export function truncateLongStrings<T>(
-  value: T,
-  maxChars: number,
-): { value: T; truncated: boolean } {
-  let truncated = false;
-  const visit = (node: unknown): unknown => {
-    if (typeof node === "string") {
-      if (node.length <= maxChars) return node;
-      truncated = true;
-      const omitted = node.length - maxChars;
-      return `${node.slice(0, maxChars)}\n[truncated by daemon: ${omitted} characters omitted]`;
-    }
-    if (Array.isArray(node)) {
-      let changed = false;
-      const next = node.map((child) => {
-        const visited = visit(child);
-        if (visited !== child) changed = true;
-        return visited;
-      });
-      return changed ? next : node;
-    }
-    if (node && typeof node === "object") {
-      let changed = false;
-      const next: Record<string, unknown> = {};
-      for (const [key, child] of Object.entries(node as Record<string, unknown>)) {
-        const visited = visit(child);
-        if (visited !== child) changed = true;
-        next[key] = visited;
-      }
-      return changed ? next : node;
-    }
-    return node;
-  };
-  const result = visit(value) as T;
-  return { value: result, truncated };
-}
-
-/**
  * Keeps the entries nearest the page anchor (the newest for tail/before, the oldest
  * for after) until the byte budget is spent, and moves the far cursor so the client
- * keeps paging from where the page was cut. The page always carries at least one
- * entry; an entry that alone exceeds the budget is shrunk instead of dropped.
+ * keeps paging from where the page was cut. A nonempty page carries at least one
+ * entry, or fails explicitly when identity metadata cannot fit without corruption.
  */
 export function budgetTimelinePage<T extends BudgetedTimelineEntry>(
   input: TimelinePageBudgetInput<T>,
 ): TimelinePageBudgetResult<T> {
   const maxBytes = input.maxBytes ?? MAX_TIMELINE_PAGE_BYTES;
-  const maxStringChars = input.maxStringChars ?? MAX_TIMELINE_ENTRY_STRING_CHARS;
   const measure = input.measure ?? measureJsonBytes;
   const anchorNewest = input.direction !== "after";
-  // Walk from the anchor outward: newest-first for tail/before, oldest-first for after.
-  const ordered = anchorNewest ? input.entries.toReversed() : [...input.entries];
+  const firstRequestedSeq = input.startSeq ?? 0;
+  const indexed = input.entries.map((entry, index) => ({
+    entry,
+    index,
+    nextSourceSeq: firstSourceSeqAtOrAfter(entry, firstRequestedSeq),
+  }));
+  // A completed tool keeps its old display position but may have a much newer
+  // source update. Forward pages must spend their budget in source order.
+  const ordered = anchorNewest
+    ? indexed.toReversed()
+    : [...indexed].sort(
+        (left, right) => left.nextSourceSeq - right.nextSourceSeq || left.index - right.index,
+      );
 
-  const kept: T[] = [];
-  let bytes = 0;
+  const kept: typeof indexed = [];
+  let bytes = 2; // JSON array brackets; commas are included below.
   let truncatedEntries = 0;
-  for (const entry of ordered) {
-    let candidate = entry;
+  for (const indexedEntry of ordered) {
+    let candidate = indexedEntry.entry;
     let candidateBytes = measure(candidate);
-    if (kept.length === 0 && candidateBytes > maxBytes) {
-      const cut = truncateLongStrings(candidate, maxStringChars);
-      if (cut.truncated) {
-        candidate = cut.value;
-        candidateBytes = measure(candidate);
-        truncatedEntries += 1;
-      }
+    if (kept.length === 0 && candidateBytes + bytes > maxBytes) {
+      if (!input.shrinkEntry) throw new Error("Timeline entry exceeds the page byte budget");
+      candidate = input.shrinkEntry(candidate, maxBytes - bytes);
+      candidateBytes = measure(candidate);
+      if (candidateBytes + bytes > maxBytes)
+        throw new Error("Timeline entry exceeds the page byte budget");
+      truncatedEntries += 1;
     }
-    if (kept.length > 0 && bytes + candidateBytes > maxBytes) break;
-    kept.push(candidate);
-    bytes += candidateBytes;
+    const separatorBytes = kept.length > 0 ? 1 : 0;
+    if (bytes + separatorBytes + candidateBytes > maxBytes) break;
+    kept.push({ ...indexedEntry, entry: candidate });
+    bytes += separatorBytes + candidateBytes;
   }
 
   const droppedEntries = input.entries.length - kept.length;
-  const entries = anchorNewest ? kept.toReversed() : kept;
+  const entries = kept
+    .toSorted((left, right) => left.index - right.index)
+    .map(({ entry }) => entry);
   if (droppedEntries === 0) {
     return {
       entries,
@@ -132,11 +105,13 @@ export function budgetTimelinePage<T extends BudgetedTimelineEntry>(
   }
 
   if (anchorNewest) {
-    // Dropped the oldest entries: the page now starts after the newest dropped row.
-    const dropped = input.entries.slice(0, droppedEntries);
-    const droppedMaxSeq = Math.max(...dropped.map((entry) => entry.seqEnd));
-    const keptMinSeq = Math.min(...entries.map((entry) => entry.seqStart));
-    const startSeq = Math.max(input.startSeq ?? keptMinSeq, droppedMaxSeq + 1, keptMinSeq);
+    // Backward selection follows display anchors, as the projector does. A
+    // dropped tool's late completion must not jump past the entries we kept.
+    const keptMinSeq = entries.reduce(
+      (minimum, entry) => Math.min(minimum, entry.seqStart),
+      Infinity,
+    );
+    const startSeq = Math.max(input.startSeq ?? keptMinSeq, keptMinSeq);
     return {
       entries,
       startSeq,
@@ -150,10 +125,8 @@ export function budgetTimelinePage<T extends BudgetedTimelineEntry>(
   }
 
   // Dropped the newest entries: the page now ends before the oldest dropped row.
-  const dropped = input.entries.slice(input.entries.length - droppedEntries);
-  const droppedMinSeq = Math.min(...dropped.map((entry) => entry.seqStart));
-  const keptMaxSeq = Math.max(...entries.map((entry) => entry.seqEnd));
-  const endSeq = Math.min(input.endSeq ?? keptMaxSeq, droppedMinSeq - 1, keptMaxSeq);
+  const droppedMinSeq = ordered[kept.length]!.nextSourceSeq;
+  const endSeq = Math.min(input.endSeq ?? droppedMinSeq - 1, droppedMinSeq - 1);
   return {
     entries,
     startSeq: input.startSeq,
@@ -164,4 +137,12 @@ export function budgetTimelinePage<T extends BudgetedTimelineEntry>(
     truncatedEntries,
     bytes,
   };
+}
+
+function firstSourceSeqAtOrAfter(entry: BudgetedTimelineEntry, startSeq: number): number {
+  const ranges = entry.sourceSeqRanges ?? [{ startSeq: entry.seqStart, endSeq: entry.seqEnd }];
+  for (const range of ranges) {
+    if (range.endSeq >= startSeq) return Math.max(startSeq, range.startSeq);
+  }
+  return Number.POSITIVE_INFINITY;
 }
