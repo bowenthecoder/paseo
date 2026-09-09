@@ -174,7 +174,21 @@ rescans lost their parent inventory membership. Both now have deterministic regr
 pass seven focused plus thirteen unchanged filesystem cases. A browser helper could close a
 terminal that had just finished opening; it now waits for readiness and passes all five focused
 terminal cases. Provider removal passed five repeated checks; pre-cleanup diagnostics remain
-enabled for the unresolved first-attempt CI flake. Full CI must run on the combined commit.
+enabled for the unresolved first-attempt CI flake.
+
+Combined checkpoint CI [34319620228](https://github.com/bowenthecoder/paseo/actions/runs/34319620228)
+completed with 561 browser passes and no flaky cases. Seven browser failures used old
+chat-header/file-path expectations. Explicit terminal opens now receive keyboard focus and
+recover their PTY size on window-focus return; document previews retain chat focus. Focused
+corrections preserve the original navigation, file-content, cursor, reconnect and PTY-size assertions.
+The single app failure expected the old split pane. Server fixtures now supply the required
+configuration store, supported prompt inputs and stateful reload behavior; the Windows quota
+fixture uses platform-native path handling. The remaining watcher failure exposed batched
+create/delete events losing their final deletion, now covered by a deterministic regression.
+These corrections require the next combined CI run, including the native Windows stress case.
+Custom alias hydration, relink sign-in races, configuration-preserving toggles and initial account
+lookup Refresh recovery are also included in the final account supplements.
+
 Exact final source/bundle identities, CI results and packaged
 stress results belong in `candidate-manifest.json` and `final-validation.json` in the review folder;
 earlier preview evidence below is retained as history.

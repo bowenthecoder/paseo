@@ -838,6 +838,79 @@ describe("workspace-layout-store actions", () => {
     expect(layout.focusedPaneId).toBe("main");
   });
 
+  it.each(["new", "reveal"] as const)(
+    "focuses an explicitly opened terminal from a chat with %s intent",
+    (intent) => {
+      const workspaceKey = createWorkspaceKey();
+      const store = workspaceLayoutStore.getState();
+      store.openTab({
+        workspaceKey,
+        target: { kind: "agent", agentId: "agent-1" },
+        intent: "reveal",
+      });
+      const chatPaneId = store.addChatPane(workspaceKey);
+      expect(chatPaneId).toBe("chat-2");
+      const chatPaneBefore = findPaneById(
+        workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey].root,
+        "chat-2",
+      );
+      expect(workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey].focusedPaneId).toBe(
+        chatPaneId,
+      );
+
+      const terminalTabId = store.openTab({
+        workspaceKey,
+        target: { kind: "terminal", terminalId: "terminal-1" },
+        intent,
+      });
+
+      const layout = workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey];
+      expect(layout.focusedPaneId).toBe("explorer");
+      expect(findPaneById(layout.root, "explorer")?.focusedTabId).toBe(terminalTabId);
+      expect(findPaneById(layout.root, "explorer")?.hidden).not.toBe(true);
+      expect(findPaneById(layout.root, "chat-2")).toEqual(chatPaneBefore);
+    },
+  );
+
+  it("reveals an existing background terminal and transfers focus from the chat", () => {
+    const workspaceKey = createWorkspaceKey();
+    const store = workspaceLayoutStore.getState();
+    store.openTab({
+      workspaceKey,
+      target: { kind: "agent", agentId: "agent-1" },
+      intent: "reveal",
+    });
+    const target = { kind: "terminal", terminalId: "terminal-1" } as const;
+    const terminalTabId = store.openTab({ workspaceKey, target, intent: "background" });
+    expect(workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey].focusedPaneId).toBe(
+      "main",
+    );
+
+    expect(store.openTab({ workspaceKey, target, intent: "reveal" })).toBe(terminalTabId);
+    const layout = workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey];
+    expect(layout.focusedPaneId).toBe("explorer");
+    expect(findPaneById(layout.root, "explorer")?.focusedTabId).toBe(terminalTabId);
+    expect(findPaneById(layout.root, "explorer")?.hidden).not.toBe(true);
+  });
+
+  it.each([
+    { kind: "file", path: "/repo/main.ts" },
+    { kind: "files" },
+    { kind: "changes_tree" },
+    { kind: "working_diff" },
+  ] as const)("retains the originating chat focus when revealing $kind", (target) => {
+    const workspaceKey = createWorkspaceKey();
+    const store = workspaceLayoutStore.getState();
+    const chatPaneId = store.addChatPane(workspaceKey);
+    expect(chatPaneId).toBe("chat-2");
+    const tabId = store.openTab({ workspaceKey, target, intent: "reveal" });
+
+    const layout = workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey];
+    expect(layout.focusedPaneId).toBe(chatPaneId);
+    expect(findPaneById(layout.root, "explorer")?.focusedTabId).toBe(tabId);
+    expect(findPaneById(layout.root, "explorer")?.hidden).not.toBe(true);
+  });
+
   it("places a background terminal tab in Explorer without stealing workspace focus", () => {
     const workspaceKey = createWorkspaceKey();
     const store = workspaceLayoutStore.getState();
@@ -908,7 +981,7 @@ describe("workspace-layout-store actions", () => {
     expect(layout.focusedPaneId).toBe("main");
   });
 
-  it("keeps an existing user-created entity tab in its original pane", () => {
+  it("keeps an existing terminal in its dock and focuses it when revealed", () => {
     const workspaceKey = createWorkspaceKey();
     const store = workspaceLayoutStore.getState();
     const terminalTabId = store.openTab({
@@ -930,8 +1003,9 @@ describe("workspace-layout-store actions", () => {
 
     const layout = workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey];
     expect(findPaneContainingTab(layout.root, terminalTabId as string)?.id).toBe("explorer");
-    expect(findPaneById(layout.root, "main")).toBeTruthy();
-    expect(layout.focusedPaneId).toBe("main");
+    expect(findPaneById(layout.root, "main")?.id).toBe("main");
+    expect(findPaneById(layout.root, "explorer")?.focusedTabId).toBe(terminalTabId);
+    expect(layout.focusedPaneId).toBe("explorer");
   });
 
   it("defers terminal reconciliation while a user terminal is being created", () => {

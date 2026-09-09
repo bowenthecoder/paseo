@@ -17,6 +17,7 @@ import {
   TerminalStreamOpcode,
 } from "@getpaseo/protocol/terminal-stream-protocol";
 import { CLIENT_CAPS } from "@getpaseo/protocol/client-capabilities";
+import { MutableDaemonConfigSchema } from "@getpaseo/protocol/messages";
 
 type SocketListener = (...args: unknown[]) => void;
 
@@ -231,6 +232,7 @@ function createServer(options?: {
 }) {
   const speechReadiness = options?.speechReadiness ?? null;
   const daemonConfigStore = {
+    get: () => MutableDaemonConfigSchema.parse({ mcp: { injectIntoAgents: false }, providers: {} }),
     onApply: vi.fn(() => () => {}),
     onChange: vi.fn(() => () => {}),
   };

@@ -31,8 +31,10 @@ export function useModelPickerUsage(serverId: string | null, providerId: string,
   });
   const slotId = subscriptionSlotId(providerId, query.data);
   const isSubscription = requestsSubscriptions && slotId !== null;
-  const resolvingSubscription = requestsSubscriptions && !query.data && !query.isError;
-  const usesSubscriptionView = isSubscription || resolvingSubscription;
+  // A failed first lookup has not ruled out a custom account mapping. Keep its
+  // error and Refresh action on the plugin query until a response resolves it.
+  const unresolvedSubscription = requestsSubscriptions && !query.data;
+  const usesSubscriptionView = isSubscription || unresolvedSubscription;
   const builtin = useProviderUsage(serverId, {
     enabled: enabled && !usesSubscriptionView,
   });

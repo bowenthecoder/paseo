@@ -186,7 +186,7 @@ test.describe("CodeMirror workspace file editing", () => {
       await expect(fileLink).toBeVisible({ timeout: 15_000 });
       await fileLink.click();
 
-      await expectFileTabOpen(page, "target.ts");
+      await expectFileTabOpen(page, path.join(session.cwd, "target.ts"));
       await expect(page.getByTestId("file-source-editor")).toBeVisible();
       await expect(page.getByLabel("Line 42, column 1")).toBeVisible();
       await expect(
@@ -261,7 +261,7 @@ test.describe("CodeMirror workspace file editing", () => {
       await openAgentRoute(page, session);
       await page.getByText(target, { exact: true }).click();
 
-      await expectFileTabOpen(page, "plan.html");
+      await expectFileTabOpen(page, path.join(session.cwd, "plan.html"));
       await expect(page.getByTestId("file-source-editor")).toBeVisible();
       await expect(page.getByLabel("Line 2, column 1")).toBeVisible();
       await expect(page.getByTestId("file-html-preview")).toHaveCount(0);

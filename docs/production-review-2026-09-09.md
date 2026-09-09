@@ -1,22 +1,26 @@
 # Paseo production review — September 9, 2026
 
-This review extends app integration `896061bbf` and subscriptions integration
-`efe9f9c`. The installed application and production daemon were not modified.
+This candidate combines the pending app, daemon and subscriptions changes in the
+integration worktrees. The installed application and production daemon are preserved.
 
 ## Resulting behavior
 
 - One to four independent chat views, including a two-by-two grid. Each view retains
   its own folder, model, draft, output and focus. Supporting files, Changes and
   terminals use the separate dock. Closing a view preserves its chats and drafts;
-  explicit Archive remains a separate action. Layout and focus survive reload.
+  explicit Archive remains a separate action. Layout and focus survive reload. Explicit
+  terminal opens receive keyboard focus; document previews retain the chat target.
 - Subscription usage follows the configured credential home, including custom or
   swapped provider aliases. Secondary Claude profiles cannot fall back to the
   default account's keychain entry. Unknown usage and credit values remain unknown.
   Configuration is resolved after delayed probes, and completed batches revalidate
   account generations before returning previously collected usage.
+  Custom aliases receive account controls when delayed discovery completes; toggling
+  an account preserves its command, label and environment. Failed initial account
+  discovery remains retryable with Refresh in the model picker.
 - Relinking an account clears previous-account numbers in plugin, native server and
   application caches. Superseded requests cannot replace the current account's
-  usage. Unrelated hosts retain their own state.
+  usage or sign-in status. Unrelated hosts retain their own state.
 - Collapsed Overview output identifies failed, canceled and running tools without
   counting them as successful commands or edits. The CLI-style tool log preserves
   actual Claude and Codex command output across reload.
@@ -28,6 +32,9 @@ This review extends app integration `896061bbf` and subscriptions integration
   file geometry after a live edit, so a newly visible file remains interactive.
 - Native chat reload serializes replacement sessions and prevents concurrent
   timeline loading from restoring a duplicate agent during the session swap.
+- Native file watching retains descendant scans and parent inventory membership.
+  A batched create followed by delete retains its final deletion; an atomic
+  delete-and-recreate still reports an update.
 
 ## Verification
 
@@ -60,10 +67,10 @@ block the production daemon port; agent authentication files are not copied.
 
 ## Release gate and limits
 
-The combined source still requires the packaging owner's final integration, full CI
-and review of the resulting Mac artifact. Earlier checkpoint CI/artifact results do
-not certify this later source. Publishing or replacing the installed app is outside
-this review's authorized scope.
+The review folder's `candidate-manifest.json` and `final-validation.json` identify the
+exact source, matching plugin bundles, packaged Mac app and final test results.
+Earlier checkpoint CI/artifact results apply only to their recorded checkpoints.
+Publishing or replacing the installed app requires the owner's subsequent direction.
 
 Native title writeback/synchronization and physical iOS/Android device testing are
 not covered. External CLI account replacement does not notify plugin caches; the

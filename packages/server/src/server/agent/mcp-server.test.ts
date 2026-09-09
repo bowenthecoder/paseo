@@ -5814,12 +5814,13 @@ describe("agent snapshot MCP serialization", () => {
       id: "archived-activity-agent",
       currentModeId: "default",
     } as ManagedAgent;
-    spies.agentManager.getAgent
-      .mockReturnValueOnce(null)
-      .mockReturnValue(snapshot)
-      .mockReturnValue(snapshot);
+    let resumedAgent: ManagedAgent | null = null;
+    spies.agentManager.getAgent.mockImplementation(() => resumedAgent);
     spies.agentStorage.get.mockResolvedValue(record);
-    spies.agentManager.resumeAgentFromPersistence.mockResolvedValue(snapshot);
+    spies.agentManager.resumeAgentFromPersistence.mockImplementation(async () => {
+      resumedAgent = snapshot;
+      return snapshot;
+    });
     spies.agentManager.getTimeline.mockReturnValue([
       {
         kind: "status",

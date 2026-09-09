@@ -57,6 +57,7 @@ async function expectWorkspaceLocation(
     serverId: string;
     workspace: Awaited<ReturnType<typeof seedWorkspace>>;
     agentId: string;
+    agentTitle: string;
   },
 ): Promise<void> {
   await expectAppRoute(page, buildHostWorkspaceRoute(input.serverId, input.workspace.workspaceId), {
@@ -64,7 +65,7 @@ async function expectWorkspaceLocation(
   });
   await expect(page.getByTestId(`workspace-panel-agent_${input.agentId}`)).toBeVisible();
   await expect(page.getByTestId("workspace-header-title").filter({ visible: true })).toHaveText(
-    input.workspace.workspaceName,
+    input.agentTitle,
   );
   await expect(
     page.getByTestId(`sidebar-workspace-row-${input.serverId}:chat:${input.agentId}`),
@@ -101,14 +102,24 @@ test("refresh keeps one continuous splash before restoring the desktop workspace
       workspaceId: workspace.workspaceId,
       agentId: agent.id,
     });
-    await expectWorkspaceLocation(page, { serverId, workspace, agentId: agent.id });
+    await expectWorkspaceLocation(page, {
+      serverId,
+      workspace,
+      agentId: agent.id,
+      agentTitle: title,
+    });
 
     await observeStartupPresentation(page);
     await daemonGate.drop();
     await page.reload();
     await waitForDesktopDaemonStartRequest(page);
     daemonGate.restore();
-    await expectWorkspaceLocation(page, { serverId, workspace, agentId: agent.id });
+    await expectWorkspaceLocation(page, {
+      serverId,
+      workspace,
+      agentId: agent.id,
+      agentTitle: title,
+    });
     expect(await getStartupPresentation(page)).toEqual(["splash", "app"]);
   } finally {
     daemonGate.restore();

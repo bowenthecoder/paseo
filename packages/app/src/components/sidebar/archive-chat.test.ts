@@ -8,7 +8,11 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
   },
 }));
 
-import { findPaneById, useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
+import {
+  findPaneById,
+  findPaneContainingTab,
+  useWorkspaceLayoutStore,
+} from "@/stores/workspace-layout-store";
 import { archiveSidebarChat } from "./archive-chat";
 
 const SERVER_ID = "archive-host";
@@ -134,12 +138,11 @@ describe("sidebar chat archive", () => {
     archive.complete();
     await archive.operation;
     expect(hasArchivedChat(otherFolder)).toBe(true);
-    expect(
-      findPaneById(
-        useWorkspaceLayoutStore.getState().layoutByWorkspace[otherFolder].root,
-        "explorer",
-      )?.focusedTabId,
-    ).toBe(reopened);
+    const currentLayout = useWorkspaceLayoutStore.getState().layoutByWorkspace[otherFolder];
+    const reopenedPane = findPaneContainingTab(currentLayout.root, reopened!);
+    expect(reopenedPane?.id).toBe("chat-2");
+    expect(reopenedPane?.focusedTabId).toBe(reopened);
+    expect(currentLayout.focusedPaneId).toBe(reopenedPane?.id);
   });
 
   it("leaves a newer chat selection alone after the archive completes", async () => {
