@@ -114,6 +114,7 @@ import {
   type TimelineProjectionMode,
 } from "./agent/timeline-projection.js";
 import { MAX_TIMELINE_PAGE_BYTES, budgetTimelinePage } from "./agent/timeline-page-budget.js";
+import { shrinkTimelineEntry } from "./agent/timeline-entry-budget.js";
 import { buildAgentForkContextAttachment } from "./agent/activity-curator.js";
 import { buildAgentPrompt } from "./agent/prompt-attachments.js";
 import type { StructuredGenerationDaemonConfig } from "./agent/structured-generation-providers.js";
@@ -7052,6 +7053,7 @@ export class Session {
         endSeq: selectedTimeline.endSeq,
         hasOlder: selectedTimeline.hasOlder,
         hasNewer: selectedTimeline.hasNewer,
+        shrinkEntry: shrinkTimelineEntry,
       });
       if (budgeted.droppedEntries > 0 || budgeted.truncatedEntries > 0) {
         this.sessionLogger.warn(
@@ -7253,6 +7255,7 @@ export class Session {
         endSeq: rows.at(-1)?.seq ?? null,
         hasOlder: timeline.hasOlder,
         hasNewer: timeline.hasNewer,
+        shrinkEntry: shrinkTimelineEntry,
       });
       if (budgeted.droppedEntries > 0 || budgeted.truncatedEntries > 0) {
         this.sessionLogger.warn(

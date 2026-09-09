@@ -95,6 +95,7 @@ export function physicalSocketHasCapacity(
   socket: Pick<BoundedPhysicalSocket, "bufferedAmount">,
   frameBytes: number,
 ): boolean {
+  if (isOversizedPhysicalFrame(frameBytes)) return false;
   if (typeof socket.bufferedAmount !== "number") return true;
   return socket.bufferedAmount + frameBytes <= MAX_PHYSICAL_SOCKET_BUFFERED_BYTES;
 }

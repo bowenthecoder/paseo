@@ -1,9 +1,7 @@
 import { describe, expect, test } from "vitest";
-import {
-  budgetTimelinePage,
-  measureJsonBytes,
-  truncateLongStrings,
-} from "./timeline-page-budget.js";
+import { selectProjectedTimelinePage } from "./timeline-projection.js";
+import type { AgentTimelineRow } from "./agent-manager.js";
+import { budgetTimelinePage, measureJsonBytes } from "./timeline-page-budget.js";
 
 interface Entry {
   seqStart: number;
@@ -16,6 +14,61 @@ function entry(seq: number, chars: number): Entry {
 }
 
 describe("budgetTimelinePage", () => {
+  test.each(["after", "before"] as const)(
+    "%s paging progresses through interleaved tool lifecycle entries without losing messages",
+    (direction) => {
+      const toolRow = (seq: number, status: "running" | "completed"): AgentTimelineRow => ({
+        seq,
+        timestamp: new Date(seq).toISOString(),
+        item: {
+          type: "tool_call",
+          callId: "tool-1",
+          name: "shell",
+          status,
+          error: null,
+          detail: { type: "unknown", input: null, output: "t".repeat(800) },
+        },
+      });
+      const rows: AgentTimelineRow[] = [
+        toolRow(1, "running"),
+        ...Array.from(
+          { length: 3 },
+          (_, index): AgentTimelineRow => ({
+            seq: index + 2,
+            timestamp: new Date(index + 2).toISOString(),
+            item: { type: "user_message", text: "u".repeat(700) },
+          }),
+        ),
+        toolRow(5, "completed"),
+      ];
+      let cursor = direction === "after" ? 0 : 6;
+      const received = new Set<number>();
+      let finished = false;
+      for (let pageIndex = 0; pageIndex < 6; pageIndex += 1) {
+        const selection = selectProjectedTimelinePage({
+          rows,
+          direction,
+          cursorSeq: cursor,
+          limit: 0,
+        });
+        const page = budgetTimelinePage({ ...selection, direction, maxBytes: 1500 });
+        for (const receivedEntry of page.entries) received.add(receivedEntry.seqStart);
+        const next = direction === "after" ? page.endSeq : page.startSeq;
+        expect(next).not.toBeNull();
+        if (direction === "after") expect(next!).toBeGreaterThan(cursor);
+        else expect(next!).toBeLessThan(cursor);
+        expect(page.startSeq!).toBeLessThanOrEqual(page.endSeq!);
+        cursor = next!;
+        if (!(direction === "after" ? page.hasNewer : page.hasOlder)) {
+          finished = true;
+          break;
+        }
+      }
+      expect(finished).toBe(true);
+      expect([...received].sort()).toEqual([1, 2, 3, 4]);
+    },
+  );
+
   test("leaves a page that fits untouched", () => {
     const entries = [entry(1, 10), entry(2, 10), entry(3, 10)];
     const result = budgetTimelinePage({
@@ -27,7 +80,7 @@ describe("budgetTimelinePage", () => {
       hasNewer: false,
       maxBytes: 10_000,
     });
-    expect(result.entries).toBe(entries === result.entries ? entries : result.entries);
+    expect(result.entries).toEqual(entries);
     expect(result.entries.map((e) => e.seqStart)).toEqual([1, 2, 3]);
     expect(result).toMatchObject({
       startSeq: 1,
@@ -134,7 +187,10 @@ describe("budgetTimelinePage", () => {
       hasOlder: false,
       hasNewer: false,
       maxBytes: 5_000,
-      maxStringChars: 1_000,
+      shrinkEntry: (value) => ({
+        ...value,
+        text: `${value.text.slice(0, 1_000)}\n[truncated by daemon: 49000 characters omitted]`,
+      }),
     });
     expect(result.entries).toHaveLength(1);
     expect(result.entries[0]?.text.startsWith("x".repeat(1_000))).toBe(true);
@@ -148,39 +204,19 @@ describe("budgetTimelinePage", () => {
     expect(huge.text).toHaveLength(50_000);
   });
 
-  test("the page always carries at least one entry even when it stays oversized", () => {
+  test("rejects an entry that cannot fit instead of returning an oversized page", () => {
     const entries = [entry(1, 100), entry(2, 100)];
-    const result = budgetTimelinePage({
-      direction: "after",
-      entries,
-      startSeq: 1,
-      endSeq: 2,
-      hasOlder: false,
-      hasNewer: false,
-      maxBytes: 1,
-      maxStringChars: 50,
-    });
-    expect(result.entries).toHaveLength(1);
-    expect(result.entries[0]?.seqStart).toBe(1);
-    expect(result).toMatchObject({ endSeq: 1, hasNewer: true, droppedEntries: 1 });
-  });
-});
-
-describe("truncateLongStrings", () => {
-  test("returns the same reference when nothing is long", () => {
-    const value = { a: "short", b: ["x", { c: "y" }], d: 5, e: null };
-    const result = truncateLongStrings(value, 10);
-    expect(result.truncated).toBe(false);
-    expect(result.value).toBe(value);
-  });
-
-  test("cuts nested strings without mutating the input", () => {
-    const value = { a: "x".repeat(20), b: [{ c: "y".repeat(20) }, "ok"] };
-    const result = truncateLongStrings(value, 5);
-    expect(result.truncated).toBe(true);
-    expect(result.value.a).toBe("xxxxx\n[truncated by daemon: 15 characters omitted]");
-    expect((result.value.b[0] as { c: string }).c.startsWith("yyyyy\n[truncated")).toBe(true);
-    expect(result.value.b[1]).toBe("ok");
-    expect(value.a).toHaveLength(20);
+    expect(() =>
+      budgetTimelinePage({
+        direction: "after",
+        entries,
+        startSeq: 1,
+        endSeq: 2,
+        hasOlder: false,
+        hasNewer: false,
+        maxBytes: 1,
+        shrinkEntry: (value) => value,
+      }),
+    ).toThrow("exceeds the page byte budget");
   });
 });
