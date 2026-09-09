@@ -556,8 +556,9 @@ function normalizeNode(node: unknown): SplitNodeInternal | null {
 
 function removePaneByPath(root: SplitNodeInternal, path: number[]): SplitNodeInternal {
   if (path.length === 0) {
-    invariant(root.kind === "pane", "Expected pane at root while removing pane");
-    return createPaneNode({ id: root.pane.id, tabs: [createNewWorkspaceTab()] });
+    // The tree never becomes empty: removing the root leaves one fresh pane behind.
+    const paneId = root.kind === "pane" ? root.pane.id : DEFAULT_PANE_ID;
+    return createPaneNode({ id: paneId, tabs: [createNewWorkspaceTab()] });
   }
 
   const parentPath = path.slice(0, -1);
@@ -566,7 +567,12 @@ function removePaneByPath(root: SplitNodeInternal, path: number[]): SplitNodeInt
   invariant(parentNode.kind === "group", "Expected parent group while removing pane");
 
   const nextParentChildren = parentNode.group.children.filter((_, index) => index !== removeIndex);
-  invariant(nextParentChildren.length > 0, "Split tree cannot remove the final pane");
+  if (nextParentChildren.length === 0) {
+    // The chat grid's bottom row holds a single view when three chats are open. Losing that
+    // view removes the row itself; leaving an empty group used to throw during startup
+    // reconciliation when every stale split chat collapsed at once.
+    return removePaneByPath(root, parentPath);
+  }
 
   const nextParentNode =
     nextParentChildren.length === 1

@@ -130,6 +130,11 @@ until 14 September), and recorded in the review folder before the candidate is r
    Code's plan mode, Codex's plan feature, OpenCode's plan agent; providers without one get a
    short notice). Daemon restart stays in Settings → Host. If "resets" meant something else,
    say so and it changes.
+8. **Startup crash with three views (found while trying build 2 on the live daemon).** A saved
+   layout whose third view sat alone in the chat grid's bottom row threw "Split tree cannot
+   remove the final pane" during startup reconciliation once that chat was archived, so the app
+   showed its error screen on every launch. Build 1 had the same fault. Removing the last view
+   of a row now removes the row. Verified with a store test built from the captured layout.
 
 ## Backups and worktrees
 
