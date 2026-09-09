@@ -136,13 +136,19 @@ export async function expectSetupTabNotSeeded(page: Page, workspaceId: string): 
   }
 }
 
+/**
+ * A failed setup seeds its surface in the background, so the panel stays shut until the user
+ * asks for it. Reveal the panel and assert the setup view is the one waiting there.
+ */
 export async function expectFailedSetupSeededInSidePanel(
   page: Page,
   workspaceId: string,
 ): Promise<void> {
-  await expect(visibleTestId(page, workspacePanelTestId("setup", workspaceId)).first()).toBeVisible(
-    { timeout: 30_000 },
-  );
+  const testId = workspacePanelTestId("setup", workspaceId);
+  await expect(page.getByTestId(testId)).toHaveCount(1, { timeout: 30_000 });
+  await ensureExplorerSidebar(page);
+  await visibleTestId(page, `workspace-side-panel-view-setup_${workspaceId}`).first().click();
+  await expect(visibleTestId(page, testId).first()).toBeVisible({ timeout: 30_000 });
 }
 
 export async function closeSetupTab(page: Page, workspaceId: string): Promise<void> {

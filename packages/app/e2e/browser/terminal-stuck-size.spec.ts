@@ -56,12 +56,8 @@ async function readRenderedTerminalSize(page: Page): Promise<RenderedTerminalSiz
 }
 
 async function createTerminalViaMenu(page: Page): Promise<void> {
-  // Workspaces always render a hidden explorer companion pane alongside the
-  // main pane, so an unscoped testid locator matches both; scope to the
-  // visible one.
-  await page.getByTestId("workspace-new-tab-button").filter({ visible: true }).click();
   await page
-    .getByTestId("workspace-new-tab-menu-terminal")
+    .getByTestId("workspace-header-terminal-toggle")
     .filter({ visible: true })
     .first()
     .click();
@@ -131,9 +127,7 @@ test.describe("terminal PTY size claim under lost window focus", () => {
     await page.setViewportSize({ width: 1280, height: 900 });
 
     await page.goto(buildHostWorkspaceRoute(getServerId(), harness.workspaceId));
-    await expect(
-      page.getByTestId("workspace-new-tab-button").filter({ visible: true }),
-    ).toBeVisible({
+    await expect(page.getByTestId("workspace-chat-pane").filter({ visible: true })).toBeVisible({
       timeout: 30_000,
     });
 

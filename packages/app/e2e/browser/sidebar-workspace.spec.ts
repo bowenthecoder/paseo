@@ -334,8 +334,7 @@ test.describe("Half-screen desktop layout", () => {
       ).toBeVisible();
       await expect(explorerToggle).toHaveAccessibleName("Close Explorer sidebar");
       await expect(page.getByTestId("sidebar-global-new-workspace")).toBeVisible();
-      await expect(page.getByTestId("workspace-side-panel-view-rail")).toBeVisible();
-      await expect(page.getByTestId("workspace-tabs-row").filter({ visible: true })).toHaveCount(1);
+      await expect(page.getByTestId("workspace-side-panel-rail")).toBeVisible();
 
       await explorerToggle.click();
       await expect(

@@ -11,8 +11,8 @@ function explorerSidebar(page: Parameters<typeof ensureExplorerSidebar>[0]) {
   return page.getByTestId("workspace-side-panel").filter({ visible: true });
 }
 
-test.describe("Explorer sidebar", () => {
-  test("starts with Files and Changes, switches views, and toggles without changing main", async ({
+test.describe("Side panel", () => {
+  test("starts with Files and Changes, switches views, and toggles without disturbing the chat", async ({
     page,
   }) => {
     const workspace = await seedWorkspace({ repoPrefix: "explorer-sidebar-defaults-" });
@@ -20,15 +20,11 @@ test.describe("Explorer sidebar", () => {
     try {
       await gotoWorkspace(page, workspace.workspaceId);
       await waitForWorkspaceTabsVisible(page);
-      const mainTabsBefore = await page
-        .getByTestId("workspace-pane-main")
-        .locator('[data-testid^="workspace-tab-"]')
-        .count();
-
       const explorer = await ensureExplorerSidebar(page);
       await expect(explorer.getByTestId("workspace-side-panel-view-files")).toBeVisible();
       await expect(explorer.getByTestId("workspace-side-panel-view-changes_tree")).toBeVisible();
       await expect(explorer.getByTestId("workspace-new-tab-button")).toHaveCount(0);
+      await expect(explorer.getByTestId("workspace-side-panel-close")).toBeVisible();
 
       await openFilesPanel(page);
       await expect(explorer.getByTestId("file-explorer-tree-scroll")).toBeVisible();
@@ -38,9 +34,10 @@ test.describe("Explorer sidebar", () => {
 
       await page.getByTestId("workspace-explorer-toggle").first().click();
       await expect(explorerSidebar(page)).toHaveCount(0);
-      await expect(
-        page.getByTestId("workspace-pane-main").locator('[data-testid^="workspace-tab-"]'),
-      ).toHaveCount(mainTabsBefore);
+      // Closing the panel leaves the chat exactly where it was.
+      await expect(page.getByTestId("workspace-chat-pane").filter({ visible: true })).toHaveCount(
+        1,
+      );
     } finally {
       await workspace.cleanup();
     }
