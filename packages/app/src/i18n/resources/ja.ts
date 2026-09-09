@@ -1753,6 +1753,8 @@ export const ja: TranslationResources = {
     backdrop: "メニューの背景",
   },
   subagents: {
+    loadFailed: "このタスクを読み込めませんでした。",
+    connectToLoad: "タスクを読み込むには、このホストに接続してください。",
     tasksTitle: "タスク",
     empty: "表示するサブエージェントはありません。",
     pillLabelWorkingOne: "1 件のタスクを実行中",

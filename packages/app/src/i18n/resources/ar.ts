@@ -1734,6 +1734,8 @@ export const ar: TranslationResources = {
     backdrop: "خلفية القائمة",
   },
   subagents: {
+    loadFailed: "تعذر تحميل هذه المهمة.",
+    connectToLoad: "اتصل بهذا المضيف لتحميل المهمة.",
     tasksTitle: "المهام",
     empty: "لا توجد وكلاء فرعية لعرضها.",
     pillLabelWorkingOne: "مهمة واحدة قيد التشغيل",

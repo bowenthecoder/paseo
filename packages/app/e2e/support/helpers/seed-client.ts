@@ -29,6 +29,7 @@ interface SeedProjectDescriptor {
  * prefer those wrappers over reaching for this client directly.
  */
 export interface SeedDaemonClient {
+  fetchAgentTimeline: DaemonClient["fetchAgentTimeline"];
   listProviderSubagents: DaemonClient["listProviderSubagents"];
   connect(): Promise<void>;
   close(): Promise<void>;

@@ -85,7 +85,11 @@ test.describe("Assistant fork menu", () => {
     await expectChatHistoryAttachment(page);
     expect(await forkAttachment.waitForText()).toContain(visibleBeforeFork);
 
-    await page.getByRole("button", { name: sourceAgentTitle }).click();
+    const sourceRow = page.getByTestId(
+      `sidebar-workspace-row-${getServerId()}:chat:${session.agentId}`,
+    );
+    await sourceRow.click();
+    await expect(sourceRow).toHaveAttribute("aria-selected", "true");
     await expectLiveAssistantText(page, visibleAfterFork);
   });
 

@@ -270,6 +270,8 @@ function applyAuthoritativeTimelineResponse(input: {
   const session = useSessionStore.getState().sessions[serverId];
   const timeline = selectAgentTimelineState(session, agentId);
   const activeInitDeferred = getInitDeferred(initKey);
+  // Painted cache rows already have sequence coverage. A projected resume page
+  // can include their full message, so reconcile that overlap before marking it synced.
   const currentCursor =
     timeline.status === "synced" ? (timeline.range ?? undefined) : input.cachedCursor;
   const result = processTimelineResponse({

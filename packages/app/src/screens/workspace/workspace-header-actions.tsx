@@ -28,7 +28,6 @@ import type { ShortcutKey } from "@/utils/format-shortcut";
 const ThemedSquareTerminal = withUnistyles(SquareTerminal);
 const ThemedGlobe = withUnistyles(Globe);
 
-const TERMINAL_TOGGLE_KEYS: ShortcutKey[] = ["mod", "`"];
 const NO_SHORTCUT_KEYS: ShortcutKey[] = [];
 
 interface WorkspaceHeaderToggleProps {
@@ -57,7 +56,7 @@ export function WorkspaceHeaderTerminalToggle({
       onPress={onPress}
       disabled={disabled}
       tooltipLabel={t("workspace.header.actions.toggleTerminal")}
-      tooltipKeys={TERMINAL_TOGGLE_KEYS}
+      tooltipKeys={NO_SHORTCUT_KEYS}
       tooltipSide="bottom"
       accessible
       accessibilityRole="button"
@@ -130,6 +129,7 @@ export interface WorkspaceHeaderActionsProps {
   onToggleTerminal: () => void;
   onToggleBrowser: () => void;
   onCreateDraftTab: () => void;
+  onCreateTerminal: () => void;
   onCreateTerminalWithProfile: (profile: TerminalProfile) => void;
   onOpenImportSheet: () => void;
   onCopyWorkspacePath: () => void;
@@ -169,6 +169,7 @@ export function WorkspaceHeaderActions({
   onToggleTerminal,
   onToggleBrowser,
   onCreateDraftTab,
+  onCreateTerminal,
   onCreateTerminalWithProfile,
   onOpenImportSheet,
   onCopyWorkspacePath,
@@ -222,7 +223,7 @@ export function WorkspaceHeaderActions({
           importAgentDisabled={importAgentDisabled}
           copyPathDisabled={!workspaceDirectory}
           onCreateDraftTab={onCreateDraftTab}
-          onCreateTerminal={onToggleTerminal}
+          onCreateTerminal={onCreateTerminal}
           onCreateTerminalWithProfile={onCreateTerminalWithProfile}
           onCreateBrowser={onToggleBrowser}
           onOpenImportSheet={onOpenImportSheet}
@@ -240,6 +241,7 @@ export function WorkspaceHeaderActions({
           copyPathDisabled={!workspaceDirectory}
           showChanges={isGitCheckout}
           onCreateDraftTab={onCreateDraftTab}
+          onCreateTerminal={onCreateTerminal}
           onCreateTerminalWithProfile={onCreateTerminalWithProfile}
           onOpenImportSheet={onOpenImportSheet}
           onCopyWorkspacePath={onCopyWorkspacePath}

@@ -49,6 +49,7 @@ import {
 import { normalizeWorkspaceTabTarget } from "@/workspace-tabs/identity";
 import { createValidatedPersistStorage } from "@/storage/validated-persist-storage";
 import { panelTargetSupportsHostForWorkspaceKey } from "@/plugins/workspace-panels/locations";
+import { usePanelStore } from "@/stores/panel-store";
 
 export {
   AMBIENT_PLACEMENT,
@@ -570,6 +571,11 @@ export function createWorkspaceLayoutStore(
                 : nextLayout,
             },
           }));
+          // Focus mode is presentation state outside this layout. Only an explicit
+          // activation may leave it; retained/background updates must stay quiet.
+          if (landedInSidePanel && input.intent !== "background") {
+            usePanelStore.getState().exitFocusMode();
+          }
           return result.tabId;
         },
         showExplorerSidebar: (workspaceKey) => {
@@ -599,6 +605,7 @@ export function createWorkspaceLayoutStore(
               },
             };
           });
+          usePanelStore.getState().exitFocusMode();
           return EXPLORER_SIDEBAR_PANE_ID;
         },
         hideExplorerSidebar: (workspaceKey) => {
@@ -679,12 +686,14 @@ export function createWorkspaceLayoutStore(
             return;
           }
 
+          let revealedSidePanel = false;
           set((state) => {
             const layout = getWorkspaceLayout(state.layoutByWorkspace, normalizedWorkspaceKey);
             const explorerSidebarPaneId = EXPLORER_SIDEBAR_PANE_ID;
             const tabPane = findPaneContainingTab(layout.root, normalizedTabId);
             let nextLayout: WorkspaceLayout | null;
             if (tabPane?.id === explorerSidebarPaneId) {
+              revealedSidePanel = true;
               const revealedLayout =
                 setPaneHiddenInLayout({
                   layout,
@@ -712,6 +721,7 @@ export function createWorkspaceLayoutStore(
               },
             };
           });
+          if (revealedSidePanel) usePanelStore.getState().exitFocusMode();
         },
         selectTabInPane: (workspaceKey, paneId, tabId) => {
           const normalizedWorkspaceKey = trimNonEmpty(workspaceKey);

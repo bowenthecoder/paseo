@@ -651,7 +651,20 @@ function canEventChangeDesiredSubscriptions(type: QueryCacheNotifyEvent["type"])
 }
 
 function getServerDataRoute(query: Query): ServerDataRoute | null {
-  const meta = query.meta;
+  let inactiveRoute: ServerDataRoute | null = null;
+  // Query metadata follows the last observer. A retained, hidden panel must
+  // not disable a subscription that another observer still needs.
+  for (const observer of query.observers) {
+    const route = readServerDataMeta(observer.options.meta);
+    if (route?.enabled) {
+      return route;
+    }
+    inactiveRoute ??= route;
+  }
+  return inactiveRoute ?? readServerDataMeta(query.meta);
+}
+
+function readServerDataMeta(meta: unknown): ServerDataRoute | null {
   if (!isRecord(meta) || !isRecord(meta.serverData)) {
     return null;
   }

@@ -20,9 +20,13 @@ export function buildDesktopFrameStyle(input: DesktopFrameStyleInput): StyleProp
     shouldHideDesktopContent,
     availableHeight,
   } = input;
-  const fixedHeightStyle =
+  const resolvedFixedHeight =
     desktopFixedHeight != null
-      ? { minHeight: desktopFixedHeight, maxHeight: desktopFixedHeight }
+      ? Math.min(desktopFixedHeight, Math.max(0, availableHeight ?? desktopFixedHeight))
+      : null;
+  const fixedHeightStyle =
+    resolvedFixedHeight != null
+      ? { minHeight: resolvedFixedHeight, maxHeight: resolvedFixedHeight }
       : null;
   const hiddenStyle = shouldHideDesktopContent ? { opacity: 0 } : null;
   const availableHeightStyle =

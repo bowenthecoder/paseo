@@ -1,9 +1,74 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { resolveKeyboardShortcut } from "./keyboard-shortcuts";
 import {
+  dispatchKeyboardShortcutAction,
   routeKeyboardShortcut,
   type ShortcutAction,
   type ShortcutRoutingContext,
 } from "./route-shortcut";
+
+const ESCAPE_EVENT = {
+  key: "Escape",
+  altKey: false,
+  ctrlKey: false,
+  metaKey: false,
+  shiftKey: false,
+};
+
+describe("dispatchKeyboardShortcutAction — Escape priority", () => {
+  const closeAction = { id: "workspace.sidePanel.close", scope: "workspace" } as const;
+
+  it("closes an open side panel without also interrupting the agent", () => {
+    const dispatcher = { dispatch: vi.fn().mockReturnValue(true) };
+    expect(dispatchKeyboardShortcutAction(closeAction, dispatcher, ESCAPE_EVENT)).toBe(true);
+    expect(dispatcher.dispatch.mock.calls).toEqual([[closeAction]]);
+  });
+
+  it("interrupts the agent when the default Escape action has no open panel to close", () => {
+    const resolved = resolveKeyboardShortcut({
+      event: { ...ESCAPE_EVENT, code: "Escape", repeat: false },
+      context: { isMac: false, isDesktop: false, focusScope: "other", commandCenterOpen: false },
+      chordState: { candidateIndices: [], step: 0, timeoutId: null },
+      onChordReset: () => undefined,
+    });
+    expect(resolved.match).not.toBeNull();
+    const routed = routeKeyboardShortcut(resolved.match!, makeCtx());
+    expect(routed.kind).toBe("dispatch");
+    if (routed.kind !== "dispatch") throw new Error("Escape did not resolve to a dispatch");
+    const dispatcher = { dispatch: vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true) };
+    expect(dispatchKeyboardShortcutAction(routed.action, dispatcher, ESCAPE_EVENT)).toBe(true);
+    expect(dispatcher.dispatch.mock.calls).toEqual([
+      [closeAction],
+      [{ id: "agent.interrupt", scope: "global" }],
+    ]);
+  });
+
+  it("leaves Escape unhandled when neither a panel nor an interrupt accepts it", () => {
+    const dispatcher = { dispatch: vi.fn().mockReturnValue(false) };
+    expect(dispatchKeyboardShortcutAction(closeAction, dispatcher, ESCAPE_EVENT)).toBe(false);
+    expect(dispatcher.dispatch).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    { ...ESCAPE_EVENT, key: "w" },
+    { ...ESCAPE_EVENT, altKey: true },
+    { ...ESCAPE_EVENT, ctrlKey: true },
+    { ...ESCAPE_EVENT, metaKey: true },
+    { ...ESCAPE_EVENT, shiftKey: true },
+    null,
+  ])("does not interrupt for a rebound or non-keyboard close command (%j)", (event) => {
+    const dispatcher = { dispatch: vi.fn().mockReturnValue(false) };
+    expect(dispatchKeyboardShortcutAction(closeAction, dispatcher, event)).toBe(false);
+    expect(dispatcher.dispatch.mock.calls).toEqual([[closeAction]]);
+  });
+
+  it("does not fall through from an unrelated action", () => {
+    const action = { id: "message-input.focus", scope: "message-input" } as const;
+    const dispatcher = { dispatch: vi.fn().mockReturnValue(false) };
+    expect(dispatchKeyboardShortcutAction(action, dispatcher, ESCAPE_EVENT)).toBe(false);
+    expect(dispatcher.dispatch.mock.calls).toEqual([[action]]);
+  });
+});
 
 const SIDEBAR_TARGETS = [
   { serverId: "srv", workspaceId: "ws-1" },
@@ -38,6 +103,7 @@ describe("routeKeyboardShortcut — dispatch passthroughs", () => {
     ["workspace.pin", { id: "workspace.pin", scope: "sidebar" }],
     ["worktree.new", { id: "worktree.new", scope: "sidebar" }],
     ["workspace.terminal.new", { id: "workspace.terminal.new", scope: "workspace" }],
+    ["workspace.sidePanel.close", { id: "workspace.sidePanel.close", scope: "workspace" }],
     ["workspace.tab.close.current", { id: "workspace.tab.close-current", scope: "workspace" }],
     ["sidebar.toggle.right", { id: "sidebar.toggle.right", scope: "sidebar" }],
     ["view.toggle.focus", { id: "workspace.focus.toggle", scope: "workspace" }],
@@ -54,6 +120,31 @@ describe("routeKeyboardShortcut — dispatch passthroughs", () => {
         { action: "agent.interrupt", payload: null },
         makeCtx({ pathname: "/settings/general" }),
       ),
+    ).toEqual<ShortcutAction>({ kind: "navigate-last-workspace" });
+  });
+
+  it.each([
+    { isMac: false, isDesktop: false },
+    { isMac: true, isDesktop: true },
+  ])("closes settings using the actual default Escape binding (%j)", (platform) => {
+    const resolved = resolveKeyboardShortcut({
+      event: {
+        key: "Escape",
+        code: "Escape",
+        altKey: false,
+        ctrlKey: false,
+        metaKey: false,
+        shiftKey: false,
+        repeat: false,
+      },
+      context: { ...platform, focusScope: "other", commandCenterOpen: false },
+      chordState: { candidateIndices: [], step: 0, timeoutId: null },
+      onChordReset: () => undefined,
+    });
+
+    expect(resolved.match).not.toBeNull();
+    expect(
+      routeKeyboardShortcut(resolved.match!, makeCtx({ pathname: "/settings/general" })),
     ).toEqual<ShortcutAction>({ kind: "navigate-last-workspace" });
   });
 

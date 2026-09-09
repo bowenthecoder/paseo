@@ -173,6 +173,15 @@ test.describe("Workspace navigation regression", () => {
       });
       await waitForWorkspaceTabsVisible(page);
       await expectWorkspaceTabVisible(page, agent.id);
+      // A retained panel shell can mount before its agent details resolve.
+      // Drop the connection only after this chat is actually ready to retain.
+      await expect(
+        page
+          .getByTestId("workspace-chat-pane")
+          .filter({ visible: true })
+          .getByTestId("agent-chat-scroll"),
+      ).toBeVisible({ timeout: 30_000 });
+      await expectComposerVisible(page);
 
       await daemonGate.drop();
       await daemonGate.waitForBlockedConnection();

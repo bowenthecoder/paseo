@@ -2403,16 +2403,20 @@ export function createGitHubService(options: CreateGitHubServiceOptions = {}): G
       ].filter((result) => result !== null);
       if (
         requestedResults.length > 0 &&
-        requestedResults.every(
-          (result) =>
-            result.status === "rejected" &&
-            (result.reason instanceof GitHubCliMissingError ||
-              result.reason instanceof GitHubAuthenticationError),
-        )
+        requestedResults.every((result) => result.status === "rejected")
       ) {
-        const hasMissingCli = requestedResults.some(
+        // A failed search is not an empty search. Preserve partial results below,
+        // but surface a real failure when none of the requested reads succeeded.
+        const failedSearch = requestedResults.find(
           (result) =>
-            result.status === "rejected" && result.reason instanceof GitHubCliMissingError,
+            !(result.reason instanceof GitHubCliMissingError) &&
+            !(result.reason instanceof GitHubAuthenticationError),
+        );
+        if (failedSearch) {
+          throw failedSearch.reason;
+        }
+        const hasMissingCli = requestedResults.some(
+          (result) => result.reason instanceof GitHubCliMissingError,
         );
         return createUnavailableSearchResult(hasMissingCli ? "cli_missing" : "unauthenticated");
       }

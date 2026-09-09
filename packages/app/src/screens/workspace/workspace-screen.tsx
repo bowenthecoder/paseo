@@ -2027,6 +2027,10 @@ function WorkspaceScreenContent({
     }
   }, [activeExplorerCheckout, isMobile, persistenceKey]);
 
+  const handleCreateTerminal = useStableEvent(() => {
+    createTerminal({ destination: { kind: "open" } });
+  });
+
   /**
    * The header button is a toggle over one dock: put the terminal away when it is the thing on
    * screen, bring the newest one back when it is not, and only start a new one when none is live.
@@ -2045,7 +2049,7 @@ function WorkspaceScreenContent({
       focusWorkspaceTab(persistenceKey, existing.tabId);
       return;
     }
-    createTerminal({ destination: { kind: "open" } });
+    handleCreateTerminal();
   });
 
   const handleOpenChangesView = useStableEvent(() => {
@@ -2519,7 +2523,7 @@ function WorkspaceScreenContent({
           handleCreateDraftTab();
           return true;
         case "workspace.terminal.new":
-          handleToggleTerminal();
+          handleCreateTerminal();
           return true;
         case "workspace.browser.new":
         case "workspace.tab.target.browser":
@@ -2565,8 +2569,8 @@ function WorkspaceScreenContent({
       closeSidePanel,
       handleCloseTabById,
       handleCreateDraftTab,
+      handleCreateTerminal,
       handleToggleBrowser,
-      handleToggleTerminal,
       isGitCheckout,
       isMobile,
       isSidePanelOpen,
@@ -2884,6 +2888,7 @@ function WorkspaceScreenContent({
         onToggleTerminal={handleToggleTerminal}
         onToggleBrowser={handleToggleBrowser}
         onCreateDraftTab={handleCreateDraftTab}
+        onCreateTerminal={handleCreateTerminal}
         onCreateTerminalWithProfile={handleCreateTerminalWithProfile}
         onOpenImportSheet={openImportSheet}
         onCopyWorkspacePath={handleCopyWorkspacePath}
@@ -2905,6 +2910,7 @@ function WorkspaceScreenContent({
       handleCopyBranchName,
       handleCopyWorkspacePath,
       handleCreateDraftTab,
+
       handleCreateTerminalWithProfile,
       handleOpenChangesView,
       handleOpenFilesView,

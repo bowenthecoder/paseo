@@ -25,6 +25,30 @@ function buildWidthStyle(input: {
 }
 
 describe("buildDesktopFrameStyle", () => {
+  it.each([
+    { availableHeight: 398, expectedHeight: 398 },
+    { availableHeight: 800, expectedHeight: 580 },
+    { availableHeight: undefined, expectedHeight: 580 },
+  ])(
+    "keeps a tall picker inside $availableHeight px of available space",
+    ({ availableHeight, expectedHeight }) => {
+      const frame = Object.assign(
+        {},
+        ...(buildDesktopFrameStyle({
+          desktopMinWidth: 360,
+          desktopLockWidth: true,
+          referenceWidth: 160,
+          desktopFixedHeight: 580,
+          desktopPositionStyle: { bottom: 320 },
+          shouldHideDesktopContent: false,
+          availableHeight,
+        }) as ViewStyle[]),
+      );
+      expect(frame.minHeight).toBe(expectedHeight);
+      expect(frame.maxHeight).toBe(expectedHeight);
+    },
+  );
+
   it("lets a narrow trigger grow to the default desktop ceiling", () => {
     expect(buildWidthStyle({ referenceWidth: 120 })).toEqual({
       width: undefined,

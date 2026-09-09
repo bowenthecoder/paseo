@@ -133,6 +133,7 @@ import { AttachmentLightbox, type ImageLightboxSource } from "@/components/attac
 import { openExternalUrl } from "@/utils/open-external-url";
 import { useIsDictationReady } from "@/hooks/use-is-dictation-ready";
 import { useForgeSearchQuery } from "@/git/use-forge-search-query";
+import { resolveForgeSearchState } from "@/composer/forge-search-state";
 import { useCheckoutStatusQuery } from "@/git/use-status-query";
 import { useCheckoutPrStatusQuery } from "@/git/use-pr-status-query";
 import { getForgePresentation } from "@/git/forge";
@@ -2005,8 +2006,13 @@ function ComposerContentImpl({
     enabled: resolveGithubSearchEnabled(isGithubPickerOpen, isConnected, cwd),
   });
 
-  const githubSearchItemsRaw = githubSearchResultsQuery.data?.items;
-  const githubSearchItems = useMemo(() => githubSearchItemsRaw ?? [], [githubSearchItemsRaw]);
+  const { items: githubSearchItems, emptyText: githubEmptyText } = resolveForgeSearchState({
+    data: githubSearchResultsQuery.data,
+    error: githubSearchResultsQuery.error,
+    isFetching: githubSearchResultsQuery.isFetching,
+    searchingText: t("composer.github.searching"),
+    noResultsText: t("composer.github.noResults"),
+  });
   const githubSearchOptions: ComboboxOption[] = useMemo(
     () =>
       githubSearchItems.map((item) => {
@@ -2255,9 +2261,6 @@ function ComposerContentImpl({
       ) : null,
     [sendError],
   );
-  const githubEmptyText = githubSearchResultsQuery.isFetching
-    ? t("composer.github.searching")
-    : t("composer.github.noResults");
   const autocompleteVisible = autocomplete.isVisible && mode.showAutocomplete;
 
   return (

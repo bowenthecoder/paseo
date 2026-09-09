@@ -1,8 +1,15 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { View, type LayoutChangeEvent } from "react-native";
-import { StyleSheet } from "react-native-unistyles";
+import { StyleSheet, withUnistyles } from "react-native-unistyles";
+import { useTranslation } from "react-i18next";
+import { X } from "lucide-react-native";
 import { ResizeHandle } from "@/components/resize-handle";
+import { ScreenHeader } from "@/components/headers/screen-header";
+import { ToolbarButton } from "@/components/ui/pane-content-toolbar";
+import { mutedIconColorMapping } from "@/components/ui/icon-color";
 import { resolveWorkspaceContentMinimum } from "@/components/desktop-sidebar-layout";
+import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
+import { usePanelStore } from "@/stores/panel-store";
 import {
   resolveExplorerSidebarDockSizes,
   resolveExplorerSidebarWidth,
@@ -28,6 +35,28 @@ import {
 } from "@/utils/desktop-window";
 
 const SIDE_PANEL_RESIZE_GROUP_ID = "workspace-side-panel";
+const ThemedX = withUnistyles(X);
+
+function WorkspaceFocusModeHeader() {
+  const { t } = useTranslation();
+  const focusModeKeys = useShortcutKeys("toggle-focus");
+  const exitFocusMode = usePanelStore((state) => state.exitFocusMode);
+  const action = useMemo(
+    () => (
+      <ToolbarButton
+        label={t("workspace.tabs.actions.exitFocusMode")}
+        shortcut={focusModeKeys}
+        testID="workspace-exit-focus-mode"
+        onPress={exitFocusMode}
+      >
+        <ThemedX size={14} uniProps={mutedIconColorMapping} />
+      </ToolbarButton>
+    ),
+    [exitFocusMode, focusModeKeys, t],
+  );
+
+  return <ScreenHeader borderless right={action} />;
+}
 
 interface WorkspaceChatLayoutProps {
   layout: WorkspaceLayout;
@@ -154,7 +183,7 @@ export function WorkspaceChatLayout({
       <View style={styles.workspaceShell} onLayout={handleShellLayout}>
         <WindowChromeRegion corners={chatColumnCorners}>
           <View style={styles.chatColumn} testID="workspace-chat-pane">
-            {renderHeader?.()}
+            {focusModeEnabled ? <WorkspaceFocusModeHeader /> : renderHeader?.()}
             <View style={styles.chatContent}>
               {chatPane ? (
                 <WorkspacePanelHost

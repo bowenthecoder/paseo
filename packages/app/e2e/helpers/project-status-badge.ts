@@ -2,6 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { gotoAppShell } from "../support/helpers/app";
 import { seedWorkspace, type SeededWorkspace } from "../support/helpers/seed-client";
 import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 
 export interface StatusProject {
   seed: SeededWorkspace;
@@ -29,6 +30,7 @@ export async function openAndCollapseStatusProject(
   project: StatusProject,
 ): Promise<void> {
   await gotoAppShell(page);
+  await selectSidebarProjectGrouping(page);
   await waitForSidebarHydration(page);
   await projectRow(page, project).click();
   await page.mouse.move(1200, 850);

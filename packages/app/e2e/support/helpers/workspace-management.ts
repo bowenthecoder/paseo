@@ -12,11 +12,13 @@ export async function selectSidebarProjectGrouping(
   await expect(page.getByTestId("sidebar-global-new-workspace")).toBeVisible({
     timeout: 30_000,
   });
-  if (options.entry === "sidebar") {
-    // Compact layouts disable global keyboard shortcuts; use the same visible
-    // command-center control available to a touch user, keeping the sidebar open.
-    await page.getByTestId("sidebar-command-center-search").click();
+  const search = page.getByTestId("sidebar-command-center-search");
+  if (options.entry === "sidebar" || (await search.isVisible())) {
+    // Compact layouts and focused terminals retain their own shortcuts. The
+    // visible Search control works for both without moving terminal focus first.
+    await search.click();
   } else {
+    // The empty project view has no list header, and therefore no Search button.
     await page.keyboard.press("ControlOrMeta+K");
   }
   const panel = page.getByTestId("command-center-panel");

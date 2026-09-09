@@ -32,6 +32,7 @@ import {
 import { gotoAppShell } from "../support/helpers/app";
 import { seedWorkspace } from "../support/helpers/seed-client";
 import { hasGithubAuth, createTempGithubRepo } from "../support/helpers/github-fixtures";
+import { waitForGithubSearchFixture } from "../support/helpers/github-search-readiness";
 import { openFileExplorer } from "../support/helpers/file-explorer";
 
 const MINIMAL_PNG = Buffer.from(
@@ -107,8 +108,15 @@ test.describe("Composer attachments", () => {
       issues: [{ title: "fix: attach-issue-unique-alpha" }],
       prs: [{ title: "feat: attach-issue-dummy-pr", state: "open" }],
     });
-    const handle = await openGithubWorkspace(page, ghRepo.prs[0].localPath);
+    let handle: Awaited<ReturnType<typeof openGithubWorkspace>> | undefined;
     try {
+      await waitForGithubSearchFixture({
+        cwd: ghRepo.prs[0].localPath,
+        kind: "issue",
+        query: "attach-issue-unique-alpha",
+        expected: ghRepo.issues[0],
+      });
+      handle = await openGithubWorkspace(page, ghRepo.prs[0].localPath);
       await clickNewChat(page);
       await expectComposerVisible(page);
 
@@ -123,8 +131,11 @@ test.describe("Composer attachments", () => {
         title: ghRepo.issues[0].title,
       });
     } finally {
-      await handle.cleanup();
-      await ghRepo.cleanup();
+      try {
+        await handle?.cleanup();
+      } finally {
+        await ghRepo.cleanup();
+      }
     }
   });
 
@@ -138,8 +149,15 @@ test.describe("Composer attachments", () => {
       category: "attach-pr",
       prs: [{ title: "feat: attach-pr-unique-beta", state: "open" }],
     });
-    const handle = await openGithubWorkspace(page, ghRepo.prs[0].localPath);
+    let handle: Awaited<ReturnType<typeof openGithubWorkspace>> | undefined;
     try {
+      await waitForGithubSearchFixture({
+        cwd: ghRepo.prs[0].localPath,
+        kind: "pr",
+        query: "attach-pr-unique-beta",
+        expected: ghRepo.prs[0],
+      });
+      handle = await openGithubWorkspace(page, ghRepo.prs[0].localPath);
       await clickNewChat(page);
       await expectComposerVisible(page);
 
@@ -154,8 +172,11 @@ test.describe("Composer attachments", () => {
         title: ghRepo.prs[0].title,
       });
     } finally {
-      await handle.cleanup();
-      await ghRepo.cleanup();
+      try {
+        await handle?.cleanup();
+      } finally {
+        await ghRepo.cleanup();
+      }
     }
   });
 

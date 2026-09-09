@@ -1745,6 +1745,8 @@ export const ko: TranslationResources = {
     backdrop: "메뉴 배경",
   },
   subagents: {
+    loadFailed: "이 작업을 불러올 수 없습니다.",
+    connectToLoad: "작업을 불러오려면 이 호스트에 연결하세요.",
     tasksTitle: "작업",
     empty: "표시할 하위 에이전트가 없습니다.",
     pillLabelWorkingOne: "작업 1개 실행 중",

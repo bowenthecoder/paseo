@@ -57,6 +57,7 @@ import { useLoadOlderAgentHistory } from "@/hooks/use-load-older-agent-history";
 import { useSettings } from "@/hooks/use-settings";
 import type { ToastApi } from "@/components/toast-host";
 import { returnToTimelineTail } from "./timeline-tail-navigation";
+import { renderHistoryStreamItem, renderLiveHeadStreamItem } from "./render-row";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import { ToolCallDetailsContent } from "@/components/tool-call-details";
 import { QuestionFormCard } from "@/components/question-form-card";
@@ -219,52 +220,6 @@ function renderListEmptyComponent(input: {
       <Text style={stylesheet.emptyStateText}>{input.emptyText}</Text>
     </View>
   );
-}
-
-// History rows sit inside FlatList cells that rerender on every data change (RN recreates each
-// CellRenderer with a fresh ref and, in a newest-first list, a shifted index). This boundary is
-// what stops that churn: a row renders again only when its stream item identity, its layout item
-// identity, or the renderer itself changes. Item identity is the revision signal the strategy
-// already uses (`useRevisedHistoryRows` clones items whose content or display state changed).
-const HistoryStreamRow = memo(function HistoryStreamRow({
-  layoutItem,
-  renderStreamItem,
-}: {
-  item: StreamItem;
-  layoutItem: StreamLayoutItem;
-  renderStreamItem: (layoutItem: StreamLayoutItem) => ReactNode;
-}) {
-  return <>{renderStreamItem(layoutItem)}</>;
-});
-
-function renderHistoryStreamItem(input: {
-  item: StreamItem;
-  layoutItemById: Map<string, StreamLayoutItem>;
-  renderStreamItem: (layoutItem: StreamLayoutItem) => ReactNode;
-}): ReactNode {
-  const layoutItem = input.layoutItemById.get(input.item.id);
-  if (!layoutItem) {
-    return null;
-  }
-  return (
-    <HistoryStreamRow
-      item={input.item}
-      layoutItem={layoutItem}
-      renderStreamItem={input.renderStreamItem}
-    />
-  );
-}
-
-function renderLiveHeadStreamItem(input: {
-  item: StreamItem;
-  layoutItemById: Map<string, StreamLayoutItem>;
-  renderStreamItem: (layoutItem: StreamLayoutItem) => ReactNode;
-}): ReactNode {
-  const layoutItem = input.layoutItemById.get(input.item.id);
-  if (!layoutItem) {
-    return null;
-  }
-  return input.renderStreamItem(layoutItem);
 }
 
 export interface AgentStreamViewHandle {

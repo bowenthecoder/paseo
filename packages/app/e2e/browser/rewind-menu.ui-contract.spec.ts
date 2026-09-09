@@ -2,7 +2,10 @@ import type { Locator } from "@playwright/test";
 import { expect, test, type Page } from "../support/fixtures";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
 import { installDaemonWebSocketGate } from "../support/helpers/daemon-websocket-gate";
-import { scrollChatAwayFromBottom } from "../support/helpers/agent-bottom-anchor";
+import {
+  scrollChatAwayFromBottom,
+  waitForScrollableChat,
+} from "../support/helpers/agent-bottom-anchor";
 import {
   composerLocator,
   expectComposerDraft,
@@ -191,6 +194,9 @@ test.describe("Rewind sheet", () => {
       await expect(page.getByText("Cycle 1", { exact: true })).toBeVisible();
       await expectUserMessageCount(page, 2);
 
+      // The first heading can arrive before the streamed body makes the chat
+      // scrollable. Wheel only after the real content can satisfy the assertion.
+      await waitForScrollableChat(page, { minScrollableDistance: 400 });
       await scrollChatAwayFromBottom(page, {
         deltaY: -900,
         minDistanceFromBottom: 300,

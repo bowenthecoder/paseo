@@ -237,8 +237,11 @@ test.describe("New workspace host project preservation", () => {
     await addConnectedHostsAndReload(page, [crossHostProject.secondaryHost], {
       primaryLabel: PRIMARY_HOST_LABEL,
     });
+    // Reload starts from the last active workspace host; the unsubmitted host
+    // choice is local to the form. Its equivalent project must remain selected.
+    await expect(page.getByTestId("host-picker-trigger")).toContainText(PRIMARY_HOST_LABEL);
     await expectNewWorkspaceProjectSelected(page, SHARED_PROJECT_NAME, {
-      directory: crossHostProject.secondarySharedDirectory,
+      directory: crossHostProject.primarySharedDirectory,
     });
     await selectNewWorkspaceHost(page, SECONDARY_HOST_LABEL);
 

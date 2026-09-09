@@ -157,6 +157,7 @@ export interface WorkspaceHeaderMenuDesktopProps extends WorkspaceHeaderWorkspac
   createTerminalDisabled: boolean;
   showChanges: boolean;
   onCreateDraftTab: () => void;
+  onCreateTerminal: () => void;
   onCreateTerminalWithProfile: (profile: TerminalProfile) => void;
   onOpenChanges: () => void;
   onOpenFiles: () => void;
@@ -171,6 +172,7 @@ export function WorkspaceHeaderMenuDesktop({
   createTerminalDisabled,
   showChanges,
   onCreateDraftTab,
+  onCreateTerminal,
   onCreateTerminalWithProfile,
   onOpenChanges,
   onOpenFiles,
@@ -225,6 +227,14 @@ export function WorkspaceHeaderMenuDesktop({
         <DropdownMenuSeparator />
         <WorkspaceHeaderWorkspaceActionItems {...workspaceActions} />
         <DropdownMenuSeparator />
+        <DropdownMenuItem
+          testID="workspace-header-new-terminal"
+          leading={MENU_NEW_TERMINAL_ICON}
+          disabled={createTerminalDisabled}
+          onSelect={onCreateTerminal}
+        >
+          {t("workspace.header.actions.newTerminal")}
+        </DropdownMenuItem>
         <DropdownMenuLabel>{t("workspace.tabs.actions.terminalProfilesMenu")}</DropdownMenuLabel>
         {profiles.map((profile) => (
           <HeaderMenuProfileItem

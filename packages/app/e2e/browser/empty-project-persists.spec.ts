@@ -6,6 +6,7 @@ import { selectSidebarProjectGrouping } from "../support/helpers/workspace-manag
 import {
   addProjectFlowInput,
   chooseAddProjectMethod,
+  expectAddProjectPage,
   openAddProjectFlow,
 } from "../support/helpers/add-project-flow";
 import { expectOpenedProject } from "../support/helpers/project-picker-ui";
@@ -52,13 +53,17 @@ async function removeProjectFromSidebar(page: Page, projectViewKey: string): Pro
   await removeItem.click();
 }
 
-async function addProjectFromPicker(page: Page, projectPath: string): Promise<string> {
+async function addProjectFromPicker(
+  page: Page,
+  projectPath: string,
+): Promise<{ projectId: string; projectViewKey: string }> {
   await openAddProjectFlow(page);
   await chooseAddProjectMethod(page, "directory-search");
 
   const input = addProjectFlowInput(page);
   await input.fill(projectPath);
   await page.keyboard.press("Enter");
+  const projectId = await expectOpenedProject(page);
 
   const projectRow = page
     .locator('[data-testid^="sidebar-project-row-"]')
@@ -68,7 +73,7 @@ async function addProjectFromPicker(page: Page, projectPath: string): Promise<st
 
   const testId = await projectRow.getAttribute("data-testid");
   expect(testId).not.toBeNull();
-  return testId!.replace("sidebar-project-row-", "");
+  return { projectId, projectViewKey: testId!.replace("sidebar-project-row-", "") };
 }
 
 async function waitForSidebarProjectListReady(page: Page): Promise<void> {
@@ -92,7 +97,10 @@ test.describe("Project picker search", () => {
     const input = addProjectFlowInput(page);
     await input.fill(projectPickerFixture.fuzzyQuery);
 
-    const suggestion = page.getByText(projectPickerFixture.projectName, { exact: false }).first();
+    const directoryPage = await expectAddProjectPage(page, "directory-search");
+    const suggestion = directoryPage
+      .getByText(projectPickerFixture.projectName, { exact: false })
+      .first();
     await expect(suggestion).toBeVisible({ timeout: 30_000 });
     await suggestion.click();
 
@@ -112,8 +120,9 @@ test.describe("Project picker search", () => {
     const input = addProjectFlowInput(page);
     await input.fill("paseo-loading-state-no-match");
 
-    await expect(page.getByText("Start typing a path", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("Loading...", { exact: true })).toBeVisible();
+    const directoryPage = await expectAddProjectPage(page, "directory-search");
+    await expect(directoryPage.getByText("Start typing a path", { exact: true })).toHaveCount(0);
+    await expect(directoryPage.getByText("Loading...", { exact: true })).toBeVisible();
   });
 });
 
@@ -130,13 +139,18 @@ test.describe("Project with no workspaces persists", () => {
       await selectSidebarProjectGrouping(page);
       await waitForSidebarProjectListReady(page);
 
-      projectId = await addProjectFromPicker(page, repo.path);
-      const projectRow = page.getByTestId(`sidebar-project-row-${projectId}`);
+      const added = await addProjectFromPicker(page, repo.path);
+      projectId = added.projectId;
+      const projectRow = page.getByTestId(`sidebar-project-row-${added.projectViewKey}`);
       await expect(projectRow).toBeVisible({ timeout: 30_000 });
       await expect(projectRow).toContainText(path.basename(repo.path));
-      await expect(page.getByTestId(`sidebar-workspace-list-${projectId}`)).toHaveCount(0);
+      await expect(page.getByTestId(`sidebar-workspace-list-${added.projectViewKey}`)).toHaveCount(
+        0,
+      );
 
-      const newWorkspaceRow = page.getByTestId(`sidebar-project-new-workspace-row-${projectId}`);
+      const newWorkspaceRow = page.getByTestId(
+        `sidebar-project-new-workspace-row-${added.projectViewKey}`,
+      );
       await expect(newWorkspaceRow).toBeVisible({ timeout: 30_000 });
       await expect(newWorkspaceRow).toContainText("New workspace");
 
