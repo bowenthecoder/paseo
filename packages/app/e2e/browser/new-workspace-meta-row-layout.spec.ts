@@ -10,7 +10,6 @@ import {
 import { seedWorkspace, type SeededWorkspace } from "../support/helpers/seed-client";
 import { getServerId } from "../support/helpers/server-id";
 import { seedSavedSettingsHosts } from "../support/helpers/settings";
-import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
 
 const LONG_HOST_NAME =
   "development-macbook-pro.local-connected-through-a-very-long-private-hostname";
@@ -56,7 +55,6 @@ test.describe("New workspace metadata row layout", () => {
     ]);
 
     await gotoAppShell(page);
-    await waitForSidebarHydration(page);
     await openNewWorkspaceComposer(page, {
       projectKey: workspace.projectKey,
       projectDisplayName: workspace.projectDisplayName,

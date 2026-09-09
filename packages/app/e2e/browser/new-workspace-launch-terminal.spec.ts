@@ -1,6 +1,5 @@
 import { expect, test } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
-import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
 import { openNewWorkspaceComposer } from "../support/helpers/new-workspace";
 import { seedWorkspace, type SeededWorkspace } from "../support/helpers/seed-client";
 import {
@@ -61,7 +60,6 @@ test.describe("New workspace: launching a terminal", () => {
   }) => {
     test.setTimeout(90_000);
     await gotoAppShell(page);
-    await waitForSidebarHydration(page);
 
     await test.step("pick a profile that takes a prompt, type one, and submit", async () => {
       await openNewWorkspaceComposer(page, {

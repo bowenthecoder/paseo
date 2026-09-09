@@ -14,7 +14,6 @@ import {
 import { expectNoTruncation } from "../support/helpers/no-truncation";
 import { createTempGitRepo } from "../support/helpers/workspace";
 import { getServerId } from "../support/helpers/server-id";
-import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
 
 // Regression for "the local / worktree selection in the new workspace is not
 // remembered." The isolation choice persists in the create-form preferences
@@ -55,7 +54,6 @@ test.describe("New workspace isolation memory", () => {
       localWorkspaceIds.add(openedProject.workspaceId);
 
       await gotoAppShell(page);
-      await waitForSidebarHydration(page);
 
       // First visit: the screen opens on Local, switch it to New worktree and create.
       await openNewWorkspaceComposer(page, {
