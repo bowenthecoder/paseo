@@ -56,6 +56,7 @@ import {
   emitSettledAssistantImage,
   expectAssistantImageRendered,
 } from "../support/helpers/assistant-images";
+import { enableDetailedToolCalls } from "../support/helpers/tool-call-detail";
 
 const IMAGE = {
   name: "message-submission.png",
@@ -337,6 +338,7 @@ async function replaySteeredSleepTurnInBrowser(
   testInfo: { workerIndex: number },
   shape: "claude" | "codex",
 ): Promise<void> {
+  await enableDetailedToolCalls(page);
   const gate = await installDaemonWebSocketGate(page);
   gate.holdNextShellToolCall("completed");
   await gotoAppShell(page);
@@ -618,6 +620,7 @@ async function expectStaleCanonicalPagePreservesNewerLiveOutput(
   page: Page,
   testInfo: { workerIndex: number },
 ): Promise<void> {
+  await enableDetailedToolCalls(page);
   const gate = await installDaemonWebSocketGate(page);
   const agent = await seedMockAgentWorkspace({
     repoPrefix: `submission-stale-canonical-${testInfo.workerIndex}-`,
