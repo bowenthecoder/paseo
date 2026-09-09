@@ -5,6 +5,7 @@ import { getServerId } from "./server-id";
 import {
   agentPanel,
   createAgentTabFromMenu,
+  expectTerminalTabOpen,
   getVisibleWorkspacePanelTestIds,
   workspacePanelTestId,
 } from "./workspace-tabs";
@@ -47,9 +48,20 @@ export async function clickNewChat(page: Page): Promise<void> {
 
 /** Toggle the terminal in the side panel from the header. */
 export async function clickNewTerminal(page: Page): Promise<void> {
-  const toggle = page.getByTestId("workspace-header-terminal-toggle").filter({ visible: true });
-  await expect(toggle.first()).toBeVisible({ timeout: 10_000 });
-  await toggle.first().click();
+  const toggle = page
+    .getByTestId("workspace-header-terminal-toggle")
+    .filter({ visible: true })
+    .first();
+  await expect(toggle).toBeVisible({ timeout: 10_000 });
+  await expect(toggle).toBeEnabled();
+  const wasExpanded = (await toggle.getAttribute("aria-expanded")) === "true";
+  await toggle.click();
+  // Terminal creation is asynchronous. A following "ensure sidebar" action must
+  // not click its toggle while this open is pending and close the completed view.
+  await expect(toggle).toHaveAttribute("aria-expanded", String(!wasExpanded), {
+    timeout: 30_000,
+  });
+  if (!wasExpanded) await expectTerminalTabOpen(page);
 }
 
 export async function pressDirectNewTabShortcut(page: Page, key: string): Promise<void> {
