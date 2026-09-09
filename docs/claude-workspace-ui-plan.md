@@ -127,9 +127,16 @@ The app integration combines the feature, preview, queue and single-chat inputs.
 remain clean and unchanged at the checkpoints above. Review branches:
 [app integration](https://github.com/bowenthecoder/paseo/tree/bowen/paseo-integration-20260908) and
 [subscriptions integration](https://github.com/bowenthecoder/paseo-subscriptions/tree/bowen/paseo-integration-20260908).
-The combined app and regression fixes were pushed at `517f88b27`; the subscriptions integration was pushed at
+The transport, restored split and combined app fixes were pushed at `ec19eaf36`; the subscriptions integration was pushed at
 `efe9f9c`. Draft reviews are [app #1](https://github.com/bowenthecoder/paseo/pull/1) and
 [subscriptions #1](https://github.com/bowenthecoder/paseo-subscriptions/pull/1).
+
+The final source audit also found the pending desktop ownership fix in the separate
+`/Users/bowen/code/paseorevised` checkout at `8f6e993e1`. Its six changed files and exact patch
+are preserved in the source backup's `paseorevised-desktop-ownership` directory. The candidate
+includes that fix: quitting a desktop profile can stop only a supervisor spawned by that
+Electron process, and only when built-in daemon management is enabled. All 26 focused desktop
+tests, desktop typecheck, scoped lint and formatting passed; the original source remains untouched.
 
 ## Integrated verification and release readiness
 

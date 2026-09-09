@@ -49,6 +49,9 @@ const DAEMON_LOG_FILENAME = "daemon.log";
 const STARTUP_POLL_INTERVAL_MS = 200;
 const STARTUP_POLL_MAX_ATTEMPTS = 150;
 const DETACHED_STARTUP_GRACE_MS = 1200;
+// A second desktop profile can attach to the same home. It must never stop a
+// supervisor started by another desktop process when its own windows quit.
+const ownedDaemonPids = new Set<number>();
 
 type DesktopDaemonState = "starting" | "running" | "stopped" | "errored";
 const DESKTOP_DAEMON_STOP_REASON_VALUES = [
@@ -122,12 +125,13 @@ function logFilePath(): string {
   return path.join(getPaseoHome(), DAEMON_LOG_FILENAME);
 }
 
-export function isDesktopManagedDaemonRunningSync(): boolean {
+export function isOwnedDesktopDaemonRunningSync(): boolean {
   try {
     const raw = readFileSync(path.join(getPaseoHome(), "paseo.pid"), "utf-8");
     const lock = JSON.parse(raw) as { pid?: unknown; desktopManaged?: unknown };
     if (lock.desktopManaged !== true) return false;
     if (typeof lock.pid !== "number" || !Number.isInteger(lock.pid)) return false;
+    if (!ownedDaemonPids.has(lock.pid)) return false;
     return isProcessRunning(lock.pid);
   } catch {
     return false;
@@ -415,6 +419,9 @@ async function startDaemon(): Promise<DesktopDaemonStatus> {
     spawnargs: child.spawnargs,
   });
 
+  const ownedPid = child.pid;
+  if (ownedPid !== undefined) ownedDaemonPids.add(ownedPid);
+
   child.unref();
 
   type GraceResult =
@@ -432,10 +439,12 @@ async function startDaemon(): Promise<DesktopDaemonStatus> {
     const timer = setTimeout(() => finish({ exitedEarly: false }), DETACHED_STARTUP_GRACE_MS);
 
     child.once("error", (error) => {
+      if (ownedPid !== undefined) ownedDaemonPids.delete(ownedPid);
       clearTimeout(timer);
       finish({ exitedEarly: true, code: null, signal: null, error });
     });
     child.once("exit", (code, signal) => {
+      if (ownedPid !== undefined) ownedDaemonPids.delete(ownedPid);
       clearTimeout(timer);
       finish({ exitedEarly: true, code, signal });
     });
