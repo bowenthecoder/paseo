@@ -1659,6 +1659,7 @@ function ActiveAgentComposer({
   const { archiveAgent } = useArchiveAgent();
   const runtimeClient = useHostRuntimeClient(serverId);
   const toast = useToast();
+  const { t } = useTranslation();
   const workspaceAttachmentScopeKey = useWorkspaceAttachmentScopeKey({
     serverId,
     cwd,
@@ -1704,17 +1705,17 @@ function ActiveAgentComposer({
         archiveAgent,
         navigateToWorkspace,
         setAgentMode: async (targetAgentId, modeId) => {
-          if (!runtimeClient) throw new Error("Daemon client unavailable");
+          if (!runtimeClient) throw new Error(t("common.errors.daemonClientUnavailable"));
           await runtimeClient.setAgentMode(targetAgentId, modeId);
         },
         setAgentFeature: async (targetAgentId, featureId, value) => {
-          if (!runtimeClient) throw new Error("Daemon client unavailable");
+          if (!runtimeClient) throw new Error(t("common.errors.daemonClientUnavailable"));
           await runtimeClient.setAgentFeature(targetAgentId, featureId, value);
         },
         notify: (message) => toast.show(message),
       });
     },
-    [agentId, archiveAgent, paneContext, runtimeClient, serverId, toast],
+    [agentId, archiveAgent, paneContext, runtimeClient, serverId, t, toast],
   );
 
   const inputAreaStyle = useMemo(

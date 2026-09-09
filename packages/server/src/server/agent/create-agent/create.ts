@@ -361,7 +361,7 @@ async function resolveMcpCreateAgent(
       owner: input.owner,
       env: input.env,
       // A prompt-derived name stays provisional so the first accepted prompt can name the chat.
-      initialTitle: provisionalTitle,
+      ...(provisionalTitle ? { initialTitle: provisionalTitle } : {}),
     },
     prompt: trimmedPrompt ? trimmedPrompt : undefined,
     setupContinuation,
@@ -436,7 +436,8 @@ function buildMcpSessionConfig(params: {
   if (featureValues) {
     config.featureValues = featureValues;
   }
-  return { config, provisionalTitle };
+  // A caller-provided title is final; only a prompt-derived name stays provisional.
+  return { config, provisionalTitle: explicitTitle ? null : provisionalTitle };
 }
 
 async function ensureWorkspaceForMcpCreate(
