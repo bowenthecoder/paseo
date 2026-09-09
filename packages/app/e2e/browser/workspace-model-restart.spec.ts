@@ -24,6 +24,7 @@ import {
 import { selectSidebarStatusGrouping } from "../support/helpers/sidebar";
 import { killProcessTree, spawnTsx } from "../support/helpers/spawn-node";
 import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import { getVisibleWorkspaceAgentPanelIds } from "../support/helpers/workspace-tabs";
 
 const LEGACY_AGENT_ID = "10000000-0000-4000-8000-000000000001";
@@ -427,6 +428,7 @@ test.describe("Workspace model restart regressions", () => {
         });
 
       await page.goto(buildHostWorkspaceRoute(serverId, seeded.workspaceA));
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await expectWorkspaceRowDoesNotShowIndicator(page, {
         serverId,

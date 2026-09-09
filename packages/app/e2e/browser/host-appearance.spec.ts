@@ -1,5 +1,6 @@
 import { expect, test as base } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import {
   addConnectedHostAndReload,
   chooseHostBadgeDisplay,
@@ -66,6 +67,7 @@ const test = base.extend<{ twoHostSidebar: TwoHostSidebar }>({
         serverId: secondaryHost.serverId,
         endpoint: `localhost:${secondaryHost.port}`,
       });
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
 
       await provide({

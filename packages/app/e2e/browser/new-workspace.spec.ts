@@ -51,16 +51,17 @@ import {
   type LocalGhPrFixture,
 } from "../support/helpers/github-fixtures";
 import { getServerId } from "../support/helpers/server-id";
-import { selectSidebarStatusGrouping } from "../support/helpers/sidebar";
+import { selectChatInSidebar, selectSidebarStatusGrouping } from "../support/helpers/sidebar";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
+import { connectSeedClient } from "../support/helpers/seed-client";
+import { createMockIdleAgent } from "../support/helpers/archive-tab";
 import { getE2EDaemonPort } from "../support/helpers/daemon-port";
 import { chooseAddProjectMethod, expectAddProjectPage } from "../support/helpers/add-project-flow";
 import { seedSavedSettingsHosts } from "../support/helpers/settings";
 import {
-  expectSidebarWorkspaceSelected,
   expectWorkspaceHeader,
   switchWorkspaceViaSidebar,
   waitForSidebarHydration,
-  waitForWorkspaceInSidebar,
 } from "../support/helpers/workspace-ui";
 import { dropFileOnComposer, expectAttachmentPill } from "../support/helpers/composer";
 
@@ -270,22 +271,23 @@ test.describe("New workspace flow", () => {
       ]);
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await openGlobalNewWorkspaceComposer(page);
 
       const projectTrigger = page.getByTestId("new-workspace-project-picker-trigger");
       await projectTrigger.click();
-      await page.getByPlaceholder("Search projects").fill("no matching project");
+      await page.getByPlaceholder("Search folders").fill("no matching project");
       await expect(page.getByTestId("new-workspace-project-picker-add-project")).toBeVisible();
       await page.keyboard.press("Escape");
 
       await page.getByTestId("host-picker-trigger").click();
       await page.getByTestId(`new-workspace-host-picker-option-${emptyServerId}`).click();
-      await expect(projectTrigger).toContainText("Choose project");
+      await expect(projectTrigger).toContainText("No folder");
       await projectTrigger.click();
 
       const addProject = page.getByTestId("new-workspace-project-picker-add-project");
-      await expect(addProject).toContainText("Add project");
+      await expect(addProject).toContainText("Choose another folder…");
       await expect(addProject).toContainText(/(?:⌘|Ctrl\+)O/);
       await addProject.click();
 
@@ -298,6 +300,7 @@ test.describe("New workspace flow", () => {
 
   test("sidebar workspace navigation updates URL and header", async ({ page }) => {
     const serverId = getServerId();
+    const agentsClient = await connectSeedClient();
 
     const firstRepo = await createTempGitRepo("workspace-nav-a-");
     const secondRepo = await createTempGitRepo("workspace-nav-b-");
@@ -307,44 +310,55 @@ test.describe("New workspace flow", () => {
       const secondWorkspace = await openProjectViaDaemon(client, secondRepo.path);
       localWorkspaceIds.add(firstWorkspace.workspaceId);
       localWorkspaceIds.add(secondWorkspace.workspaceId);
+      const [firstChat, secondChat] = await Promise.all([
+        createMockIdleAgent(agentsClient, {
+          cwd: firstWorkspace.workspaceDirectory,
+          workspaceId: firstWorkspace.workspaceId,
+          title: "First workspace chat",
+        }),
+        createMockIdleAgent(agentsClient, {
+          cwd: secondWorkspace.workspaceDirectory,
+          workspaceId: secondWorkspace.workspaceId,
+          title: "Second workspace chat",
+        }),
+      ]);
 
       await gotoAppShell(page);
-      await waitForSidebarHydration(page);
 
-      await switchWorkspaceViaSidebar({
-        page,
+      await selectChatInSidebar(page, {
         serverId,
         workspaceId: firstWorkspace.workspaceId,
+        agentId: firstChat.id,
       });
       await expectWorkspaceHeader(page, {
         title: firstWorkspace.workspaceName,
         subtitle: firstWorkspace.projectDisplayName,
       });
 
-      await switchWorkspaceViaSidebar({
-        page,
+      await selectChatInSidebar(page, {
         serverId,
         workspaceId: secondWorkspace.workspaceId,
+        agentId: secondChat.id,
       });
-      await waitForWorkspaceInSidebar(page, {
-        serverId,
-        workspaceId: secondWorkspace.workspaceId,
-      });
+      await expect(
+        page.getByTestId(`sidebar-workspace-row-${serverId}:chat:${secondChat.id}`),
+      ).toBeVisible();
       await expectWorkspaceHeader(page, {
         title: secondWorkspace.workspaceName,
         subtitle: secondWorkspace.projectDisplayName,
       });
 
-      await switchWorkspaceViaSidebar({
-        page,
+      await selectChatInSidebar(page, {
         serverId,
         workspaceId: firstWorkspace.workspaceId,
+        agentId: firstChat.id,
       });
       await expectWorkspaceHeader(page, {
         title: firstWorkspace.workspaceName,
         subtitle: firstWorkspace.projectDisplayName,
       });
     } finally {
+      await agentsClient.close();
       await secondRepo.cleanup();
       await firstRepo.cleanup();
     }
@@ -352,6 +366,7 @@ test.describe("New workspace flow", () => {
 
   test("same-project workspaces switch content without requiring refresh", async ({ page }) => {
     const serverId = getServerId();
+    const agentsClient = await connectSeedClient();
 
     const repo = await createTempGitRepo("workspace-nav-same-project-");
 
@@ -363,72 +378,72 @@ test.describe("New workspace flow", () => {
       });
       localWorkspaceIds.add(rootWorkspace.workspaceId);
       createdWorktreeDirectories.add(worktreeWorkspace.workspaceDirectory);
+      const [rootChat, worktreeChat] = await Promise.all([
+        createMockIdleAgent(agentsClient, {
+          cwd: rootWorkspace.workspaceDirectory,
+          workspaceId: rootWorkspace.workspaceId,
+          title: "Root workspace chat",
+        }),
+        createMockIdleAgent(agentsClient, {
+          cwd: worktreeWorkspace.workspaceDirectory,
+          workspaceId: worktreeWorkspace.workspaceId,
+          title: "Worktree workspace chat",
+        }),
+      ]);
 
       await gotoAppShell(page);
-      await waitForSidebarHydration(page);
 
-      await switchWorkspaceViaSidebar({
-        page,
+      await selectChatInSidebar(page, {
         serverId,
         workspaceId: rootWorkspace.workspaceId,
+        agentId: rootChat.id,
       });
       await expectWorkspaceHeader(page, {
         title: rootWorkspace.workspaceName,
         subtitle: rootWorkspace.projectDisplayName,
       });
-      await expectSidebarWorkspaceSelected({
-        page,
-        serverId,
-        workspaceId: rootWorkspace.workspaceId,
-      });
+      await expect(
+        page.getByTestId(`sidebar-workspace-row-${serverId}:chat:${rootChat.id}`),
+      ).toHaveAttribute("aria-selected", "true");
 
-      await switchWorkspaceViaSidebar({
-        page,
+      await selectChatInSidebar(page, {
         serverId,
         workspaceId: worktreeWorkspace.workspaceId,
+        agentId: worktreeChat.id,
       });
       await expectWorkspaceHeader(page, {
         title: worktreeWorkspace.workspaceName,
         subtitle: worktreeWorkspace.projectDisplayName,
       });
-      await expectSidebarWorkspaceSelected({
-        page,
-        serverId,
-        workspaceId: worktreeWorkspace.workspaceId,
-      });
-      await expectSidebarWorkspaceSelected({
-        page,
-        serverId,
-        workspaceId: rootWorkspace.workspaceId,
-        selected: false,
-      });
+      await expect(
+        page.getByTestId(`sidebar-workspace-row-${serverId}:chat:${worktreeChat.id}`),
+      ).toHaveAttribute("aria-selected", "true");
+      await expect(
+        page.getByTestId(`sidebar-workspace-row-${serverId}:chat:${rootChat.id}`),
+      ).toHaveAttribute("aria-selected", "false");
 
-      await switchWorkspaceViaSidebar({
-        page,
+      await selectChatInSidebar(page, {
         serverId,
         workspaceId: rootWorkspace.workspaceId,
+        agentId: rootChat.id,
       });
       await expectWorkspaceHeader(page, {
         title: rootWorkspace.workspaceName,
         subtitle: rootWorkspace.projectDisplayName,
       });
-      await expectSidebarWorkspaceSelected({
-        page,
-        serverId,
-        workspaceId: rootWorkspace.workspaceId,
-      });
-      await expectSidebarWorkspaceSelected({
-        page,
-        serverId,
-        workspaceId: worktreeWorkspace.workspaceId,
-        selected: false,
-      });
+      await expect(
+        page.getByTestId(`sidebar-workspace-row-${serverId}:chat:${rootChat.id}`),
+      ).toHaveAttribute("aria-selected", "true");
+      await expect(
+        page.getByTestId(`sidebar-workspace-row-${serverId}:chat:${worktreeChat.id}`),
+      ).toHaveAttribute("aria-selected", "false");
     } finally {
+      await agentsClient.close();
       await repo.cleanup();
     }
   });
 
-  test("global new workspace uses the last active project and creates one agent tab", async ({
+  test("global new workspace uses the last active project and creates one chat", async ({
     page,
   }) => {
     const serverId = getServerId();
@@ -440,6 +455,7 @@ test.describe("New workspace flow", () => {
       localWorkspaceIds.add(openedProject.workspaceId);
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
 
       await switchWorkspaceViaSidebar({
@@ -489,13 +505,11 @@ test.describe("New workspace flow", () => {
         .filter({ visible: true });
       await expect(activeWorkspaceDeckEntry).toBeVisible({ timeout: 30_000 });
 
-      const agentTabs = activeWorkspaceDeckEntry.locator('[data-testid^="workspace-panel-agent_"]');
-      await expect(agentTabs).toHaveCount(1, { timeout: 30_000 });
-
-      // Workspace setup may auto-open a setup tab that steals focus,
-      // hiding the agent panel (display:none removes it from the
-      // accessibility tree). Click the agent tab to ensure it's active.
-      await agentTabs.first().click();
+      // Promoted drafts retain their slot ID; the main timeline identifies a loaded chat.
+      const chat = activeWorkspaceDeckEntry.getByTestId("workspace-chat-pane");
+      await expect(chat.getByTestId("agent-chat-scroll")).toHaveCount(1, { timeout: 30_000 });
+      await expect(chat.getByTestId("agent-chat-scroll")).toBeVisible();
+      await expect(chat.getByText("Hello from e2e", { exact: true })).toBeVisible();
 
       const composer = page.getByRole("textbox", { name: "Message agent..." });
       await expect(composer).toBeVisible({ timeout: 30_000 });
@@ -515,6 +529,7 @@ test.describe("New workspace flow", () => {
       localWorkspaceIds.add(openedProject.workspaceId);
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
 
       await switchWorkspaceViaSidebar({
@@ -569,14 +584,15 @@ test.describe("New workspace flow", () => {
 
       const draftTabs = activeWorkspaceDeckEntry.locator('[data-testid^="workspace-panel-draft_"]');
       await expect(draftTabs).toHaveCount(1, { timeout: 30_000 });
-      await expect(
-        activeWorkspaceDeckEntry.locator('[data-testid^="workspace-panel-agent_"]'),
-      ).toHaveCount(0);
+      const chat = activeWorkspaceDeckEntry.getByTestId("workspace-chat-pane");
+      await expect(chat.getByTestId("agent-chat-scroll")).toHaveCount(0);
 
       agentCreatedDelay.release();
-      await expect(
-        activeWorkspaceDeckEntry.locator('[data-testid^="workspace-panel-agent_"]'),
-      ).toHaveCount(1, { timeout: 30_000 });
+      await expect(chat.getByTestId("agent-chat-scroll")).toHaveCount(1, { timeout: 30_000 });
+      await expect(chat.getByTestId("agent-chat-scroll")).toBeVisible();
+      await expect(chat.getByText("Hello from e2e", { exact: true })).toBeVisible();
+      await expect(draftTabs).toHaveCount(1);
+      await expect(chat.getByRole("textbox", { name: "Message agent..." })).toBeEditable();
     } finally {
       agentCreatedDelay.release();
       await tempRepo.cleanup();
@@ -595,6 +611,7 @@ test.describe("New workspace flow", () => {
       localWorkspaceIds.add(openedProject.workspaceId);
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
 
       await switchWorkspaceViaSidebar({
@@ -648,6 +665,7 @@ test.describe("New workspace flow", () => {
       localWorkspaceIds.add(openedProject.workspaceId);
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
 
       await switchWorkspaceViaSidebar({
@@ -707,6 +725,7 @@ test.describe("New workspace flow", () => {
       localWorkspaceIds.add(openedProject.workspaceId);
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
 
       await switchWorkspaceViaSidebar({
@@ -766,6 +785,7 @@ test.describe("New workspace flow", () => {
       localWorkspaceIds.add(openedProject.workspaceId);
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await openNewWorkspaceComposer(page, {
         projectKey: openedProject.projectKey,
@@ -900,6 +920,7 @@ test.describe("New workspace flow", () => {
       localWorkspaceIds.add(openedProject.workspaceId);
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await openNewWorkspaceComposer(page, {
         projectKey: openedProject.projectKey,
@@ -925,6 +946,7 @@ test.describe("New workspace flow", () => {
       localWorkspaceIds.add(openedProject.workspaceId);
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await openNewWorkspaceComposer(page, {
         projectKey: openedProject.projectKey,
@@ -955,6 +977,7 @@ test.describe("New workspace flow", () => {
       localWorkspaceIds.add(openedProject.workspaceId);
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await openNewWorkspaceComposer(page, {
         projectKey: openedProject.projectKey,
@@ -991,6 +1014,7 @@ test.describe("New workspace flow", () => {
     localProjectIds.add(openedProject.projectId);
 
     await gotoAppShell(page);
+    await selectSidebarProjectGrouping(page);
     await waitForSidebarHydration(page);
     await openNewWorkspaceComposer(page, {
       projectKey: openedProject.projectKey,
@@ -1049,6 +1073,7 @@ test.describe("New workspace flow", () => {
     localProjectIds.add(openedProject.projectId);
 
     await gotoAppShell(page);
+    await selectSidebarProjectGrouping(page);
     await waitForSidebarHydration(page);
     await openNewWorkspaceComposer(page, {
       projectKey: openedProject.projectKey,
@@ -1097,6 +1122,7 @@ test.describe("New workspace flow", () => {
       localWorkspaceIds.add(openedProject.workspaceId);
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await openNewWorkspaceComposer(page, {
         projectKey: openedProject.projectKey,

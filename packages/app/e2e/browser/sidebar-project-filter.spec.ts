@@ -1,6 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import { seedWorkspace } from "../support/helpers/seed-client";
 import { getServerId } from "../support/helpers/server-id";
 import {
@@ -26,6 +27,7 @@ test.describe("Sidebar project filter", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await expect(alphaRow).toBeVisible({ timeout: 30_000 });
       await expect(betaRow).toBeVisible({ timeout: 30_000 });
 
@@ -84,6 +86,7 @@ test.describe("Sidebar project filter", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await expect(alphaRow).toBeVisible({ timeout: 30_000 });
 
       await openSidebarProjectFilter(page);
@@ -113,6 +116,7 @@ test.describe("Sidebar project filter", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await expect(
         page.getByTestId(`sidebar-workspace-row-${serverId}:${only.workspaceId}`),
       ).toBeVisible({ timeout: 30_000 });

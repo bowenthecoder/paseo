@@ -2,7 +2,6 @@ import { Buffer } from "node:buffer";
 import type { CDPSession, Page, TestInfo } from "@playwright/test";
 import { expect, test } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
-import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
 
 type WireDirection = "sent" | "received";
 type WirePhase = "startup" | "workspace_clicks";
@@ -504,12 +503,14 @@ test.describe("ad hoc startup wire metrics", () => {
     await monitor.start(page);
 
     await gotoAppShell(page);
-    await waitForSidebarHydration(page, 120_000);
+    await expect(page.getByTestId("sidebar-global-new-workspace")).toBeVisible({
+      timeout: 120_000,
+    });
     await expect.poll(() => monitor.hasCompletedStartupFetches(), { timeout: 120_000 }).toBe(true);
     await page.waitForTimeout(1_000);
 
     const workspaceTestIds = await page
-      .locator('[data-testid^="sidebar-workspace-row-"]:visible')
+      .locator('[data-testid^="sidebar-workspace-row-"][data-testid*=":chat:"]:visible')
       .evaluateAll(extractWorkspaceTestIds);
 
     monitor.setPhase("workspace_clicks");
@@ -523,6 +524,10 @@ test.describe("ad hoc startup wire metrics", () => {
       const beforeBytes = sumBytes(monitor.records);
       await row.click();
       await expect(page).toHaveURL(/\/workspace\//, { timeout: 30_000 });
+      await expect(row).toHaveAttribute("aria-selected", "true");
+      await expect(
+        page.getByTestId("message-input-root").filter({ visible: true }).first(),
+      ).toBeVisible({ timeout: 30_000 });
       await page.waitForTimeout(1_000);
       clickedWorkspaces.push({
         testId,

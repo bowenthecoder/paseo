@@ -1,6 +1,7 @@
 import path from "node:path";
 import { test, expect } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import {
   closeMobileAgentSidebar,
   expectMobileAgentSidebarHidden,
@@ -103,6 +104,7 @@ test.describe("Sidebar workspace list", () => {
     try {
       const projectName = path.basename(workspace.repoPath);
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarProject(page, projectName);
       await waitForSidebarWorkspace(page, workspace.workspaceId);
 
@@ -123,6 +125,7 @@ test.describe("Sidebar workspace list", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
 
       const directoryName = path.basename(workspace.repoPath);
       const projectRow = await waitForSidebarProject(page, directoryName);
@@ -143,6 +146,7 @@ test.describe("Sidebar workspace list", () => {
     try {
       const projectName = path.basename(workspace.repoPath);
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarProject(page, projectName);
       await waitForSidebarWorkspace(page, workspace.workspaceId);
       await openWorkspaceFromSidebar(page, workspace.workspaceId);
@@ -161,6 +165,7 @@ test.describe("Sidebar workspace list", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarProject(page, path.basename(workspace.repoPath));
 
       expect(workspace.workspaceName).toBe("main");
@@ -177,6 +182,7 @@ test.describe("Sidebar workspace list", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarProject(page, path.basename(workspace.repoPath));
 
       const hoverCard = await openWorkspaceHoverCard(page, workspace.workspaceId);
@@ -190,6 +196,7 @@ test.describe("Sidebar workspace list", () => {
   test("Paseo-owned worktree hover card shows the worktree directory name", async ({ page }) => {
     await withPaseoOwnedWorktree(async ({ projectName, workspaceId, worktreeSlug }) => {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarProject(page, projectName);
       await openWorkspaceHoverCard(page, workspaceId);
 
@@ -218,6 +225,8 @@ test.describe("Mobile sidebar panelState transition", () => {
     try {
       await gotoAppShell(page);
       await openMobileAgentSidebar(page);
+      await expectMobileAgentSidebarVisible(page);
+      await selectSidebarProjectGrouping(page, { entry: "sidebar" });
       await expectMobileAgentSidebarVisible(page);
 
       const row = page.getByTestId(getWorkspaceRowTestId(workspace.workspaceId));
@@ -259,6 +268,7 @@ test.describe("Half-screen desktop layout", () => {
       }
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await page
         .getByTestId(`sidebar-project-show-more-${projectEquivalenceViewKey(workspace.projectKey)}`)
         .click();
@@ -319,13 +329,21 @@ test.describe("Half-screen desktop layout", () => {
     await expect(page.getByTestId("sidebar-settings")).not.toBeVisible();
   });
 
-  test("keeps app navigation beside the Explorer pane", async ({ page }) => {
+  test("keeps the chat readable beside Explorer and restores app navigation after closing it", async ({
+    page,
+  }) => {
     const workspace = await seedWorkspace({ repoPrefix: "sidebar-half-screen-explorer-" });
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarProject(page, path.basename(workspace.repoPath));
       await openWorkspaceFromSidebar(page, workspace.workspaceId);
+      const workspaceUrl = page.url();
+      const navigation = page.getByTestId("sidebar-global-new-workspace");
+      const chat = page.getByTestId("workspace-chat-pane").filter({ visible: true });
+      const explorer = page.getByTestId("workspace-side-panel").filter({ visible: true });
+      await expect(navigation).toBeVisible();
 
       await openFilesPanel(page);
       const explorerToggle = page.getByTestId("workspace-explorer-toggle").first();
@@ -333,15 +351,28 @@ test.describe("Half-screen desktop layout", () => {
         page.getByTestId("workspace-side-panel-view-files").filter({ visible: true }),
       ).toBeVisible();
       await expect(explorerToggle).toHaveAccessibleName("Close Explorer sidebar");
-      await expect(page.getByTestId("sidebar-global-new-workspace")).toBeVisible();
+      // At this width the left sidebar yields its space to the chat and the
+      // explicitly opened supporting view. Neither can shrink to a narrow strip.
+      await expect(navigation).not.toBeVisible();
+      await expect(chat).toBeVisible();
+      await expect
+        .poll(async () => (await chat.boundingBox())?.width ?? 0)
+        .toBeGreaterThanOrEqual(400);
+      await expect
+        .poll(async () => (await explorer.boundingBox())?.width ?? 0)
+        .toBeGreaterThanOrEqual(280);
       await expect(page.getByTestId("workspace-side-panel-rail")).toBeVisible();
+      await expect(page).toHaveURL(workspaceUrl);
 
       await explorerToggle.click();
       await expect(
         page.getByTestId("workspace-side-panel-view-files").filter({ visible: true }),
       ).toHaveCount(0);
       await expect(explorerToggle).toHaveAccessibleName("Open Explorer sidebar");
-      await expect(page.getByTestId("sidebar-global-new-workspace")).toBeVisible();
+      await expect(navigation).toBeVisible();
+      await expect(chat).toBeVisible();
+      await expect(page.getByTestId(getWorkspaceRowTestId(workspace.workspaceId))).toBeVisible();
+      await expect(page).toHaveURL(workspaceUrl);
     } finally {
       await workspace.cleanup();
     }

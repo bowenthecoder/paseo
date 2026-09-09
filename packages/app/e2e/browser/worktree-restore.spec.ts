@@ -6,6 +6,7 @@ import type { Page } from "@playwright/test";
 import { buildHostWorkspaceRoute } from "@/utils/host-routes";
 import { expect, test } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import {
   expectWorkspaceBranch,
   openChangesPanel,
@@ -101,6 +102,7 @@ test.describe("Worktree restore", () => {
   async function openArchivedWorkspaceFromHistory(page: Page, prefix: string) {
     const seeded = await createArchivedMissingWorktree(prefix);
     await gotoAppShell(page);
+    await selectSidebarProjectGrouping(page);
     await waitForSidebarHydration(page);
     await openSessions(page);
     await expectSessionRowNotArchived(page, seeded.agent.title);
@@ -118,6 +120,7 @@ test.describe("Worktree restore", () => {
     const openAgent = encodeURIComponent(`agent:${seeded.agent.id}`);
 
     await page.goto(`${workspaceRoute}?open=${openAgent}`);
+    await selectSidebarProjectGrouping(page);
     await expect(page.getByText("Workspace archived", { exact: true })).toBeVisible({
       timeout: 30_000,
     });
@@ -162,6 +165,7 @@ test.describe("Worktree restore", () => {
     expect(await fetchAgentArchivedAt(client, agent.id)).toBeNull();
 
     await gotoAppShell(page);
+    await selectSidebarProjectGrouping(page);
     await waitForSidebarHydration(page);
     await openSessions(page);
     await expectSessionRowNotArchived(page, agent.title);
@@ -278,6 +282,7 @@ test.describe("Worktree restore", () => {
     }
 
     await gotoAppShell(page);
+    await selectSidebarProjectGrouping(page);
     await waitForSidebarHydration(page);
     await openSessions(page);
     await page.getByTestId(`agent-row-${getServerId()}-${firstAgent.id}`).click();
@@ -360,6 +365,7 @@ test.describe("Worktree restore", () => {
     await rename(tempRepo.path, displacedProjectPath);
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await openSessions(page);
       await expectSessionRowNotArchived(page, agent.title);

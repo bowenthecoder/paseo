@@ -13,7 +13,6 @@ import {
 import { seedWorkspace, type SeededWorkspace } from "../support/helpers/seed-client";
 import { getServerId } from "../support/helpers/server-id";
 import { seedSavedSettingsHosts } from "../support/helpers/settings";
-import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
 
 const DRAFT = `Please investigate the workspace startup failure.
 
@@ -32,7 +31,6 @@ test.describe("New workspace composer draft", () => {
 
     try {
       await gotoAppShell(page);
-      await waitForSidebarHydration(page);
       await openNewWorkspaceComposer(page, {
         projectKey: firstProject.projectKey,
         projectDisplayName: firstProject.projectDisplayName,
@@ -74,12 +72,16 @@ test.describe("New workspace composer draft", () => {
       ]);
 
       await gotoAppShell(page);
-      await waitForSidebarHydration(page);
       await openGlobalNewWorkspaceComposer(page);
+      await selectNewWorkspaceProject(page, {
+        projectKey: project.projectKey,
+        projectDisplayName: project.projectDisplayName,
+      });
 
       await fillNewWorkspaceDraft(page, DRAFT);
       await selectNewWorkspaceHost(page, "Secondary host");
 
+      await expectNewWorkspaceProjectSelected(page, "No folder");
       await expectNewWorkspaceDraft(page, DRAFT);
     } finally {
       await project.cleanup();
@@ -91,7 +93,6 @@ test.describe("New workspace composer draft", () => {
 
     try {
       await gotoAppShell(page);
-      await waitForSidebarHydration(page);
       await openNewWorkspaceComposer(page, {
         projectKey: project.projectKey,
         projectDisplayName: project.projectDisplayName,

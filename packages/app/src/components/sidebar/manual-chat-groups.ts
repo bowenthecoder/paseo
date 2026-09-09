@@ -1,5 +1,9 @@
 import type { AggregatedAgent } from "@/hooks/use-aggregated-agents";
-import { deriveSidebarStateBucket } from "@/utils/sidebar-agent-state";
+import { selectAgentTurnPresentation, type SessionState } from "@/stores/session-store";
+import {
+  aggregateSidebarStateBuckets,
+  deriveSidebarStateBucket,
+} from "@/utils/sidebar-agent-state";
 import { isWorkspaceRootAgent } from "@/subagents/workspace-root-policy";
 import type { SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list";
 import {
@@ -13,9 +17,24 @@ export interface ManualChatEntry extends SidebarWorkspaceEntry {
   agentId: string;
 }
 
+export function areManualChatActivitySessionsEqual(
+  previous: Readonly<Record<string, SessionState>>,
+  next: Readonly<Record<string, SessionState>>,
+): boolean {
+  if (previous === next) return true;
+  const serverIds = Object.keys(next);
+  if (Object.keys(previous).length !== serverIds.length) return false;
+  return serverIds.every(
+    (serverId) =>
+      previous[serverId]?.agentTurnLiveness === next[serverId].agentTurnLiveness &&
+      previous[serverId]?.messageSubmissions === next[serverId].messageSubmissions,
+  );
+}
+
 export function buildManualChatEntries(
   agents: readonly AggregatedAgent[],
   workspaces: ReadonlyMap<string, SidebarWorkspaceEntry>,
+  sessions: Readonly<Record<string, SessionState>> = {},
 ): ManualChatEntry[] {
   const agentsById = new Map(agents.map((agent) => [`${agent.serverId}:${agent.id}`, agent]));
   return agents.flatMap((agent) => {
@@ -26,6 +45,11 @@ export function buildManualChatEntries(
       return [];
     const workspace = workspaces.get(`${agent.serverId}:${agent.workspaceId}`);
     if (!workspace) return [];
+    const authoritativeBucket = deriveSidebarStateBucket(agent);
+    const turnActive = selectAgentTurnPresentation(sessions[agent.serverId], agent.id).isActive;
+    const statusBucket = turnActive
+      ? aggregateSidebarStateBuckets([authoritativeBucket, "running"])
+      : authoritativeBucket;
     return [
       {
         ...workspace,
@@ -36,7 +60,7 @@ export function buildManualChatEntries(
         workspaceDirectory: agent.cwd,
         workspaceDirectoryLabel: agent.cwd,
         pinnedAt: null,
-        statusBucket: deriveSidebarStateBucket(agent),
+        statusBucket,
         statusEnteredAt: agent.lastActivityAt,
       },
     ];

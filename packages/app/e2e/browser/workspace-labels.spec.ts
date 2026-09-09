@@ -1,5 +1,6 @@
 import { expect, test } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import { getServerId } from "../support/helpers/server-id";
 import { seedWorkspace } from "../support/helpers/seed-client";
 import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
@@ -158,6 +159,7 @@ test.describe("Workspace labels", () => {
         assigned: false,
       });
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
 
       await page.getByTestId("sidebar-display-preferences-menu").click();
       await page.getByTestId("sidebar-display-label-filter").click();
@@ -189,6 +191,7 @@ test.describe("Workspace labels", () => {
     try {
       const mutationFailure = await installWorkspaceLabelMutationFailure(page);
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await createLabel(page, { workspaceId: seeded.workspaceId, name: "Urgent", color: "red" });
       await createLabel(page, {
         workspaceId: seeded.workspaceId,
@@ -352,6 +355,8 @@ test.describe("Workspace labels", () => {
         });
         await gotoAppShell(page);
         await page.getByRole("button", { name: "Open menu", exact: true }).click();
+        await selectSidebarProjectGrouping(page, { entry: "sidebar" });
+        await expect(page.getByTestId("sidebar-close")).toBeInViewport({ ratio: 1 });
         await waitForSidebarHydration(page);
 
         const serverId = getServerId();

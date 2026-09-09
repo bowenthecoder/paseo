@@ -86,6 +86,16 @@ export async function expectWorkspaceHeader(
   await expect(titleLocator.first()).toHaveText(input.title, {
     timeout: 30_000,
   });
+  const isCompact =
+    (await page.getByTestId("workspace-tabs-row").filter({ visible: true }).count()) > 0;
+  if (
+    !isCompact &&
+    input.title.trim().toLocaleLowerCase() === input.subtitle.trim().toLocaleLowerCase()
+  ) {
+    // The desktop header omits a project label that only repeats the workspace title.
+    await expect(subtitleLocator).toHaveCount(0);
+    return;
+  }
   await expect(subtitleLocator.first()).toHaveText(input.subtitle, {
     timeout: 30_000,
   });

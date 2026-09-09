@@ -1,5 +1,7 @@
 import { expect, test } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
+import { escapeRegex } from "../support/helpers/regex";
 import { getE2EDaemonPort } from "../support/helpers/daemon-port";
 import {
   expectNewWorkspaceProjectSelected,
@@ -21,6 +23,8 @@ const OFFLINE_SERVER_IDS = [
   "srv_e2e_preselect_offline_3",
 ];
 
+// The optional project view preserves project preselection. The default manual
+// chat view starts with No folder and has separate coverage in no-folder-chats.
 // New Workspace preselection is a form-context decision, not startup routing.
 // Entry points from a workspace should carry the current project context, and a
 // plain /new must not let a stale remembered offline host steal the initial host
@@ -37,25 +41,21 @@ async function expectProjectPreselectedWithin(
   projectDisplayName: string,
   timeout: number,
 ): Promise<void> {
-  const projectPicker = page.getByRole("button", { name: "Workspace project" });
+  const projectPicker = page.getByRole("button", { name: "Working folder" });
   await expect(projectPicker).toContainText(projectDisplayName, { timeout });
 }
 
 async function expectAnyProjectPreselectedWithin(
   page: import("@playwright/test").Page,
+  projectDisplayNames: string[],
   timeout: number,
 ): Promise<void> {
-  const projectPicker = page.getByRole("button", { name: "Workspace project" });
+  const projectPicker = page.getByRole("button", { name: "Working folder" });
   await expect(projectPicker).toBeVisible({ timeout });
-  await expect
-    .poll(
-      async () => {
-        const label = ((await projectPicker.textContent()) ?? "").trim();
-        return label || "Choose project";
-      },
-      { timeout },
-    )
-    .not.toBe("Choose project");
+  await expect(projectPicker).toContainText(
+    new RegExp(projectDisplayNames.map(escapeRegex).join("|"), "u"),
+    { timeout },
+  );
 }
 
 async function openColdRestoredWorkspaceWithOfflineHostFirst(
@@ -156,15 +156,17 @@ async function seedOfflineHostsWithStaleSelection(
   );
 }
 
-test.describe("New workspace preselects the open workspace's project", () => {
+test.describe("New workspace preselects the open workspace's project in project view", () => {
   test.describe.configure({ timeout: 240_000 });
 
   let projectA: SeededWorkspace;
   let projectB: SeededWorkspace;
 
-  test.beforeEach(async () => {
+  test.beforeEach(async ({ page }) => {
     projectA = await seedWorkspace({ repoPrefix: "preselect-a-" });
     projectB = await seedWorkspace({ repoPrefix: "preselect-b-" });
+    await gotoAppShell(page);
+    await selectSidebarProjectGrouping(page);
   });
 
   test.afterEach(async () => {
@@ -248,7 +250,11 @@ test.describe("New workspace preselects the open workspace's project", () => {
     await expect(page.getByTestId("host-picker-trigger")).toContainText("Connected host", {
       timeout: 8_000,
     });
-    await expectAnyProjectPreselectedWithin(page, 8_000);
+    await expectAnyProjectPreselectedWithin(
+      page,
+      [projectA.projectDisplayName, projectB.projectDisplayName],
+      8_000,
+    );
   });
 
   test("stale remembered offline host heals after visiting the connected workspace", async ({

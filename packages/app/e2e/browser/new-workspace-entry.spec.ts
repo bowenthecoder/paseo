@@ -1,5 +1,6 @@
 import { expect, test } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import {
   connectNewWorkspaceDaemonClient,
   expectNewWorkspaceControlsEnabled,
@@ -24,7 +25,7 @@ import {
   waitForSidebarHydration,
 } from "../support/helpers/workspace-ui";
 
-// Model B entry points into the New Workspace screen. The surviving entries are
+// Optional project-view entry points into the New Workspace screen. These are
 // the global button (universal) and each project's per-row New workspace icon
 // (preselects that project) — shown for git projects and for non-git projects on
 // a multiplicity-capable host. These specs prove the global entry opens the
@@ -35,7 +36,7 @@ function projectRow(page: import("@playwright/test").Page, projectKey: string) {
   return page.getByTestId(`sidebar-project-row-${projectEquivalenceViewKey(projectKey)}`);
 }
 
-test.describe("New workspace entry points", () => {
+test.describe("New workspace entry points in project view", () => {
   let client: Awaited<ReturnType<typeof connectNewWorkspaceDaemonClient>>;
 
   test.describe.configure({ timeout: 240_000 });
@@ -66,6 +67,7 @@ test.describe("New workspace entry points", () => {
       ]);
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await expect(
         page.getByTestId(`sidebar-workspace-row-${getServerId()}:${seeded.workspaceId}`),
@@ -95,7 +97,7 @@ test.describe("New workspace entry points", () => {
     }
   });
 
-  test("the New Workspace screen hides the host selector when there is only one host", async ({
+  test("the New Workspace screen identifies its host even when there is only one host", async ({
     page,
   }) => {
     const seeded: SeededWorkspace = await seedWorkspace({ repoPrefix: "entry-single-host-" });
@@ -110,6 +112,7 @@ test.describe("New workspace entry points", () => {
       ]);
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await expect(
         page.getByTestId(`sidebar-workspace-row-${getServerId()}:${seeded.workspaceId}`),
@@ -120,7 +123,10 @@ test.describe("New workspace entry points", () => {
       await expect(page.getByTestId("new-workspace-project-picker-trigger")).toBeVisible({
         timeout: 30_000,
       });
-      await expect(page.getByTestId("host-picker-trigger")).toHaveCount(0);
+      const hostPicker = page.getByTestId("host-picker-trigger");
+      await expect(hostPicker).toBeVisible();
+      await expect(hostPicker).toHaveAccessibleName("Host");
+      await expect(hostPicker).toContainText("localhost");
     } finally {
       await seeded.cleanup();
     }
@@ -128,6 +134,7 @@ test.describe("New workspace entry points", () => {
 
   test("a stale project route keeps the New Workspace controls enabled", async ({ page }) => {
     await gotoAppShell(page);
+    await selectSidebarProjectGrouping(page);
     await openMissingProjectNewWorkspaceComposer(page, {
       serverId: getServerId(),
       projectId: "missing-project",
@@ -137,11 +144,12 @@ test.describe("New workspace entry points", () => {
     await expectNewWorkspaceControlsEnabled(page);
   });
 
-  test("Ctrl+P opens the project picker with search focused", async ({ page }) => {
+  test("Cmd/Ctrl+P opens the folder picker with search focused", async ({ page }) => {
     const seeded: SeededWorkspace = await seedWorkspace({ repoPrefix: "entry-shortcut-" });
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await openGlobalNewWorkspaceComposer(page);
 
@@ -173,6 +181,7 @@ test.describe("New workspace entry points", () => {
       ]);
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await page
         .getByTestId(`sidebar-workspace-row-${serverId}:${rememberedProject.workspaceId}`)
@@ -208,6 +217,7 @@ test.describe("New workspace entry points", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await expect(projectRow(page, projectA.projectKey)).toBeVisible({ timeout: 30_000 });
       await expect(projectRow(page, projectB.projectKey)).toBeVisible({ timeout: 30_000 });
@@ -257,6 +267,7 @@ test.describe("New workspace entry points", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await expect(projectRow(page, gitProject.projectKey)).toBeVisible({ timeout: 30_000 });
       await expect(projectRow(page, nonGitProject.projectKey)).toBeVisible({ timeout: 30_000 });

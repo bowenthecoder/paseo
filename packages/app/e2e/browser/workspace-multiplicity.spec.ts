@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import { gotoWorkspace } from "../support/helpers/launcher";
 import {
   assertNewWorkspaceSidebarAndHeader,
@@ -85,6 +86,7 @@ test.describe("Workspace multiplicity creation flow", () => {
       };
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await expect(page.getByTestId(workspaceRowTestId(seeded.workspaceId))).toBeVisible({
         timeout: 30_000,
@@ -137,6 +139,7 @@ test.describe("Workspace multiplicity creation flow", () => {
       };
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await expect(page.getByTestId(workspaceRowTestId(seeded.workspaceId))).toBeVisible({
         timeout: 30_000,
@@ -183,6 +186,7 @@ test.describe("Workspace multiplicity creation flow", () => {
       };
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       // Model B: a non-git project is an expandable parent like any other, with
       // its single workspace already rendered as its own row underneath.

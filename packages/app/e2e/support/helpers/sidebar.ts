@@ -1,4 +1,6 @@
 import { expect, type Page } from "@playwright/test";
+import { buildHostWorkspaceRoute } from "../../../src/utils/host-routes";
+import { expectAppRoute } from "./route-assertions";
 import { getServerId } from "./server-id";
 
 interface ContextMenuAnchor {
@@ -109,6 +111,33 @@ export async function selectWorkspaceInSidebar(page: Page, workspaceId: string):
   const row = page.getByTestId(`sidebar-workspace-row-${getServerId()}:${workspaceId}`);
   await expect(row).toBeVisible({ timeout: 30_000 });
   await row.click();
+}
+
+/** Select the actual chat row while preserving the app's retained workspace state. */
+export async function selectChatInSidebar(
+  page: Page,
+  input: { serverId: string; workspaceId: string; agentId: string },
+): Promise<void> {
+  const row = page.getByTestId(`sidebar-workspace-row-${input.serverId}:chat:${input.agentId}`);
+  await expect(row).toBeVisible({ timeout: 30_000 });
+  await row.click();
+  await expectAppRoute(page, buildHostWorkspaceRoute(input.serverId, input.workspaceId), {
+    timeout: 30_000,
+  });
+  await expect(row).toHaveAttribute("aria-selected", "true");
+  const chatTitle = (await row.innerText()).trim();
+  if (!chatTitle) {
+    throw new Error(`Chat ${input.agentId} has no sidebar title`);
+  }
+  const deck = page.getByTestId(`workspace-deck-entry-${input.serverId}:${input.workspaceId}`);
+  await expect(deck).toBeVisible();
+  // Compact retains chat contents without the desktop agent-ID panel wrapper.
+  const desktopChat = deck.getByTestId(`workspace-panel-agent_${input.agentId}`);
+  const compactChat = deck
+    .getByTestId("workspace-tab-switcher-trigger")
+    .filter({ has: page.getByText(chatTitle, { exact: true }) });
+  await expect(desktopChat.or(compactChat).filter({ visible: true })).toBeVisible();
+  await expect(deck.getByTestId("message-input-root").filter({ visible: true })).toBeVisible();
 }
 
 async function openWorkspaceSidebarKebab(page: Page, workspaceId: string) {

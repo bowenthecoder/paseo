@@ -2,11 +2,9 @@ import { expect, type Page } from "@playwright/test";
 import { buildHostWorkspaceRoute } from "@/utils/host-routes";
 import { createTempGitRepo } from "./workspace";
 import { connectSeedClient, type SeedDaemonClient } from "./seed-client";
-import { gotoAppShell } from "./app";
 import { connectWorkspaceSetupClient } from "./workspace-setup";
-import { selectWorkspaceInSidebar } from "./sidebar";
 import { getServerId } from "./server-id";
-import { waitForChatSurface } from "./launcher";
+import { gotoWorkspace } from "./launcher";
 import { waitForSettledPosition } from "./sheet-layout";
 
 function composerInput(page: Page) {
@@ -281,9 +279,7 @@ export async function openGithubWorkspace(
     throw new Error(createdWorkspace.error ?? `Failed to create workspace ${repoPath}`);
   }
   const workspace = createdWorkspace.workspace;
-  await gotoAppShell(page);
-  await selectWorkspaceInSidebar(page, workspace.id);
-  await waitForChatSurface(page);
+  await gotoWorkspace(page, workspace.id);
   return {
     cleanup: async () => {
       await client.removeProject(workspace.projectId).catch(() => undefined);

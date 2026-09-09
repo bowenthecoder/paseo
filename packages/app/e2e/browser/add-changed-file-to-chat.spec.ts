@@ -33,9 +33,11 @@ test("adds a changed file to the focused chat without replacing its composer dra
     await agentComposer.fill("Preserve this thought");
 
     await openChangesPanel(page);
-    const changedFile = page.getByText("changed file.ts", { exact: true }).first();
+    const diff = page.getByTestId("working-diff-panel").filter({ visible: true });
+    const changedFile = diff.getByTestId("diff-file-0-toggle");
     await expect(changedFile).toBeVisible({ timeout: 30_000 });
-    await page.getByTestId("diff-file-0-toggle").click({ button: "right" });
+    await expect(changedFile).toHaveAttribute("aria-label", `${relativePath}, +1, -0`);
+    await changedFile.click({ button: "right" });
     await page.getByTestId("diff-file-0-add-to-chat").click();
 
     const attachment = page.getByTestId("composer-workspace-file-attachment-pill");

@@ -6,7 +6,6 @@ import {
   selectWorkspaceIsolation,
 } from "../support/helpers/new-workspace";
 import { seedWorkspace } from "../support/helpers/seed-client";
-import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
 
 type WebSocketMessage = string | Buffer;
 
@@ -172,7 +171,6 @@ test.describe("New Workspace dictation submit", () => {
 
     try {
       await gotoAppShell(page);
-      await waitForSidebarHydration(page);
       await openNewWorkspaceComposer(page, {
         projectKey: seeded.projectKey,
         projectDisplayName: seeded.projectDisplayName,
