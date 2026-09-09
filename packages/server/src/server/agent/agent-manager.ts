@@ -2444,7 +2444,7 @@ export class AgentManager {
       if (isReplacement) {
         agent.pendingReplacement = false;
       }
-      if (agent.provider === "codex") this.clearPendingCodexWake(agent.id);
+      if (this.isCodexAgent(agent)) this.clearPendingCodexWake(agent.id);
       const turnStartedAt = new Date();
       pendingRun.start = { status: "started", turnId };
       agent.activeForegroundTurnId = turnId;
@@ -3718,6 +3718,16 @@ export class AgentManager {
     }
   }
 
+  private isCodexAgent(agent: ManagedAgent): boolean {
+    // Subscription profiles remap provider ids (for example codex-a), but the native session
+    // persistence metadata retains the engine identity. Do not infer a family from id prefixes.
+    return (
+      agent.provider === "codex" ||
+      agent.persistence?.metadata?.provider === "codex" ||
+      agent.session?.describePersistence()?.metadata?.provider === "codex"
+    );
+  }
+
   private clearPendingCodexWake(parentAgentId: string): void {
     const timer = this.codexParentWakeTimers.get(parentAgentId);
     if (timer) clearTimeout(timer);
@@ -3727,11 +3737,10 @@ export class AgentManager {
 
   private noteSettledCodexChild(
     agent: ActiveManagedAgent,
-    provider: AgentProvider,
     update: ProviderSubagentStoreEvent,
     previous: ProviderSubagentDescriptor | null,
   ): void {
-    if (provider !== "codex") return;
+    if (!this.isCodexAgent(agent)) return;
     if (update.type === "remove") {
       this.settledCodexChildrenByParent.get(agent.id)?.delete(update.subagentId);
       this.scheduleCodexParentWake(agent.id);
@@ -3836,11 +3845,11 @@ export class AgentManager {
       const previous = this.providerSubagents.get(agent.id, event.event.id);
       const update = this.providerSubagents.apply(agent.id, event.provider, event.event);
       this.dispatch({ type: "provider_subagent", event: update });
-      this.noteSettledCodexChild(agent, event.provider, update, previous);
+      this.noteSettledCodexChild(agent, update, previous);
       return;
     }
     if (
-      event.provider === "codex" &&
+      this.isCodexAgent(agent) &&
       (event.type === "turn_started" ||
         (event.type === "timeline" &&
           event.item.type === "assistant_message" &&
@@ -4784,7 +4793,7 @@ export class AgentManager {
   }
 
   private emitState(agent: ManagedAgent, options?: { persist?: boolean }): void {
-    if (agent.provider === "codex" && agent.lifecycle === "idle")
+    if (this.isCodexAgent(agent) && agent.lifecycle === "idle")
       this.scheduleCodexParentWake(agent.id);
     // Keep attention as an edge-triggered unread signal, not a level signal.
     this.checkAndSetAttention(agent);
