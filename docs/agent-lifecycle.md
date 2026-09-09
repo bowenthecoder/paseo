@@ -146,7 +146,7 @@ Running provider-native subagents contribute `running` to the workspace owned by
 
 ## The subagents track
 
-The track is a pill at the foot of an agent's pane (`packages/app/src/subagents/track.tsx`). It reports the number of running tasks and preserves separate counts for failed or waiting children. On desktop, it opens the Tasks panel in the ordinary right side pane, keeping the parent chat visible. Compact screens use a sheet; wide native screens retain the popover. It floats over the transcript; `packages/app/src/panels/agent-tracks.tsx` owns placement, and the pill frame is shared with the task list in `packages/app/src/composer/tracks.tsx`.
+The track is a pill at the foot of an agent's pane (`packages/app/src/subagents/track.tsx`). It reports the number of running tasks and preserves separate counts for failed or waiting children. On desktop, it opens the Tasks panel in the side panel, keeping the chat visible. Compact screens use a sheet; wide native screens retain the popover. It floats over the transcript; `packages/app/src/panels/agent-tracks.tsx` owns placement, and the pill frame is shared with the task list in `packages/app/src/composer/tracks.tsx`.
 
 The rows combine two kinds of children:
 
