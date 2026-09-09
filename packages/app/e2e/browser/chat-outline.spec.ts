@@ -19,7 +19,7 @@ import {
   movePointerOffChatOutline,
   pointAtChatOutlineRowEdge,
   pressEnterOnFocusedPrompt,
-  splitCurrentPanelRight,
+  openSidePanelBesideChat,
 } from "../support/helpers/chat-outline";
 import {
   expectTimelineAtMaximumScrollWithPromptVisible,
@@ -211,13 +211,13 @@ test.describe("desktop chat outline", () => {
     });
   });
 
-  test("hides the rail when a split makes its panel narrow", async ({ page }) => {
+  test("hides the rail when the side panel makes the chat narrow", async ({ page }) => {
     const agent = await seedLongMockAgentTimeline({ turns: 2 });
     try {
       await page.setViewportSize(WIDE_VIEWPORT);
       await openAgentTimeline(page, agent);
-
-      await splitCurrentPanelRight(page);
+      await expectChatOutlinePrompts(page, 2);
+      await openSidePanelBesideChat(page);
 
       await expectNoChatOutline(page);
     } finally {

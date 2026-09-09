@@ -15,6 +15,24 @@ export interface WorkspaceFileOpenRequest {
   disposition: OpenFileDisposition;
 }
 
+/** Anchors an already-decoded host path before it crosses into another workspace's layout. */
+export function anchorWorkspaceFileOpenRequest(
+  request: WorkspaceFileOpenRequest,
+  cwd: string,
+): WorkspaceFileOpenRequest | null {
+  const location = normalizeWorkspaceFileLocation(request.location);
+  if (!location) return null;
+  if (isAbsolutePath(location.path) || location.path.startsWith("~/")) {
+    return { ...request, location };
+  }
+  const root = cwd.replace(/\\/g, "/").replace(/\/+$/, "");
+  const paths = resolveWorkspaceFilePaths({
+    path: `${root}/${location.path}`,
+    workspaceRoot: cwd,
+  });
+  return paths ? { ...request, location: { ...location, path: paths.absolutePath } } : null;
+}
+
 export function normalizeWorkspaceFileLocation(
   location: WorkspaceFileLocation | null | undefined,
 ): WorkspaceFileLocation | null {

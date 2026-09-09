@@ -40,7 +40,9 @@ async function assertHeldFileTransition(
   gate: Awaited<ReturnType<typeof delayFileReadResponse>>,
 ) {
   await page.evaluate(() => {
-    const originalChip = document.querySelector('[data-testid="workspace-tab-file_src/a.ts"]');
+    const originalChip = document.querySelector(
+      '[data-testid="workspace-side-panel-view-file_src/a.ts"]',
+    );
     (
       window as typeof window & { __fileTransitionOriginalChip?: Element | null }
     ).__fileTransitionOriginalChip = originalChip;
@@ -57,23 +59,28 @@ async function assertHeldFileTransition(
     };
     sample();
     const observer = new MutationObserver(sample);
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    observer.observe(document.body, {
+      attributes: true,
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
     (
       window as typeof window & { __fileTransitionTimeline?: typeof timeline }
     ).__fileTransitionTimeline = timeline;
     (
       window as typeof window & { __fileTransitionObserver?: MutationObserver }
     ).__fileTransitionObserver = observer;
-  }, `workspace-tab-file_${targetPath}`);
+  }, `workspace-side-panel-view-file_${targetPath}`);
   await openFileFromExplorer(page, targetPath.split("/").pop() as string);
   await gate.waitUntilHeld();
 
-  const targetChip = page.getByTestId(`workspace-tab-file_${targetPath}`).first();
+  const targetChip = page.getByTestId(`workspace-side-panel-view-file_${targetPath}`).first();
   await expect(targetChip).toBeVisible();
   await expect(targetChip).toContainText(targetPath.split("/").pop() as string);
   await expect(page.getByTestId("file-preview-loading")).toBeVisible();
   await expect(page.getByTestId("file-preview-unsupported")).toHaveCount(0);
-  await expect(page.getByText("export const sourceA = true;")).toHaveCount(0);
+  await expect(page.getByText("export const sourceA = true;")).toBeHidden();
 
   const chipIdentity = await page.evaluate((tabTestId) => {
     const windowWithOriginal = window as typeof window & {
@@ -85,7 +92,7 @@ async function assertHeldFileTransition(
       originalStillConnected: originalChip?.isConnected ?? false,
       sameNode: originalChip === currentChip,
     };
-  }, `workspace-tab-file_${targetPath}`);
+  }, `workspace-side-panel-view-file_${targetPath}`);
   expect(chipIdentity).toEqual({ originalStillConnected: true, sameNode: true });
 
   const heldTimeline = await page.evaluate(

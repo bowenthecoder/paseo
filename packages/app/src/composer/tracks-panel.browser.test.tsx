@@ -2,7 +2,13 @@ import React, { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { Pressable, Text } from "react-native";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ComposerTrackPill, ComposerTrackRow, type ComposerTrackPillSegment } from "./tracks";
+import { userEvent } from "vitest/browser";
+import {
+  ComposerTrackListRow,
+  ComposerTrackPill,
+  ComposerTrackRow,
+  type ComposerTrackPillSegment,
+} from "./tracks";
 
 const SUBAGENT_SEGMENTS: ComposerTrackPillSegment[] = [{ bucket: null, text: "3 subagents" }];
 
@@ -60,6 +66,14 @@ function row(testID: string): Element | null {
   return document.querySelector(`[data-testid="${testID}"]`);
 }
 
+function requiredRow(testID: string): HTMLElement {
+  const target = row(testID);
+  if (!(target instanceof HTMLElement)) {
+    throw new Error(`track row ${testID} did not render`);
+  }
+  return target;
+}
+
 function isPanelOpen(): boolean {
   return pill().getAttribute("aria-expanded") === "true";
 }
@@ -112,23 +126,100 @@ describe("composer track panel", () => {
   it("leaves the panel alone when a row's own action button is pressed", () => {
     const onPress = vi.fn();
     const onAction = vi.fn();
+    const action = vi.fn(() => (
+      <Pressable accessibilityRole="button" testID="row-archive" onPress={onAction}>
+        <Text>Archive</Text>
+      </Pressable>
+    ));
     mount(
       <ComposerTrackPill testID="pill" segments={SUBAGENT_SEGMENTS} panelTitle="Subagents">
-        <ComposerTrackRow accessibilityLabel="Subagent one" testID="row" onPress={onPress}>
+        <ComposerTrackRow
+          accessibilityLabel="Subagent one"
+          testID="row"
+          onPress={onPress}
+          actions={action}
+        >
           <Text>Subagent one</Text>
-          <Pressable accessibilityRole="button" testID="row-archive" onPress={onAction}>
-            <Text>Archive</Text>
-          </Pressable>
         </ComposerTrackRow>
       </ComposerTrackPill>,
     );
 
     openPanel();
-    click(row("row-archive") as Element);
+    const openButton = requiredRow("row");
+    const archiveButton = requiredRow("row-archive");
+    expect(openButton.tagName).toBe("BUTTON");
+    expect(archiveButton.tagName).toBe("BUTTON");
+    expect(archiveButton.parentElement).toBe(openButton.parentElement);
+    expect(archiveButton.parentElement?.closest("button")).toBeNull();
+    click(archiveButton);
 
     expect(onAction).toHaveBeenCalledTimes(1);
     expect(onPress).not.toHaveBeenCalled();
     expect(isPanelOpen()).toBe(true);
+  });
+});
+
+describe("composer track persistent list", () => {
+  it("keeps task actions separate, revealed across hover, and keyboard operable", async () => {
+    const onOpen = vi.fn();
+    const onArchive = vi.fn();
+    const renderActions = vi.fn(({ active }: { active: boolean }) => (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Archive task"
+        testID="task-archive"
+        disabled={!active}
+        onPress={onArchive}
+      >
+        <Text>Archive</Text>
+      </Pressable>
+    ));
+    const container = mount(
+      <ComposerTrackListRow
+        accessibilityLabel="Review the implementation"
+        testID="task"
+        onPress={onOpen}
+        actions={renderActions}
+      >
+        <Text>Review the implementation</Text>
+      </ComposerTrackListRow>,
+    );
+    container.style.width = "380px";
+
+    const openButton = requiredRow("task");
+    const archiveButton = requiredRow("task-archive");
+    const frame = openButton.parentElement;
+    if (!(frame instanceof HTMLElement)) {
+      throw new Error("task row did not render its shared frame");
+    }
+    expect(openButton.tagName).toBe("BUTTON");
+    expect(archiveButton.tagName).toBe("BUTTON");
+    expect(archiveButton.parentElement).toBe(frame);
+    expect(container.querySelector("button button")).toBeNull();
+    expect(archiveButton.matches(":disabled")).toBe(true);
+    expect(renderActions).toHaveBeenLastCalledWith({ active: false });
+    const before = frame.getBoundingClientRect();
+
+    await act(async () => userEvent.hover(openButton));
+    expect(archiveButton.matches(":disabled")).toBe(false);
+    expect(renderActions).toHaveBeenLastCalledWith({ active: true });
+    await act(async () => userEvent.hover(archiveButton));
+    expect(archiveButton.matches(":disabled")).toBe(false);
+    const revealed = frame.getBoundingClientRect();
+    expect(revealed.width).toBeCloseTo(before.width, 1);
+    expect(revealed.height).toBeCloseTo(before.height, 1);
+
+    await act(async () => userEvent.click(archiveButton));
+    expect(onArchive).toHaveBeenCalledTimes(1);
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(openButton.isConnected).toBe(true);
+
+    act(() => openButton.focus());
+    await act(async () => userEvent.keyboard("{Enter}"));
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    await act(async () => userEvent.keyboard(" "));
+    expect(onOpen).toHaveBeenCalledTimes(2);
+    expect(openButton.isConnected).toBe(true);
   });
 });
 

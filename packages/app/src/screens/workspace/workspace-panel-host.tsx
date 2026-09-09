@@ -50,8 +50,8 @@ const MountedTab = memo(function MountedTab({
   );
   const handleFocusPane = useCallback(() => onFocusPane?.(paneId), [onFocusPane, paneId]);
   return (
-    <RenderProfile id={`DesktopMountedTab:${tab.kind}:${tab.tabId}`}>
-      <RetainedPanel active={visible}>
+    <RenderProfile id={`WorkspaceMountedPanel:${tab.kind}:${tab.tabId}`}>
+      <RetainedPanel active={visible} testID={`workspace-panel-${tab.tabId}`}>
         <WorkspacePaneContent
           content={content}
           isWorkspaceFocused={isWorkspaceFocused}

@@ -222,6 +222,8 @@ export function ComposerTrackActions({
 export interface ComposerTrackRowProps {
   /** A function child receives the row's own hover/press state, for hover-revealed actions. */
   children: ReactNode | ((state: { active: boolean }) => ReactNode);
+  /** Secondary buttons sit beside the row's open button, within the same hover area. */
+  actions?: ReactNode | ((state: { active: boolean }) => ReactNode);
   /** Rows that open something are pressable and fill on press or hover. A read-only row is not. */
   onPress?: () => void;
   /**
@@ -263,43 +265,61 @@ export function ComposerTrackRow({
 /** The same task row in a persistent panel, where selecting a row has no menu to dismiss. */
 export function ComposerTrackListRow({
   children,
+  actions,
   onPress,
   disabled = false,
   accessibilityLabel,
   testID,
 }: ComposerTrackRowProps): ReactElement {
-  const [hovered, setHovered] = useState(false);
-  const handlePointerEnter = useCallback(() => setHovered(true), []);
-  const handlePointerLeave = useCallback(() => setHovered(false), []);
-
-  const renderRow = useCallback(
-    (active: boolean) => (
-      <View style={active ? styles.rowActive : styles.row}>
-        {typeof children === "function" ? children({ active }) : children}
-      </View>
-    ),
-    [children],
+  const [interaction, setInteraction] = useState({ hovered: false, pressed: false });
+  const handlePointerEnter = useCallback(
+    () => setInteraction((state) => ({ ...state, hovered: true })),
+    [],
   );
-  const renderPressed = useCallback(
-    ({ pressed }: { pressed: boolean }) => renderRow(hovered || pressed),
-    [hovered, renderRow],
+  const handlePointerLeave = useCallback(
+    () => setInteraction((state) => ({ ...state, hovered: false })),
+    [],
   );
+  const handlePressIn = useCallback(
+    () => setInteraction((state) => ({ ...state, pressed: true })),
+    [],
+  );
+  const handlePressOut = useCallback(
+    () => setInteraction((state) => ({ ...state, pressed: false })),
+    [],
+  );
+  const active = Boolean(onPress) && (interaction.hovered || interaction.pressed);
+  const content = typeof children === "function" ? children({ active }) : children;
+  const rowActions = typeof actions === "function" ? actions({ active }) : actions;
 
   if (!onPress) {
-    return <View accessibilityLabel={accessibilityLabel}>{renderRow(false)}</View>;
+    return (
+      <View accessibilityLabel={accessibilityLabel}>
+        <View style={styles.row}>
+          {content}
+          {rowActions}
+        </View>
+      </View>
+    );
   }
 
   return (
     <View onPointerEnter={handlePointerEnter} onPointerLeave={handlePointerLeave}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={accessibilityLabel}
-        testID={testID}
-        disabled={disabled}
-        onPress={onPress}
-      >
-        {renderPressed}
-      </Pressable>
+      <View style={[active ? styles.rowActive : styles.row, styles.interactiveRow]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel}
+          testID={testID}
+          disabled={disabled}
+          onPress={onPress}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          style={styles.rowPressable}
+        >
+          {content}
+        </Pressable>
+        {rowActions}
+      </View>
     </View>
   );
 }
@@ -394,6 +414,23 @@ const styles = StyleSheet.create((theme) => {
       paddingVertical: theme.spacing[1],
       borderRadius: theme.borderRadius.md,
       backgroundColor: theme.colors.surface2,
+    },
+    interactiveRow: {
+      paddingLeft: 0,
+      paddingVertical: 0,
+    },
+    rowPressable: {
+      flexDirection: "row",
+      alignItems: "center",
+      alignSelf: "stretch",
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: "auto",
+      minWidth: 0,
+      minHeight: 32,
+      gap: theme.spacing[2],
+      paddingLeft: theme.spacing[2],
+      paddingVertical: theme.spacing[1],
     },
     // Segments sit twice as far apart as a mark sits from its own text, so a count reads as
     // belonging to the mark on its left rather than to the words on its right.

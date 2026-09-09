@@ -99,6 +99,18 @@ describe("working diff tab identity", () => {
     expect(workingDiffId).toBe(otherFocusId);
     expect(workingDiffId).not.toBe(fileId);
   });
+
+  it("preserves a child worktree binding and separates its Changes from the parent", () => {
+    const child = { ...target, workspaceId: "child-worktree" };
+    expect(normalizeWorkspaceTabTarget({ ...child, workspaceId: " child-worktree " })).toEqual(
+      child,
+    );
+    expect(workspaceTabTargetsEqual(target, child)).toBe(false);
+    expect(buildDeterministicWorkspaceTabId(child)).toBe("working_diff_child-worktree");
+    expect(buildDeterministicWorkspaceTabId(child)).not.toBe(
+      buildDeterministicWorkspaceTabId(target),
+    );
+  });
 });
 
 describe("workspace utility panel identity", () => {

@@ -109,19 +109,18 @@ test.describe("Assistant fork menu", () => {
     await session.client.waitForFinish(session.agentId, 45_000);
     await awaitAssistantMessage(page);
 
-    const agentTab = page.getByTestId(`workspace-tab-agent_${session.agentId}`);
-    await expect(agentTab).toHaveAttribute("aria-selected", "true");
+    const agentPanel = page
+      .getByTestId(`workspace-panel-agent_${session.agentId}`)
+      .filter({ visible: true });
+    await expect(agentPanel).toHaveCount(1);
 
     await forkMostRecentAssistantTurnToNewTab(page);
 
-    const selectedTab = page
-      .getByTestId("workspace-tabs-row")
-      .getByRole("button")
-      .and(page.locator('[aria-selected="true"]'));
-    await expect(selectedTab).toHaveAttribute("data-testid", /^workspace-tab-draft_/, {
-      timeout: 30_000,
-    });
-    await expect(agentTab).toHaveAttribute("aria-selected", "false");
+    // The fork becomes the chat on screen; the agent it came from steps aside.
+    await expect(
+      page.locator('[data-testid^="workspace-panel-draft_"]').filter({ visible: true }),
+    ).toHaveCount(1, { timeout: 30_000 });
+    await expect(agentPanel).toHaveCount(0);
     await expectChatHistoryAttachment(page);
   });
 

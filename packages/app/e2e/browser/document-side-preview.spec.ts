@@ -4,6 +4,8 @@ import { expect, test, type Page } from "../support/fixtures";
 import { expectComposerDraft, fillComposerDraft } from "../support/helpers/composer";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
 import { openFileExplorer, openFileFromExplorer } from "../support/helpers/file-explorer";
+import { closeSidePanel } from "../support/helpers/workspace-tabs";
+import { getServerId } from "../support/helpers/server-id";
 
 const MARKDOWN =
   "# Preview guide\n\nRendered **Markdown** beside the conversation.\n\n- Keep the chat open\n";
@@ -21,33 +23,15 @@ function documentLink(page: Page, filename: string) {
   return page.locator(`a[href=${JSON.stringify(filename)}]`).filter({ visible: true });
 }
 
-function fileTab(page: Page, filename: string) {
-  return page
-    .locator('[data-testid^="workspace-tab-file_"]')
-    .filter({ hasText: filename, visible: true });
-}
-
-async function closeFile(page: Page, filename: string) {
-  await fileTab(page, filename).click({ button: "right" });
-  await page.getByRole("menuitem", { name: "Close", exact: true }).click();
-  await expect(fileTab(page, filename)).toHaveCount(0);
-}
-
-async function documentPaneFraction(page: Page) {
-  const width = (await filePane(page).boundingBox())?.width ?? 0;
-  const paneWidths = await page
-    .locator('[data-testid^="workspace-pane-"]')
-    .filter({ visible: true })
-    .evaluateAll((panes) =>
-      panes.reduce((total, pane) => total + pane.getBoundingClientRect().width, 0),
-    );
-  return width / paneWidths;
+async function closeFile(page: Page) {
+  await closeSidePanel(page);
+  await expect(filePane(page)).toHaveCount(0);
 }
 
 async function expectDocumentBesideChat(page: Page) {
   await expect(filePane(page)).toBeVisible();
   await expect(chatPane(page)).toBeVisible();
-  // Resizing first changes the split's bounds, then the shell yields its sidebar.
+  // Resizing updates the document bounds, then the shell yields its sidebar.
   await expect(async () => {
     const [document, chat] = await Promise.all([
       filePane(page).boundingBox(),
@@ -99,6 +83,9 @@ test.describe("Documents alongside the conversation", () => {
       await fillComposerDraft(page, "Continue after reading");
       await documentLink(page, "guide.md").click();
       await expectDocumentBesideChat(page);
+      await expect(
+        page.getByTestId(`sidebar-workspace-row-${getServerId()}:chat:${session.agentId}`),
+      ).toHaveAttribute("aria-selected", "true");
       await expect(filePane(page).getByText("Preview guide", { exact: true })).toBeVisible();
       await expect(page.getByTestId("file-mode-preview")).toHaveAttribute("aria-selected", "true");
       await page.getByTestId("file-mode-source").click();
@@ -121,14 +108,13 @@ test.describe("Documents alongside the conversation", () => {
       });
       await page.setViewportSize({ width: 1920, height: 900 });
       await expectDocumentBesideChat(page);
-      await expect.poll(() => documentPaneFraction(page)).toBeCloseTo(0.3, 2);
       await page.setViewportSize({ width: 1280, height: 900 });
       await expectDocumentBesideChat(page);
       await expect
         .poll(async () => (await filePane(page).boundingBox())?.width ?? 0)
-        .toBeCloseTo(400, 0);
+        .toBeCloseTo(320, 0);
       const beforeDrag = (await filePane(page).boundingBox())!.width;
-      const handle = await page.getByTestId("workspace-split-resize-handle").boundingBox();
+      const handle = await page.getByTestId("workspace-side-panel-resize-handle").boundingBox();
       if (!handle) throw new Error("Document split handle must be visible");
       await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
       await page.mouse.down();
@@ -141,7 +127,7 @@ test.describe("Documents alongside the conversation", () => {
         .toBeCloseTo(beforeDrag + 50, 0);
       await page.setViewportSize({ width: 800, height: 700 });
       await expectDocumentBesideChat(page);
-      await closeFile(page, "guide.md");
+      await closeFile(page);
       await expectComposerDraft(page, "Continue after reading");
 
       await documentLink(page, "notes.txt").click();
@@ -150,7 +136,7 @@ test.describe("Documents alongside the conversation", () => {
         "A plain text document.",
       );
       await expect(page.getByTestId("file-preview-mode")).toHaveCount(0);
-      await closeFile(page, "notes.txt");
+      await closeFile(page);
       await expectComposerDraft(page, "Continue after reading");
 
       await documentLink(page, "missing.txt").click();
@@ -164,7 +150,7 @@ test.describe("Documents alongside the conversation", () => {
       await expect(filePane(page).getByTestId("file-source-editor")).toContainText(
         "Recovered document",
       );
-      await closeFile(page, "missing.txt");
+      await closeFile(page);
       await expectComposerDraft(page, "Continue after reading");
       expect(errors).toEqual([]);
     } finally {
@@ -172,7 +158,9 @@ test.describe("Documents alongside the conversation", () => {
     }
   });
 
-  test("respects Main and offers an explicit Open to the side action", async ({ page }) => {
+  test("opens file links on the right even with a saved legacy Main preference", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.addInitScript(() => {
       localStorage.setItem(
@@ -186,13 +174,12 @@ test.describe("Documents alongside the conversation", () => {
       const link = documentLink(page, "guide.md");
       await expect(link).toBeVisible();
       await link.click();
+      await expectDocumentBesideChat(page);
       await expect(filePane(page).getByText("Preview guide", { exact: true })).toBeVisible();
-      await expect(chatPane(page)).toHaveCount(0);
-      await closeFile(page, "guide.md");
-      await expect(chatPane(page)).toBeVisible();
+      await closeFile(page);
 
       await link.click({ button: "right" });
-      await page.getByRole("menuitem", { name: "Open to the side", exact: true }).click();
+      await page.getByRole("menuitem", { name: "Open file", exact: true }).click();
       await expectDocumentBesideChat(page);
       await expect(filePane(page).getByText("Preview guide", { exact: true })).toBeVisible();
     } finally {
@@ -283,11 +270,13 @@ test.describe("Documents alongside the conversation", () => {
         "Outside working folder, same device",
       );
       await expect(
-        page.locator('[data-testid^="workspace-tab-file_"]').filter({ visible: true }),
-      ).toHaveAttribute(
-        "data-testid",
-        `workspace-tab-file_${path.join(session.cwd, "outside.txt").replaceAll("\\", "/")}`,
-      );
+        page
+          .getByTestId(
+            `workspace-panel-file_${path.join(session.cwd, "outside.txt").replaceAll("\\", "/")}`,
+          )
+          .filter({ visible: true }),
+      ).toBeVisible();
+      await openFileExplorer(page);
 
       await page.getByTestId("files-browse-home").click();
       await expect(page.getByTestId("files-browse-path")).toHaveText("~");

@@ -7,6 +7,7 @@ import { AgentStreamView } from "@/agent-stream/view";
 import { getProviderIcon } from "@/components/provider-icons";
 import type { AgentScreenAgent } from "@/hooks/use-agent-screen-state-machine";
 import { usePaneContext } from "@/panels/pane-context";
+import { createAgentPaneContext } from "@/panels/agent-pane-context";
 import { definePanel, type PanelDescriptor } from "@/panels/panel-registry";
 import { useSessionStore } from "@/stores/session-store";
 import {
@@ -68,7 +69,8 @@ function useProviderSubagentDescriptor(
 
 function ProviderSubagentPanel() {
   const { t } = useTranslation();
-  const { serverId, target, openFileInWorkspace } = usePaneContext();
+  const paneContext = usePaneContext();
+  const { serverId, target } = paneContext;
   invariant(target.kind === "provider_subagent", "ProviderSubagentPanel requires provider target");
   const key = providerSubagentKey(serverId, target.parentAgentId, target.subagentId);
   const streamId = `provider:${encodeURIComponent(target.parentAgentId)}:${encodeURIComponent(target.subagentId)}`;
@@ -155,6 +157,10 @@ function ProviderSubagentPanel() {
     }),
     [descriptor, parent, serverId, streamId],
   );
+  const fileContext = useMemo(
+    () => createAgentPaneContext(paneContext, streamContext),
+    [paneContext, streamContext],
+  );
   const historyPagination = useMemo(
     () => ({
       hasOlder: timeline?.hasOlder === true,
@@ -204,7 +210,7 @@ function ProviderSubagentPanel() {
         turnPresentation={turnPresentation}
         pendingPermissions={EMPTY_PERMISSIONS}
         isAuthoritativeHistoryReady
-        onOpenWorkspaceFile={openFileInWorkspace}
+        onOpenWorkspaceFile={fileContext.openFileInWorkspace}
         readOnly
         historyPagination={historyPagination}
       />

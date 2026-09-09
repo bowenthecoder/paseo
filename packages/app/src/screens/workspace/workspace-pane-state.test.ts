@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   deriveWorkspacePaneState,
   getWorkspacePaneDescriptors,
-  resolveSideFileOpenPlacement,
 } from "@/screens/workspace/workspace-pane-state";
 import type { WorkspaceLayout } from "@/stores/workspace-layout-store";
 import type { WorkspaceTab } from "@/workspace-tabs/model";
@@ -19,6 +18,7 @@ describe("workspace-pane-state", () => {
   it("selects the focused pane and keeps its tab order", () => {
     const tabs: WorkspaceTab[] = [
       createTab("agent_agent-a", { kind: "agent", agentId: "agent-a" }),
+      createTab("draft_draft-1", { kind: "draft", draftId: "draft-1" }),
       createTab("file_/repo/README.md", { kind: "file", path: "/repo/README.md" }),
       createTab("terminal_term-1", { kind: "terminal", terminalId: "term-1" }),
     ];
@@ -33,30 +33,30 @@ describe("workspace-pane-state", () => {
             {
               kind: "pane",
               pane: {
-                id: "left",
-                tabIds: ["file_/repo/README.md", "agent_agent-a"],
+                id: "main",
+                tabIds: ["draft_draft-1", "agent_agent-a"],
                 focusedTabId: "agent_agent-a",
               },
             },
             {
               kind: "pane",
               pane: {
-                id: "right",
-                tabIds: ["terminal_term-1"],
+                id: "explorer",
+                tabIds: ["file_/repo/README.md", "terminal_term-1"],
                 focusedTabId: "terminal_term-1",
               },
             },
           ],
         },
       },
-      focusedPaneId: "left",
+      focusedPaneId: "main",
     };
 
     const state = deriveWorkspacePaneState({ layout, tabs });
 
-    expect(state.pane?.id).toBe("left");
+    expect(state.pane?.id).toBe("main");
     expect(state.tabs.map((tab) => tab.descriptor.tabId)).toEqual([
-      "file_/repo/README.md",
+      "draft_draft-1",
       "agent_agent-a",
     ]);
     expect(state.activeTabId).toBe("agent_agent-a");
@@ -104,105 +104,5 @@ describe("workspace-pane-state", () => {
       kind: "file",
       path: "/repo/README.md",
     });
-  });
-
-  it("resolves side file opens to an existing file tab", () => {
-    const layout: WorkspaceLayout = {
-      root: {
-        kind: "pane",
-        pane: {
-          id: "main",
-          tabIds: ["file_/repo/README.md"],
-          focusedTabId: "file_/repo/README.md",
-        },
-      },
-      focusedPaneId: "main",
-    };
-    const tabs = [createTab("file_/repo/README.md", { kind: "file", path: "/repo/README.md" })];
-
-    expect(
-      resolveSideFileOpenPlacement({
-        layout,
-        sourcePaneId: "main",
-        tabs,
-        target: { kind: "file", path: "/repo/README.md" },
-      }),
-    ).toEqual({ kind: "open-in-source" });
-  });
-
-  it("resolves side file opens to an existing file tab when only the line range differs", () => {
-    const layout: WorkspaceLayout = {
-      root: {
-        kind: "pane",
-        pane: {
-          id: "main",
-          tabIds: ["file_/repo/README.md"],
-          focusedTabId: "file_/repo/README.md",
-        },
-      },
-      focusedPaneId: "main",
-    };
-    const tabs = [createTab("file_/repo/README.md", { kind: "file", path: "/repo/README.md" })];
-
-    expect(
-      resolveSideFileOpenPlacement({
-        layout,
-        sourcePaneId: "main",
-        tabs,
-        target: { kind: "file", path: "/repo/README.md", lineStart: 12, lineEnd: 20 },
-      }),
-    ).toEqual({ kind: "open-in-source" });
-  });
-
-  it("resolves side file opens to an existing right pane", () => {
-    const layout: WorkspaceLayout = {
-      root: {
-        kind: "group",
-        group: {
-          id: "group-root",
-          direction: "horizontal",
-          sizes: [0.5, 0.5],
-          children: [
-            {
-              kind: "pane",
-              pane: { id: "left", tabIds: ["agent_agent-a"], focusedTabId: "agent_agent-a" },
-            },
-            {
-              kind: "pane",
-              pane: { id: "right", tabIds: [], focusedTabId: null },
-            },
-          ],
-        },
-      },
-      focusedPaneId: "left",
-    };
-
-    expect(
-      resolveSideFileOpenPlacement({
-        layout,
-        sourcePaneId: "left",
-        tabs: [createTab("agent_agent-a", { kind: "agent", agentId: "agent-a" })],
-        target: { kind: "file", path: "/repo/README.md" },
-      }),
-    ).toEqual({ kind: "focus-side-pane", paneId: "right" });
-  });
-
-  it("resolves side file opens to a split when there is no right pane", () => {
-    const layout: WorkspaceLayout = {
-      root: {
-        kind: "pane",
-        pane: { id: "main", tabIds: ["agent_agent-a"], focusedTabId: "agent_agent-a" },
-      },
-      focusedPaneId: "main",
-    };
-
-    expect(
-      resolveSideFileOpenPlacement({
-        layout,
-        sourcePaneId: "main",
-        tabs: [createTab("agent_agent-a", { kind: "agent", agentId: "agent-a" })],
-        target: { kind: "file", path: "/repo/README.md" },
-      }),
-    ).toEqual({ kind: "split-side-pane", paneId: "main" });
   });
 });

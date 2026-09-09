@@ -3,6 +3,11 @@ import { openAgentRoute } from "../support/helpers/mock-agent";
 import { seedSidebarChats } from "../support/helpers/sidebar-chats";
 import { getServerId } from "../support/helpers/server-id";
 import { ensureExplorerSidebar } from "../support/helpers/workspace-tabs";
+import {
+  closeMobileAgentSidebar,
+  expectMobileAgentSidebarHidden,
+  expectMobileAgentSidebarVisible,
+} from "../support/helpers/sidebar";
 
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -35,9 +40,7 @@ test("one click reveals Chats at 800px by yielding Explorer and preserving the d
     await menu.click();
     await expect(row).toBeVisible();
     await expect(menu).toHaveAttribute("aria-expanded", "true");
-    await expect(
-      page.getByTestId("workspace-explorer-sidebar").filter({ visible: true }),
-    ).toHaveCount(0);
+    await expect(page.getByTestId("workspace-side-panel").filter({ visible: true })).toHaveCount(0);
     await expect(page.getByTestId("desktop-sidebar-drawer")).toHaveCount(0);
     await expect(input).toHaveValue("An unsent draft stays here");
     await expect(composer).toBeInViewport({ ratio: 1 });
@@ -50,7 +53,7 @@ test("one click reveals Chats at 800px by yielding Explorer and preserving the d
   }
 });
 
-test("two main splits keep their drafts while Chats opens as a dismissible desktop drawer", async ({
+test("compact Chats navigation opens and closes without losing either draft", async ({
   page,
 }, testInfo) => {
   const workspace = await seedSidebarChats(["First draft", "Second draft"]);
@@ -59,47 +62,36 @@ test("two main splits keep their drafts while Chats opens as a dismissible deskt
       workspaceId: workspace.workspaceId,
       agentId: workspace.agents[0].id,
     });
-    await page
-      .getByTestId("message-input-root")
-      .filter({ visible: true })
-      .locator("textarea")
-      .fill("First unsent draft");
-    const row = page.getByTestId(
+    const composers = page.getByTestId("message-input-root").filter({ visible: true });
+    await composers.locator("textarea").fill("First unsent draft");
+    const firstRow = page.getByTestId(
+      `sidebar-workspace-row-${getServerId()}:chat:${workspace.agents[0].id}`,
+    );
+    const secondRow = page.getByTestId(
       `sidebar-workspace-row-${getServerId()}:chat:${workspace.agents[1].id}`,
     );
-    await row.click({ button: "right" });
-    await page.keyboard.press("o");
-    await page.getByTestId("sidebar-open-split-right").click();
-    const composers = page.getByTestId("message-input-root").filter({ visible: true });
-    await expect(composers).toHaveCount(2);
-    await composers.nth(1).locator("textarea").fill("Second unsent draft");
-    const explorer = await ensureExplorerSidebar(page);
-    await explorer.getByTestId("explorer-sidebar-tab-files").click();
-    await page.setViewportSize({ width: 800, height: 700 });
-    await expect(row).toBeHidden();
-    await page.keyboard.press("Meta+B");
-    const drawer = page.getByTestId("desktop-sidebar-drawer");
-    await expect(drawer).toBeVisible();
-    await expect(row).toBeVisible();
-    await expect(
-      page.getByTestId("workspace-explorer-sidebar").filter({ visible: true }),
-    ).toHaveCount(0);
-    await expect(composers).toHaveCount(2);
-    await page.screenshot({
-      path: testInfo.outputPath("narrow-split-chat-drawer.png"),
-      scale: "css",
-    });
-    await page.keyboard.press("Escape");
-    await expect(drawer).toHaveCount(0);
-    await expect(row).toBeHidden();
+    await secondRow.click();
+    await expect(composers).toHaveCount(1);
+    await composers.locator("textarea").fill("Second unsent draft");
+    await page.setViewportSize({ width: 560, height: 700 });
+    await expectMobileAgentSidebarHidden(page);
     const menu = page.getByTestId("menu-button").filter({ visible: true }).first();
-    await expect(menu).toHaveAttribute("aria-expanded", "false");
     await menu.click();
-    await expect(drawer).toBeVisible();
-    await page.getByTestId("desktop-sidebar-backdrop").click({ position: { x: 700, y: 500 } });
-    await expect(drawer).toHaveCount(0);
-    await expect(composers.nth(0).locator("textarea")).toHaveValue("First unsent draft");
-    await expect(composers.nth(1).locator("textarea")).toHaveValue("Second unsent draft");
+    await expectMobileAgentSidebarVisible(page);
+    await expect(secondRow).toBeInViewport({ ratio: 1 });
+    await page.screenshot({ path: testInfo.outputPath("compact-chat-navigation.png") });
+    await closeMobileAgentSidebar(page);
+    await expectMobileAgentSidebarHidden(page);
+    await expect(composers.locator("textarea")).toHaveValue("Second unsent draft");
+    await menu.click();
+    await firstRow.click();
+    await expectMobileAgentSidebarHidden(page);
+    await expect(composers.locator("textarea")).toHaveValue("First unsent draft");
+    await menu.click();
+    await secondRow.click();
+    await expectMobileAgentSidebarHidden(page);
+    await expect(composers.locator("textarea")).toHaveValue("Second unsent draft");
+    await expect(composers).toBeInViewport({ ratio: 1 });
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth))
       .toBeLessThanOrEqual(1);

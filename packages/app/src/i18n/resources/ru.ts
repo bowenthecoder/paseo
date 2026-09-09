@@ -1,4 +1,4 @@
-import { en, type TranslationResources } from "./en";
+import type { TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ru: TranslationResources = {
@@ -65,8 +65,6 @@ export const ru: TranslationResources = {
       agents: "Агенты",
       newAgent: "Новый агент",
       open: "Открыть {{name}}",
-      openInSidePane: "Открыть {{name}} в боковой панели",
-      openInFocusedPane: "Открыть {{name}} в активной области",
       addProject: "Добавить проект",
       home: "Главная",
       groupByProject: "Группировать по проекту",
@@ -425,7 +423,6 @@ export const ru: TranslationResources = {
     fileActions: {
       openFile: "Открыть файл",
       openIn: "Открыть в {{target}}",
-      openToSide: "Открыть сбоку",
       copyPath: "Копировать путь",
       copyRelativePath: "Копировать относительный путь",
       revealIn: "Показать в {{target}}",
@@ -593,12 +590,6 @@ export const ru: TranslationResources = {
         copyTerminalId: "Скопировать идентификатор терминала",
         copyFilePath: "Скопировать путь к файлу",
         rename: "Переименовать",
-        closeAbove: "Закрыть вкладки выше",
-        closeBelow: "Закрыть вкладки ниже",
-        closeLeft: "Закрыть вкладки слева",
-        closeRight: "Закрыть вкладки справа",
-        closeOthers: "Закрыть другие вкладки",
-        moveToMain: "Переместить на основную панель",
         reloadAgent: "Перезагрузить агента",
         reloadAgentTooltip: "Перезагрузите агента, чтобы обновить навыки, MCP или статус входа.",
         close: "Закрыть",
@@ -606,18 +597,12 @@ export const ru: TranslationResources = {
         renameAgent: "Переименовать агента",
       },
       actions: {
-        newTab: "Новая вкладка",
         newAgent: "Новый агент",
         newTerminal: "Новый терминал",
         preparingTerminal: "Подготовка вкладки терминала",
         preparingTerminalTooltip: "Подготовка терминала...",
         newBrowser: "Новый браузер",
-        maximizePane: "Развернуть панель",
-        restorePane: "Восстановить панель",
-        closePane: "Закрыть панель",
         exitFocusMode: "Выйти из режима фокусировки",
-        splitRight: "Разделить панель справа",
-        splitDown: "Разделить панель снизу",
         changes: "Изменения",
         files: "Файлы",
         pullRequest: "PR",
@@ -649,9 +634,6 @@ export const ru: TranslationResources = {
         unsavedMessage:
           "В этой вкладке есть несохранённые изменения. При закрытии черновик будет удалён.",
         closeWithoutSaving: "Закрыть без сохранения",
-        closePaneTitle: "Закрыть панель?",
-        bulkUnsaved:
-          "Вкладок с несохранёнными изменениями: {{count}}. При закрытии черновики будут удалены.",
         close: "Закрыть",
         cancel: "Отмена",
         archive: "Архивировать",
@@ -661,22 +643,16 @@ export const ru: TranslationResources = {
         archiveRunningAgentTitle: "Архивировать работающего агента?",
         archiveRunningAgentMessage:
           "Этот агент всё ещё работает. При архивировании агент будет остановлен, а вкладка закрыта.",
-        closeTabsLeftTitle: "Закрыть вкладки слева?",
-        closeTabsRightTitle: "Закрыть вкладки справа?",
-        closeOtherTabsTitle: "Закрыть другие вкладки?",
-        bulk: {
-          all: "Будут архивированы агенты ({{agents}}), закрыты терминалы ({{terminals}}) и вкладки ({{tabs}}). Все запущенные процессы в закрытых терминалах будут немедленно остановлены.",
-          agentsAndTerminals:
-            "Будут архивированы агенты ({{agents}}) и закрыты терминалы ({{terminals}}). Все запущенные процессы в закрытых терминалах будут немедленно остановлены.",
-          terminalsAndTabs:
-            "Будут закрыты терминалы ({{terminals}}) и вкладки ({{tabs}}). Все запущенные процессы в закрытых терминалах будут немедленно остановлены.",
-          agentsAndTabs: "Будут архивированы агенты ({{agents}}) и закрыты вкладки ({{tabs}}).",
-          terminals:
-            "Будут закрыты терминалы ({{terminals}}). Все запущенные процессы в них будут немедленно остановлены.",
-          tabs: "Будут закрыты вкладки ({{tabs}}).",
-          agents: "Будут архивированы агенты ({{agents}}).",
-        },
       },
+    },
+    chat: {
+      empty: {
+        title: "Нет открытых чатов",
+        action: "Новый чат",
+      },
+    },
+    sidePanel: {
+      close: "Закрыть боковую панель",
     },
     header: {
       actions: {
@@ -688,6 +664,8 @@ export const ru: TranslationResources = {
         copyPath: "Скопировать путь к рабочему пространству",
         copyBranchName: "Скопировать название ветки",
         showSetup: "Показать настройку рабочего пространства",
+        toggleTerminal: "Терминал",
+        toggleBrowser: "Браузер",
       },
       toasts: {
         workspacePathUnavailable: "Путь к рабочему пространству пока недоступен.",
@@ -1933,7 +1911,6 @@ export const ru: TranslationResources = {
     sections: {
       general: "Основные",
       appearance: "Оформление",
-      layout: en.settings.sections.layout,
       editor: "Редактор",
       shortcuts: "Сочетания клавиш",
       integrations: "Интеграции",
@@ -1942,7 +1919,6 @@ export const ru: TranslationResources = {
       diagnostics: "Диагностика",
       about: "О приложении",
     },
-    layout: en.settings.layout,
     editor: {
       title: "Редактор",
       vimKeybindings: "Сочетания клавиш Vim",
@@ -2195,7 +2171,7 @@ export const ru: TranslationResources = {
       sections: {
         general: "Общие",
         workspaces: "Проекты и рабочие пространства",
-        tabsPanes: "Вкладки и панели",
+        chat: "Чат",
         layout: "Макет",
         agentInput: "Ввод для агента",
       },
@@ -2204,26 +2180,12 @@ export const ru: TranslationResources = {
         newWorkspace: "Новое рабочее пространство",
         newWorktree: "Новый worktree",
         archiveWorkspace: "Архивировать рабочее пространство",
-        newTab: "Новая вкладка",
         closeCurrentTab: "Закрыть текущую вкладку",
         jumpToWorkspace: "Перейти к рабочему пространству",
-        jumpToTab: "Перейти на вкладку",
         previousWorkspace: "Предыдущее рабочее пространство",
         nextWorkspace: "Следующее рабочее пространство",
-        previousTab: "Предыдущая вкладка",
-        nextTab: "Следующая вкладка",
-        splitPaneRight: "Разделить панель справа",
-        splitPaneDown: "Разделить панель вниз",
-        focusPaneLeft: "Перейти на панель слева",
-        focusPaneRight: "Перейти на панель справа",
-        focusPaneUp: "Перейти на панель выше",
-        focusPaneDown: "Перейти на панель ниже",
-        moveTabLeft: "Переместить вкладку влево",
-        moveTabRight: "Переместить вкладку вправо",
-        moveTabUp: "Переместить вкладку вверх",
-        moveTabDown: "Переместить вкладку вниз",
-        closePane: "Закрыть панель",
         newTerminal: "Новый терминал",
+        closeSidePanel: "Закрыть боковую панель",
         searchFiles: "Поиск файлов",
         toggleCommandCenter: "Переключить командный центр",
         showKeyboardShortcuts: "Показать сочетания клавиш",

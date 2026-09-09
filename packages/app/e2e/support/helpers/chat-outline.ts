@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { openSettings } from "./app";
 import { openSettingsSection } from "./settings";
-import { runWorkspaceActionFromCommandCenter } from "./command-center-workspace-actions";
+import { ensureExplorerSidebar } from "./workspace-tabs";
 
 export function chatOutlineRail(page: Page): Locator {
   return page.getByTestId("chat-outline-rail");
@@ -41,8 +41,8 @@ export async function clickChatOutlineRowEdge(page: Page, position: number): Pro
   await page.mouse.up();
 }
 
-export async function splitCurrentPanelRight(page: Page): Promise<void> {
-  await runWorkspaceActionFromCommandCenter(page, "Split pane right");
+export async function openSidePanelBesideChat(page: Page): Promise<void> {
+  await ensureExplorerSidebar(page);
 }
 
 export async function disableChatOutlineFromAppearance(page: Page): Promise<void> {

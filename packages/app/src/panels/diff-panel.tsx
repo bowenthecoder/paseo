@@ -21,6 +21,10 @@ import type { WorkspaceTabTarget } from "@/workspace-tabs/model";
 import { defaultChangesState, changesStateSchema } from "@/panels/changes/state";
 import { usePanelState } from "@/panels/use-panel-state";
 import { RenderProfile } from "@/utils/render-profiler";
+import {
+  anchorWorkspaceFileOpenRequest,
+  type WorkspaceFileOpenRequest,
+} from "@/workspace/file-open";
 
 const ThemedFileDiff = withUnistyles(FileDiff);
 const ThemedGitCommitHorizontal = withUnistyles(GitCommitHorizontal);
@@ -86,8 +90,16 @@ function resolveChangesPresentation(
 
 function ChangesPanel() {
   const { t } = useTranslation();
-  const { serverId, workspaceId, tabId, target, openPreferredTarget, openTargetToSide } =
-    usePaneContext();
+  const {
+    serverId,
+    workspaceId: layoutWorkspaceId,
+    tabId,
+    target,
+    openTab,
+    openFileInWorkspace,
+  } = usePaneContext();
+  const sourceWorkspaceId = target.kind === "working_diff" ? target.workspaceId : undefined;
+  const workspaceId = sourceWorkspaceId ?? layoutWorkspaceId;
   const [changesState, setChangesState] = usePanelState(changesStateSchema, defaultChangesState);
   const { preferences } = useChangesPreferences();
   const cwd = useWorkspaceDirectory(serverId, workspaceId);
@@ -100,22 +112,27 @@ function ChangesPanel() {
   const isTree = target.kind === "changes_tree";
 
   const handleOpenFile = useCallback(
-    (path: string) => openPreferredTarget({ kind: "file", path }, isTree ? "diffs" : "diffFiles"),
-    [isTree, openPreferredTarget],
+    (path: string) => {
+      const request: WorkspaceFileOpenRequest = { location: { path }, disposition: "side" };
+      if (sourceWorkspaceId) {
+        const anchored = cwd ? anchorWorkspaceFileOpenRequest(request, cwd) : null;
+        if (anchored) openFileInWorkspace(anchored);
+        return;
+      }
+      openFileInWorkspace(request);
+    },
+    [cwd, openFileInWorkspace, sourceWorkspaceId],
   );
 
   const handleSelectDiffFile = useCallback(
     (path: string) =>
-      openPreferredTarget(
-        { kind: "working_diff", focusPath: path, focusRequestId: Date.now() },
-        "diffs",
-      ),
-    [openPreferredTarget],
-  );
-  const handleOpenDiffToSide = useCallback(
-    (path: string) =>
-      openTargetToSide?.({ kind: "working_diff", focusPath: path, focusRequestId: Date.now() }),
-    [openTargetToSide],
+      openTab({
+        kind: "working_diff",
+        ...(sourceWorkspaceId ? { workspaceId: sourceWorkspaceId } : {}),
+        focusPath: path,
+        focusRequestId: Date.now(),
+      }),
+    [openTab, sourceWorkspaceId],
   );
 
   if (!cwd) {
@@ -140,7 +157,6 @@ function ChangesPanel() {
           focusRequestId={target.kind === "working_diff" ? target.focusRequestId : undefined}
           onSelectDiffFile={isTree ? handleSelectDiffFile : undefined}
           onOpenFile={handleOpenFile}
-          onOpenToSide={isTree && openTargetToSide ? handleOpenDiffToSide : undefined}
           onAddToChat={canAddToChat ? addFile : undefined}
           state={changesState}
           onStateChange={setChangesState}
@@ -211,12 +227,25 @@ function CommitDiffPanel() {
   );
 }
 
-const workingDiffPresentation = {
-  label: (t) => t("panels.diff.diffLabel"),
-  subtitle: (t) => t("panels.diff.changesSubtitle"),
-  tooltip: (t) => t("panels.diff.changesSubtitle"),
-  icon: ThemedFileDiff,
-} satisfies PanelPresentation;
+function useWorkingDiffPanelDescriptor(
+  target: Extract<WorkspaceTabTarget, { kind: "working_diff" }>,
+  context: { serverId: string; workspaceId: string },
+): PanelDescriptor {
+  const { t } = useTranslation();
+  const cwd = useWorkspaceDirectory(context.serverId, target.workspaceId ?? context.workspaceId);
+  const sourceDirectory = target.workspaceId ? cwd : null;
+  const folder = sourceDirectory?.replace(/\\/g, "/").split("/").findLast(Boolean);
+  const label = t("panels.diff.diffLabel");
+  const subtitle = t("panels.diff.changesSubtitle");
+  return {
+    label: folder ? `${label} · ${folder}` : label,
+    subtitle,
+    tooltip: sourceDirectory ? `${subtitle} · ${sourceDirectory}` : subtitle,
+    icon: ThemedFileDiff,
+    titleState: "ready",
+    statusBucket: null,
+  };
+}
 
 const changesTreePresentation = {
   label: (t) => t("panels.diff.changesLabel"),
@@ -241,7 +270,7 @@ function useCommitDiffPanelDescriptor(
 
 export const workingDiffPanelRegistration = definePanel("working_diff", {
   component: ChangesPanel,
-  presentation: workingDiffPresentation,
+  useDescriptor: useWorkingDiffPanelDescriptor,
 });
 
 export const changesTreePanelRegistration = definePanel("changes_tree", {

@@ -107,6 +107,28 @@ test.describe("Composer hold queue", () => {
     }
   });
 
+  test("Edit restores a held draft without sending or losing the other queued message", async ({
+    page,
+  }) => {
+    const agent = await openIdleAgent(page, "hold-queue-edit-");
+    try {
+      await holdMessage(page, "edit this draft");
+      await holdMessage(page, "keep this queued");
+      await heldRows(page).first().getByRole("button", { name: "Edit queued message" }).click();
+      await expectComposerDraft(page, "edit this draft");
+      await expect(heldRows(page)).toHaveCount(1);
+      await expect(heldRows(page)).toContainText("keep this queued");
+      await expect(userMessages(page)).toHaveCount(0);
+      await fillComposerDraft(page, "edited version");
+      await holdDraftInQueue(page);
+      await expect(heldRows(page)).toHaveCount(2);
+      await expect(heldRows(page).last()).toContainText("edited version");
+      await expect(userMessages(page)).toHaveCount(0);
+    } finally {
+      await agent.cleanup();
+    }
+  });
+
   test("a held message is still there, and still held, after a reload", async ({ page }) => {
     test.setTimeout(120_000);
     const agent = await openIdleAgent(page, "hold-queue-reload-");

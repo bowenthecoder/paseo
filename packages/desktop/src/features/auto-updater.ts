@@ -170,7 +170,9 @@ class ElectronAppUpdateRuntime implements AppUpdateRuntime {
 
 const appUpdateService = createAppUpdateService({
   runtime: new ElectronAppUpdateRuntime(),
-  isPackaged: () => app.isPackaged,
+  // Review builds use an isolated profile and must stay on the revision being
+  // reviewed. They may also be packaged without an app-update.yml feed.
+  isPackaged: () => app.isPackaged && process.env.PASEO_DISABLE_APP_UPDATES !== "1",
   now: () => Date.now(),
   bucket: async () => bucketFromStagingUserId(await getStagingUserId()),
   reportCheckError: (error) => {

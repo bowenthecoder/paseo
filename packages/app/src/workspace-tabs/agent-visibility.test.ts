@@ -61,6 +61,72 @@ function makeAgent(input: {
 const WORKSPACE_ID = "ws-1";
 
 describe("workspace agent visibility", () => {
+  it("retains nested descendants in other worktrees without auto-opening them", () => {
+    const parent = makeAgent({ id: "parent", cwd: "/parent", workspaceId: WORKSPACE_ID });
+    const child = makeAgent({
+      id: "child",
+      cwd: "/child",
+      workspaceId: "child-ws",
+      parentAgentId: "parent",
+    });
+    const grandchild = makeAgent({
+      id: "grandchild",
+      cwd: "/grandchild",
+      workspaceId: "grandchild-ws",
+      parentAgentId: "child",
+    });
+    const archived = makeAgent({
+      id: "archived",
+      cwd: "/archived",
+      workspaceId: "archived-ws",
+      parentAgentId: "grandchild",
+      archivedAt: new Date("2026-09-08"),
+    });
+    const unrelated = makeAgent({
+      id: "unrelated",
+      cwd: "/unrelated",
+      workspaceId: "other-ws",
+      parentAgentId: "unrelated",
+    });
+    const result = deriveWorkspaceAgentVisibility({
+      sessionAgents: new Map(
+        [grandchild, unrelated, parent, child].map((agent) => [agent.id, agent]),
+      ),
+      agentDetails: new Map([[archived.id, archived]]),
+      workspaceId: WORKSPACE_ID,
+    });
+    expect(result.activeAgentIds).toEqual(new Set(["parent", "child", "grandchild"]));
+    expect(result.knownAgentIds).toEqual(new Set(["parent", "child", "grandchild", "archived"]));
+    expect(result.autoOpenAgentIds).toEqual(new Set(["parent"]));
+  });
+
+  it("terminates a cyclic relationship without duplicating or importing unrelated agents", () => {
+    const parent = makeAgent({
+      id: "parent",
+      cwd: "/parent",
+      workspaceId: WORKSPACE_ID,
+      parentAgentId: "grandchild",
+    });
+    const child = makeAgent({
+      id: "child",
+      cwd: "/child",
+      workspaceId: "child-ws",
+      parentAgentId: "parent",
+    });
+    const grandchild = makeAgent({
+      id: "grandchild",
+      cwd: "/grandchild",
+      workspaceId: "grandchild-ws",
+      parentAgentId: "child",
+    });
+    const result = deriveWorkspaceAgentVisibility({
+      sessionAgents: new Map([grandchild, child, parent].map((agent) => [agent.id, agent])),
+      workspaceId: WORKSPACE_ID,
+    });
+    expect(result.activeAgentIds).toEqual(new Set(["parent", "child", "grandchild"]));
+    expect(result.knownAgentIds).toEqual(new Set(["parent", "child", "grandchild"]));
+  });
+
   it("keeps subagents active and known while excluding them from auto-open", () => {
     const parent = makeAgent({
       id: "parent-agent",

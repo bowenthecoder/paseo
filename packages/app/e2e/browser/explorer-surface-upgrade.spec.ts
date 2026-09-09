@@ -20,7 +20,7 @@ function readPersistedPanelState(page: Page): Promise<string | null> {
 }
 
 function explorerSidebar(page: Page): Locator {
-  return visible(page, "workspace-explorer-sidebar");
+  return visible(page, "workspace-side-panel");
 }
 
 /** Seed exactly what a pre-pane build wrote after the user opened the sidebar once. */
@@ -64,9 +64,11 @@ test.describe("explorer surface after upgrading from the docked sidebar", () => 
         const toggle = visible(page, "workspace-explorer-toggle").first();
         await toggle.click();
         await expect(explorerSidebar(page)).toHaveCount(1, { timeout: 15_000 });
-        await expect(explorerSidebar(page).getByTestId("explorer-sidebar-tab-files")).toBeVisible();
         await expect(
-          explorerSidebar(page).getByTestId("explorer-sidebar-tab-changes_tree"),
+          explorerSidebar(page).getByTestId("workspace-side-panel-view-files"),
+        ).toBeVisible();
+        await expect(
+          explorerSidebar(page).getByTestId("workspace-side-panel-view-changes_tree"),
         ).toBeVisible();
 
         await toggle.click();
@@ -102,7 +104,9 @@ test.describe("explorer surface after upgrading from the docked sidebar", () => 
       await test.step("open the explorer so both sides are showing", async () => {
         await toggle.click();
         await expect(explorerSidebar(page)).toHaveCount(1, { timeout: 15_000 });
-        await expect(explorerSidebar(page).getByTestId("explorer-sidebar-tab-files")).toBeVisible();
+        await expect(
+          explorerSidebar(page).getByTestId("workspace-side-panel-view-files"),
+        ).toBeVisible();
         await expect(agentList).toHaveCount(1);
       });
 
@@ -116,7 +120,9 @@ test.describe("explorer surface after upgrading from the docked sidebar", () => 
         await page.keyboard.press(`${modifier}+.`);
         await expect(agentList).toHaveCount(1, { timeout: 15_000 });
         await expect(explorerSidebar(page)).toHaveCount(1, { timeout: 15_000 });
-        await expect(explorerSidebar(page).getByTestId("explorer-sidebar-tab-files")).toBeVisible();
+        await expect(
+          explorerSidebar(page).getByTestId("workspace-side-panel-view-files"),
+        ).toBeVisible();
       });
     } finally {
       await workspace.cleanup();

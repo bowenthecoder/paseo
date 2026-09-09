@@ -30,10 +30,10 @@ Disable mobile triggering explicitly on draggable rows, where long press belongs
 
 A menu whose contents depend on what else is on screen gets one component per surface, not one
 component with `isMobile` branches inside it. The workspace header menu is the example
-(`packages/app/src/screens/workspace/workspace-header-menu.tsx`): compact has no tab strip, so it
-carries new-tab actions, while wide leaves those to the strip's `+` menu and lists workspace
-actions only. Items both surfaces share live in one component that each menu renders, from the same
-callbacks, so the two can't drift.
+(`packages/app/src/screens/workspace/workspace-header-menu.tsx`): its desktop menu exposes New
+chat, saved Drafts, terminal profiles and supporting views. The compact menu fits its own header
+controls. Both menus render shared workspace actions from one component and the same callbacks.
+Neither presentation depends on a chat tab strip.
 
 ## Selecting an item on iOS
 

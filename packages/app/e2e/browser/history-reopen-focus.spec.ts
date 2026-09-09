@@ -1,6 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import {
   clickSessionRow,
+  closeWorkspaceAgentTab,
   createMockIdleAgent,
   expectArchivedAgentFocused,
   fetchAgentArchivedAt,
@@ -8,8 +9,9 @@ import {
   openWorkspaceWithAgents,
 } from "../support/helpers/archive-tab";
 import { seedWorkspace } from "../support/helpers/seed-client";
+import { agentPanel } from "../support/helpers/workspace-tabs";
 
-test("History focuses the chat reopened immediately after closing its tab", async ({
+test("History focuses the chat reopened immediately after archiving with A", async ({
   page,
 }, testInfo) => {
   const frames: unknown[] = [];
@@ -32,23 +34,19 @@ test("History focuses the chat reopened immediately after closing its tab", asyn
       title: "Keep the other conversation",
     });
     await openWorkspaceWithAgents(page, [surviving, archived]);
-    const tab = page.getByTestId(`workspace-tab-agent_${archived.id}`).filter({ visible: true });
-    await expect(tab).toHaveAttribute("aria-selected", "true");
-    await tab.click({ button: "right" });
-    await page.getByRole("menuitem", { name: "Close", exact: true }).click();
-    await expect(tab).toHaveCount(0);
+    const archivedPanel = agentPanel(page, archived.id);
+    await expect(archivedPanel).toBeVisible();
+    await closeWorkspaceAgentTab(page, archived.id);
     await openSessions(page);
     await clickSessionRow(page, archived.title);
-    await expect(tab).toHaveAttribute("aria-selected", "true");
+    await expect(archivedPanel).toBeVisible();
     await expectArchivedAgentFocused(page, archived.id);
     expect(await fetchAgentArchivedAt(workspace.client, archived.id)).not.toBeNull();
     expect(await fetchAgentArchivedAt(workspace.client, surviving.id)).toBeNull();
     // This seed client is separate from the browser, so deletion must propagate remotely.
     await workspace.client.deleteAgent(archived.id);
-    await expect(tab).toHaveCount(0);
-    await expect(
-      page.getByTestId(`workspace-tab-agent_${surviving.id}`).filter({ visible: true }),
-    ).toHaveAttribute("aria-selected", "true");
+    await expect(archivedPanel).toHaveCount(0);
+    await expect(agentPanel(page, surviving.id)).toBeVisible();
   } finally {
     await testInfo.attach("archive-events", {
       body: JSON.stringify(frames, null, 2),

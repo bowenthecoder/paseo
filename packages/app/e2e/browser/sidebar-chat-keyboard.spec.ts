@@ -14,8 +14,8 @@ async function expectSelectedChat(page: Page, agentId: string, siblingId: string
   await expect(chatRow(page, agentId)).toHaveAttribute("aria-selected", "true");
   await expect(chatRow(page, siblingId)).toHaveAttribute("aria-selected", "false");
   await expect(
-    page.getByTestId(`workspace-tab-agent_${agentId}`).filter({ visible: true }).first(),
-  ).toHaveAttribute("aria-selected", "true");
+    page.getByTestId(`workspace-panel-agent_${agentId}`).filter({ visible: true }).first(),
+  ).toBeVisible();
 }
 
 test("Alt-number navigation opens individual chats that share one workspace", async ({ page }) => {

@@ -3,13 +3,13 @@ import { createTempGitRepo } from "../support/helpers/workspace";
 import {
   closeSetupTab,
   waitForWorkspaceTabsVisible,
-  expectFailedSetupTabSeededInMainPane,
+  expectFailedSetupSeededInSidePanel,
   expectSetupTabNotSeeded,
   expectNoTerminalTabs,
-  clickFirstTerminalTab,
-  expectFirstTerminalTabContains,
+  selectFirstTerminalView,
+  expectFirstTerminalViewContains,
 } from "../support/helpers/workspace-tabs";
-import { clickNewChat } from "../support/helpers/launcher";
+import { clickNewChat, gotoWorkspace } from "../support/helpers/launcher";
 import { expectComposerVisible } from "../support/helpers/composer";
 import { openFileExplorer, expectExplorerEntryVisible } from "../support/helpers/file-explorer";
 import {
@@ -162,7 +162,7 @@ test.describe("Workspace setup streaming", () => {
     }
   });
 
-  test("seeds a failed setup tab once in the main pane", async ({ page }) => {
+  test("seeds a failed setup view once in the side panel", async ({ page }) => {
     const client = await connectWorkspaceSetupClient();
     const repo = await createTempGitRepo("setup-failure-", {
       paseoConfig: {
@@ -189,14 +189,18 @@ test.describe("Workspace setup streaming", () => {
       expect(failedPayload.detail.log).toContain("setup failed");
       expect(failedPayload.error).toMatch(/failed/i);
 
-      await openHomeWithProject(page, repo.path);
-      await navigateToWorkspaceViaSidebar(page, workspace.id);
+      // Empty workspaces are available through their folder/route, not automatic chat rows.
+      await gotoWorkspace(page, workspace.id);
       await waitForWorkspaceTabsVisible(page);
-      await expectFailedSetupTabSeededInMainPane(page, workspace.id);
+      await expectFailedSetupSeededInSidePanel(page, workspace.id);
 
       await closeSetupTab(page, workspace.id);
+      const workspaceUrl = page.url();
       await returnHomeFromWorkspace(page);
-      await navigateToWorkspaceViaSidebar(page, workspace.id);
+      // Preserve the app session when revisiting, as sidebar navigation did before
+      // empty folders stopped creating automatic chat rows.
+      await page.goBack();
+      await expect(page).toHaveURL(workspaceUrl);
       await expectSetupTabNotSeeded(page, workspace.id);
     } finally {
       await client.close();
@@ -273,10 +277,10 @@ test.describe("Workspace setup streaming", () => {
       await openWorkspaceScriptsMenu(page);
       await startWorkspaceScriptFromMenu(page, "web");
       await closeWorkspaceScriptsMenu(page);
-      await clickFirstTerminalTab(page);
+      await selectFirstTerminalView(page);
       await expectTerminalSurfaceVisible(page, { timeout: 10_000 });
       await waitForTerminalAttached(page);
-      await expectFirstTerminalTabContains(page, "web");
+      await expectFirstTerminalViewContains(page, "web");
     } finally {
       await client.close();
       await repo.cleanup();

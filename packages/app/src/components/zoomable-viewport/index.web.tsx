@@ -276,11 +276,16 @@ export function ZoomableViewport({
   const controlsVisible = isHovered || isFocusWithin || hasTouchInput;
   const handleFocus = useCallback(() => setIsFocusWithin(true), []);
   const handleBlur = useCallback(() => setIsFocusWithin(false), []);
-  const handleMouseEnter = useCallback(() => setIsHovered(true), []);
-  const handleMouseLeave = useCallback(() => setIsHovered(false), []);
+  const handlePointerEnter = useCallback(() => setIsHovered(true), []);
+  const handlePointerLeave = useCallback(() => setIsHovered(false), []);
 
   return (
-    <View style={[styles.root, style]} testID={testID}>
+    <View
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
+      style={[styles.root, style]}
+      testID={testID}
+    >
       <div
         aria-label={accessibilityLabel}
         data-testid={testID ? `${testID}-canvas` : undefined}
@@ -288,8 +293,6 @@ export function ZoomableViewport({
         onDoubleClick={reset}
         onFocusCapture={handleFocus}
         onBlurCapture={handleBlur}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
         onPointerCancel={endPointer}
         onPointerDown={beginPointer}
         onPointerMove={movePointer}
@@ -300,13 +303,7 @@ export function ZoomableViewport({
       >
         <div style={renderedContentStyle}>{children}</div>
       </div>
-      <div
-        onBlurCapture={handleBlur}
-        onFocusCapture={handleFocus}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        style={toolbarDomStyle}
-      >
+      <div onBlurCapture={handleBlur} onFocusCapture={handleFocus} style={toolbarDomStyle}>
         <ViewportToolbar
           actions={actions}
           maxScale={maxScale}

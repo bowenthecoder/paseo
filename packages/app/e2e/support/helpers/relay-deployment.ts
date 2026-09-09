@@ -82,8 +82,10 @@ async function waitForAssistantTextToGrow(page: Page, previous: string): Promise
 }
 
 async function expectRunningStatusPreserved(page: Page, agentTitle: string): Promise<void> {
-  const tab = page.getByRole("button", { name: agentTitle, exact: true });
-  await expect(tab.getByRole("progressbar", { name: "Agent running" })).toBeVisible();
+  const row = page
+    .getByRole("button", { name: agentTitle, exact: true })
+    .and(page.getByTestId(/^sidebar-workspace-row-/));
+  await expect(row.getByTestId("sidebar-activity-glow")).toBeVisible();
 }
 
 export async function measureRelayRestartDuringStream(input: {

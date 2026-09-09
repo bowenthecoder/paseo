@@ -46,6 +46,26 @@ import {
 } from "./auto-updater";
 
 describe("checkForAppUpdate", () => {
+  it("does not contact an update feed for an explicitly isolated preview", async () => {
+    vi.stubEnv("PASEO_DISABLE_APP_UPDATES", "1");
+    const previousChecks = autoUpdaterMock.checkForUpdates.mock.calls.length;
+    try {
+      const result = await checkForAppUpdate({
+        currentVersion: "1.2.3",
+        releaseChannel: "stable",
+        intent: "automatic",
+      });
+      expect(result).toMatchObject({
+        hasUpdate: false,
+        readyToInstall: false,
+        errorMessage: null,
+      });
+      expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(previousChecks);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("treats an unpublished channel manifest as an unavailable update", async () => {
     const error = Object.assign(new Error("Cannot find latest-mac.yml"), {
       code: "ERR_UPDATER_CHANNEL_FILE_NOT_FOUND",

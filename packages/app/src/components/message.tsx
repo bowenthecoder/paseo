@@ -874,11 +874,12 @@ function AssistantMarkdownImageAttempt({
     [containerStyle],
   );
   const imageSizeStyle = useMemo<ViewStyle>(() => {
-    if (aspectRatio) {
+    // A remembered size belongs to the finished image, not a loading or error row.
+    if (image.status === "loaded" && aspectRatio) {
       return { aspectRatio };
     }
     return { height: ASSISTANT_IMAGE_PLACEHOLDER_HEIGHT };
-  }, [aspectRatio]);
+  }, [aspectRatio, image.status]);
   const surfaceStyle = useMemo<StyleProp<ViewStyle>>(
     () => [assistantMessageStylesheet.imageSurface, imageSizeStyle],
     [imageSizeStyle],

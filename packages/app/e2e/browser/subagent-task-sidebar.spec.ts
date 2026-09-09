@@ -2,7 +2,11 @@ import type { ProviderSubagentDescriptorPayload } from "@getpaseo/protocol/messa
 import type { WebSocketRoute } from "@playwright/test";
 import { expect, test, type Page } from "../support/fixtures";
 import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
-import { expectComposerVisible } from "../support/helpers/composer";
+import {
+  expectComposerVisible,
+  fillComposerDraft,
+  expectComposerDraft,
+} from "../support/helpers/composer";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
 import { openSubagentsTrack } from "../support/helpers/subagents";
 
@@ -158,7 +162,7 @@ for (const provider of ["codex", "claude", "grok"]) {
   });
 }
 
-test("compact task list remains a sheet and shows the same reported usage", async ({
+test("compact task list shows reported usage and closes back to the parent draft", async ({
   page,
 }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -169,15 +173,18 @@ test("compact task list remains a sheet and shows the same reported usage", asyn
   try {
     const task = await installNativeTask(page, parent.agentId, "claude");
     await openAgentRoute(page, parent);
+    await fillComposerDraft(page, "Keep the compact parent draft");
     await openSubagentsTrack(page);
-    const panel = page.getByTestId("subagents-track-header-panel-content");
-    await expect(page.getByTestId("subagents-panel-close")).toHaveCount(0);
+    const panel = page.getByTestId("subagents-track-header-panel");
+    await expect(page.getByTestId("subagents-panel-close")).toBeVisible();
     task.update({ subtitle: "Explore · 3.1k tokens" });
     await expect(panel).toContainText("3.1k tokens");
     const box = (await panel.boundingBox())!;
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(390);
-    await page.screenshot({ path: testInfo.outputPath("compact-task-sheet.png") });
+    await page.screenshot({ path: testInfo.outputPath("compact-task-panel.png") });
+    await page.getByTestId("subagents-panel-close").click();
+    await expectComposerDraft(page, "Keep the compact parent draft");
   } finally {
     await parent.cleanup();
   }

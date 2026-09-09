@@ -256,27 +256,29 @@ function SubagentsTrackRow({
             </Text>
           ) : null}
         </View>
-        {row.kind === "paseo" ? (
-          <SubagentRowActions
-            rowId={row.id}
-            displayLabel={displayLabel}
-            visible={actionsAlwaysVisible || active}
-            onDetachPress={onDetachSubagent ? handleDetachPress : undefined}
-            onArchivePress={handleArchivePress}
-          />
-        ) : null}
       </>
     ),
+    [displayLabel, layout, presentation, row.id],
+  );
+  const renderActions = useCallback(
+    ({ active }: { active: boolean }) =>
+      row.kind === "paseo" ? (
+        <SubagentRowActions
+          rowId={row.id}
+          displayLabel={displayLabel}
+          visible={actionsAlwaysVisible || active}
+          onDetachPress={onDetachSubagent ? handleDetachPress : undefined}
+          onArchivePress={handleArchivePress}
+        />
+      ) : null,
     [
       actionsAlwaysVisible,
       displayLabel,
       handleArchivePress,
       handleDetachPress,
       onDetachSubagent,
-      presentation,
       row.kind,
       row.id,
-      layout,
     ],
   );
 
@@ -286,6 +288,7 @@ function SubagentsTrackRow({
       accessibilityLabel={displayLabel}
       testID={`subagents-track-row-${row.id}`}
       onPress={handlePress}
+      actions={renderActions}
     >
       {renderRow}
     </Row>

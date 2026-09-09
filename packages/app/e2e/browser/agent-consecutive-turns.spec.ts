@@ -45,8 +45,8 @@ interface TurnFrame {
   attachment: ElementFrame;
   footerRow: ElementFrame;
   spinner: ElementFrame;
-  agentTab: ElementFrame;
-  tabProgress: ElementFrame;
+  chatRow: ElementFrame;
+  sidebarActivity: ElementFrame;
   interruptControl: ElementFrame;
   primaryActionCount: number;
   composer: ElementFrame & { value: string | null };
@@ -62,7 +62,7 @@ interface ActivityCheckpoint {
   row: boolean;
   stop: boolean;
   footer: boolean;
-  tabProgress: boolean;
+  sidebarActivity: boolean;
   elapsed: boolean;
 }
 
@@ -219,13 +219,13 @@ async function recordTurnFrames(page: Page, prompt: string): Promise<void> {
     };
     const findImageAttachment = (row: Element | undefined) =>
       row?.querySelector('[role="button"][aria-label="Open image attachment"]');
-    const findAgentTabState = () => {
-      const agentTab = Array.from(
-        document.querySelectorAll('[data-testid^="workspace-tab-agent_"]'),
+    const findSidebarActivityState = () => {
+      const chatRow = Array.from(
+        document.querySelectorAll('[data-testid^="sidebar-workspace-row-"][aria-selected="true"]'),
       ).find((candidate) => isVisible(candidate));
       return {
-        agentTab,
-        tabProgress: agentTab?.querySelector('[role="progressbar"][aria-label="Agent running"]'),
+        chatRow,
+        sidebarActivity: chatRow?.querySelector('[data-testid="sidebar-activity-glow"]'),
       };
     };
     const countPrimaryActions = (composerRoot: Element | null | undefined) =>
@@ -258,7 +258,7 @@ async function recordTurnFrames(page: Page, prompt: string): Promise<void> {
         /stop agent|canceling agent/i.test(candidate.getAttribute("aria-label") ?? ""),
       );
       const primaryActionCount = countPrimaryActions(composerRoot);
-      const { agentTab, tabProgress } = findAgentTabState();
+      const { chatRow, sidebarActivity } = findSidebarActivityState();
       const scrollFrame = snapshot(viewport);
       const contentChildren = Array.from(viewport?.firstElementChild?.children ?? []).map(
         (child, index): ContentChildFrame =>
@@ -277,8 +277,8 @@ async function recordTurnFrames(page: Page, prompt: string): Promise<void> {
         attachment: snapshot(attachment, viewport),
         footerRow: snapshot(footerRow, viewport, spinner.painted),
         spinner,
-        agentTab: snapshot(agentTab),
-        tabProgress: snapshot(tabProgress),
+        chatRow: snapshot(chatRow),
+        sidebarActivity: snapshot(sidebarActivity),
         interruptControl: snapshot(interrupt),
         primaryActionCount,
         composer: {
@@ -322,7 +322,7 @@ async function waitForRecordedFrames(
               frame.interruptControl.painted &&
               frame.footerRow.painted &&
               frame.spinner.painted &&
-              frame.tabProgress.painted
+              frame.sidebarActivity.painted
             );
           }).length;
         },
@@ -343,8 +343,8 @@ async function installActivityContinuityOracle(page: Page, prompt: string): Prom
   await page.evaluate((promptText) => {
     const isVisible = (element: Element | null) => Boolean(element?.checkVisibility());
     const snapshot = (): ActivityCheckpoint => {
-      const visibleAgentTab = Array.from(
-        document.querySelectorAll('[data-testid^="workspace-tab-agent_"]'),
+      const visibleChatRow = Array.from(
+        document.querySelectorAll('[data-testid^="sidebar-workspace-row-"][aria-selected="true"]'),
       ).find((candidate) => isVisible(candidate));
       return {
         row: Array.from(document.querySelectorAll('[data-testid="user-message"]')).some(
@@ -352,9 +352,8 @@ async function installActivityContinuityOracle(page: Page, prompt: string): Prom
         ),
         stop: isVisible(document.querySelector('[role="button"][aria-label="Stop agent"]')),
         footer: isVisible(document.querySelector('[data-testid="turn-working-indicator"]')),
-        tabProgress: isVisible(
-          visibleAgentTab?.querySelector('[role="progressbar"][aria-label="Agent running"]') ??
-            null,
+        sidebarActivity: isVisible(
+          visibleChatRow?.querySelector('[data-testid="sidebar-activity-glow"]') ?? null,
         ),
         elapsed: isVisible(document.querySelector('[data-testid="turn-working-elapsed"]')),
       };
@@ -404,7 +403,7 @@ async function readActivityContinuityOracle(page: Page): Promise<ActivityCheckpo
 
 function expectActivityContinuity(checkpoints: ActivityCheckpoint[]): void {
   const incompleteActivityCheckpoints = checkpoints.filter(
-    (checkpoint) => !checkpoint.stop || !checkpoint.footer || !checkpoint.tabProgress,
+    (checkpoint) => !checkpoint.stop || !checkpoint.footer || !checkpoint.sidebarActivity,
   );
   expect(checkpoints[0]?.row, "activity oracle never armed on the optimistic row").toBe(true);
   expect(
@@ -562,8 +561,8 @@ function collectElementViolations(
       reason: "working spinner was not painted",
     },
     {
-      passes: hasPaintedLayout(frame.tabProgress),
-      reason: "selected tab running indicator was not painted",
+      passes: hasPaintedLayout(frame.sidebarActivity),
+      reason: "selected chat activity glow was not painted",
     },
     {
       passes: hasPaintedLayout(frame.interruptControl),
@@ -642,7 +641,7 @@ function expectAtomicIdleToRunningTransition(frames: TurnFrame[]): void {
       frame.interruptControl.painted &&
       frame.footerRow.painted &&
       frame.spinner.painted &&
-      frame.tabProgress.painted,
+      frame.sidebarActivity.painted,
   );
   const transition = frames.slice(first);
   const baseline = transition[0];
@@ -716,11 +715,11 @@ function expectAtomicFirstPromptTransition(frames: TurnFrame[]): void {
           reason: "composer was not painted and empty with the first prompt",
         },
         {
-          passes: !frame.agentTab.mounted || hasPaintedLayout(frame.tabProgress),
-          reason: "created agent tab appeared without running state",
+          passes: !frame.chatRow.mounted || hasPaintedLayout(frame.sidebarActivity),
+          reason: "created chat row appeared without running state",
         },
         {
-          passes: !frame.agentTab.mounted || hasPaintedLayout(frame.interruptControl),
+          passes: !frame.chatRow.mounted || hasPaintedLayout(frame.interruptControl),
           reason: "created agent appeared without its interrupt control",
         },
       ]),

@@ -23,10 +23,12 @@ export async function expectInlineWorkingIndicator(page: Page): Promise<void> {
 }
 
 export async function expectRunningAgentChrome(page: Page, title: string): Promise<void> {
-  const tab = page.getByRole("button", { name: title, exact: true });
+  const row = page
+    .getByRole("button", { name: title, exact: true })
+    .and(page.getByTestId(/^sidebar-workspace-row-/));
 
-  await expect(tab).toBeVisible({ timeout: 30_000 });
-  await expect(tab.getByRole("progressbar", { name: "Agent running" })).toBeVisible({
+  await expect(row).toBeVisible({ timeout: 30_000 });
+  await expect(row.getByTestId("sidebar-activity-glow")).toBeVisible({
     timeout: 30_000,
   });
   await expect(page.getByRole("button", { name: /stop agent|canceling agent/i })).toBeVisible({
@@ -43,23 +45,31 @@ export async function expectAgentReadyToInterrupt(page: Page): Promise<void> {
 }
 
 export async function expectVisibleAgentSurfacesIdle(page: Page): Promise<void> {
-  const visibleAgentTab = page
-    .getByTestId(/^workspace-tab-agent_/)
+  const visibleAgentPanel = page
+    .getByTestId(/^workspace-panel-agent_/)
     .filter({ visible: true })
     .first();
 
-  await expect(visibleAgentTab).toBeVisible({ timeout: 30_000 });
-  await expect(visibleAgentTab.getByRole("progressbar", { name: "Agent running" })).toHaveCount(0);
+  await expect(visibleAgentPanel).toBeVisible({ timeout: 30_000 });
+  const panelId = await visibleAgentPanel.getAttribute("data-testid");
+  const agentId = panelId!.slice("workspace-panel-agent_".length);
+  const row = page.locator(
+    `[data-testid^="sidebar-workspace-row-"][data-testid$=":chat:${agentId}"]`,
+  );
+  await expect(row).toBeVisible({ timeout: 30_000 });
+  await expect(row.getByTestId("sidebar-activity-glow")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /stop agent|canceling agent/i })).toHaveCount(0);
   await expect(page.getByTestId("turn-working-indicator")).toHaveCount(0);
   await expect(page.getByTestId("turn-working-elapsed")).toHaveCount(0);
 }
 
 export async function expectAgentSurfacesIdle(page: Page, title: string): Promise<void> {
-  const tab = page.getByRole("button", { name: title, exact: true });
+  const row = page
+    .getByRole("button", { name: title, exact: true })
+    .and(page.getByTestId(/^sidebar-workspace-row-/));
 
-  await expect(tab).toBeVisible({ timeout: 30_000 });
-  await expect(tab.getByRole("progressbar", { name: "Agent running" })).toHaveCount(0);
+  await expect(row).toBeVisible({ timeout: 30_000 });
+  await expect(row.getByTestId("sidebar-activity-glow")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /stop agent|canceling agent/i })).toHaveCount(0);
   await expect(page.getByTestId("turn-working-indicator")).toHaveCount(0);
   await expect(page.getByTestId("turn-working-elapsed")).toHaveCount(0);

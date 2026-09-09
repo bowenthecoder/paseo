@@ -19,7 +19,13 @@ function fileReadRequest(message: WebSocketMessage, path: string): boolean {
   }
 }
 
-export async function delayFileReadResponse(page: Page, path: string) {
+export async function delayFileReadResponse(
+  page: Page,
+  path: string,
+  options: { skipReads?: number } = {},
+) {
+  let skipped = 0;
+  let released = false;
   let delayed: (() => void) | null = null;
   let resolveDelayed: (() => void) | null = null;
   const delayedResponse = new Promise<void>((resolve) => {
@@ -33,7 +39,12 @@ export async function delayFileReadResponse(page: Page, path: string) {
     // Hold the outgoing JSON request. The corresponding body response travels as
     // binary frames, so intercepting the response cannot identify this read.
     ws.onMessage((message) => {
-      if (delayed || !fileReadRequest(message, path)) {
+      if (released || delayed || !fileReadRequest(message, path)) {
+        server.send(message);
+        return;
+      }
+      if (skipped < (options.skipReads ?? 0)) {
+        skipped += 1;
         server.send(message);
         return;
       }
@@ -43,6 +54,11 @@ export async function delayFileReadResponse(page: Page, path: string) {
   });
   return {
     waitUntilHeld: () => delayedResponse,
-    release: () => delayed?.(),
+    release: () => {
+      released = true;
+      const send = delayed;
+      delayed = null;
+      send?.();
+    },
   };
 }

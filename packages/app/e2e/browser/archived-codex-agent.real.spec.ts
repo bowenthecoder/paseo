@@ -83,7 +83,10 @@ test.describe("archived Codex agent recovery", () => {
       await page.getByTestId(`agent-row-${getServerId()}-${handle.agentId}`).click();
 
       await expect(
-        page.getByTestId(`workspace-tab-agent_${handle.agentId}`).filter({ visible: true }).first(),
+        page
+          .getByTestId(`workspace-panel-agent_${handle.agentId}`)
+          .filter({ visible: true })
+          .first(),
       ).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText("This agent is archived", { exact: true })).toBeVisible({
         timeout: 30_000,

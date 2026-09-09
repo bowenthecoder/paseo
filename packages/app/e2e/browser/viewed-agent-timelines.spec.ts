@@ -1,12 +1,13 @@
 import { expect, type Page } from "@playwright/test";
+import { PARENT_AGENT_ID_LABEL } from "@getpaseo/protocol/agent-labels";
 import { buildHostAgentDetailRoute } from "@/utils/host-routes";
 import { test } from "../support/fixtures";
 import { seedWorkspace, type SeedDaemonClient } from "../support/helpers/seed-client";
 import { getServerId } from "../support/helpers/server-id";
 import { observeTimelineSubscriptions } from "../support/helpers/timeline-delivery";
-import { waitForWorkspaceTabsVisible } from "../support/helpers/workspace-tabs";
+import { agentPanel, waitForWorkspaceTabsVisible } from "../support/helpers/workspace-tabs";
 import { installDaemonWebSocketGate } from "../support/helpers/daemon-websocket-gate";
-import { runWorkspaceActionFromCommandCenter } from "../support/helpers/command-center-workspace-actions";
+import { openSubagentsTrack } from "../support/helpers/subagents";
 import {
   expectAgentIdle,
   expectInlineWorkingIndicator,
@@ -26,10 +27,10 @@ interface ViewedTimelineScenario {
 }
 
 async function seedViewedTimelineScenario(
-  options: { firstAgentModel?: string } = {},
+  options: { firstAgentModel?: string; secondAgentIsChild?: boolean } = {},
 ): Promise<ViewedTimelineScenario> {
   const workspace = await seedWorkspace({ repoPrefix: "viewed-timelines-" });
-  const createAgent = (title: string, model = "ten-second-stream") =>
+  const createAgent = (title: string, model = "ten-second-stream", parentAgentId?: string) =>
     workspace.client.createAgent({
       provider: "mock",
       cwd: workspace.repoPath,
@@ -37,11 +38,14 @@ async function seedViewedTimelineScenario(
       title,
       modeId: "load-test",
       model,
+      labels: parentAgentId ? { [PARENT_AGENT_ID_LABEL]: parentAgentId } : undefined,
     });
-  const [firstAgent, secondAgent] = await Promise.all([
-    createAgent("First viewed chat", options.firstAgentModel),
-    createAgent("Second viewed chat"),
-  ]);
+  const firstAgent = await createAgent("First viewed chat", options.firstAgentModel);
+  const secondAgent = await createAgent(
+    "Second viewed chat",
+    "ten-second-stream",
+    options.secondAgentIsChild ? firstAgent.id : undefined,
+  );
   return {
     client: workspace.client,
     workspaceId: workspace.workspaceId,
@@ -59,18 +63,12 @@ async function openAgent(page: Page, scenario: ViewedTimelineScenario, agentId: 
   await waitForWorkspaceTabsVisible(page);
 }
 
-async function selectAgent(page: Page, title: string) {
-  await page.getByRole("button", { name: title, exact: true }).click();
+function chatRow(page: Page, agentId: string) {
+  return page.getByTestId(`sidebar-workspace-row-${getServerId()}:chat:${agentId}`);
 }
 
-async function enableMoveTabShortcut(page: Page) {
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, "platform", { get: () => "MacIntel" });
-  });
-}
-
-async function moveActiveTabRight(page: Page) {
-  await page.keyboard.press("Meta+Alt+Shift+ArrowRight");
+async function selectAgent(page: Page, agentId: string) {
+  await chatRow(page, agentId).click();
 }
 
 async function commitMessage(scenario: ViewedTimelineScenario, agentId: string, prompt: string) {
@@ -89,9 +87,9 @@ async function startVisibleTurn(
   await expectInlineWorkingIndicator(page);
 }
 
-async function expectAgentConsistentlyIdle(page: Page, title: string): Promise<void> {
-  const tab = page.getByRole("button", { name: title, exact: true });
-  await expect(tab.locator('[data-status-bucket="running"]')).toHaveCount(0);
+async function expectAgentConsistentlyIdle(page: Page, agentId: string): Promise<void> {
+  const tab = chatRow(page, agentId);
+  await expect(tab.getByTestId("sidebar-activity-glow")).toHaveCount(0);
   await expectAgentIdle(page);
   await expect(page.getByTestId("turn-working-indicator")).toHaveCount(0);
   await expectTurnCopyButton(page);
@@ -107,13 +105,13 @@ test.describe("Viewed agent timelines", () => {
     try {
       await openAgent(page, scenario, scenario.firstAgentId);
       await startVisibleTurn(page, scenario, "Finish after this chat becomes hidden.");
-      await selectAgent(page, "Second viewed chat");
+      await selectAgent(page, scenario.secondAgentId);
       await subscriptions.waitForSubscribedAgents([scenario.firstAgentId, scenario.secondAgentId]);
       const finish = await scenario.client.waitForFinish(scenario.firstAgentId, 90_000);
       expect(finish.status).toBe("idle");
 
-      await selectAgent(page, "First viewed chat");
-      await expectAgentConsistentlyIdle(page, "First viewed chat");
+      await selectAgent(page, scenario.firstAgentId);
+      await expectAgentConsistentlyIdle(page, scenario.firstAgentId);
     } finally {
       await scenario.cleanup();
     }
@@ -125,7 +123,7 @@ test.describe("Viewed agent timelines", () => {
     const scenario = await seedViewedTimelineScenario();
     try {
       await openAgent(page, scenario, scenario.firstAgentId);
-      await selectAgent(page, "Second viewed chat");
+      await selectAgent(page, scenario.secondAgentId);
       await subscriptions.waitForSubscribedAgents([scenario.firstAgentId, scenario.secondAgentId]);
       await commitMessage(
         scenario,
@@ -134,8 +132,8 @@ test.describe("Viewed agent timelines", () => {
       );
       await expect(
         page.getByText("Committed while the first chat is hidden.", { exact: true }),
-      ).toHaveCount(0);
-      await selectAgent(page, "First viewed chat");
+      ).toBeHidden();
+      await selectAgent(page, scenario.firstAgentId);
       await expect(
         page.getByText("Committed while the first chat is hidden.", { exact: true }),
       ).toBeVisible();
@@ -145,26 +143,27 @@ test.describe("Viewed agent timelines", () => {
     }
   });
 
-  test("two visible split chats both stay current", async ({ page }) => {
-    const scenario = await seedViewedTimelineScenario();
+  test("the parent and its child in the side panel both stay current", async ({ page }) => {
+    const scenario = await seedViewedTimelineScenario({ secondAgentIsChild: true });
     try {
-      await enableMoveTabShortcut(page);
+      await page.setViewportSize({ width: 1440, height: 900 });
       await openAgent(page, scenario, scenario.firstAgentId);
-      await runWorkspaceActionFromCommandCenter(page, "Split pane right");
-      await selectAgent(page, "Second viewed chat");
-      await moveActiveTabRight(page);
-      await expect(
-        page.getByRole("button", { name: "First viewed chat", exact: true }),
-      ).toBeVisible();
-      await expect(
-        page.getByRole("button", { name: "Second viewed chat", exact: true }),
-      ).toBeVisible();
+      await openSubagentsTrack(page);
+      await page.getByTestId(`subagents-track-row-${scenario.secondAgentId}`).click();
+      const parent = agentPanel(page, scenario.firstAgentId);
+      const child = page
+        .getByTestId("workspace-side-panel")
+        .locator(agentPanel(page, scenario.secondAgentId));
+      await expect(parent).toBeVisible();
+      await expect(child).toBeVisible();
       await expect(page.getByRole("textbox", { name: "Message agent..." })).toHaveCount(2);
-      await commitMessage(scenario, scenario.firstAgentId, "First visible pane update.");
-      await expect(page.getByText("First visible pane update.", { exact: true })).toBeVisible();
-      await expect(
-        page.getByRole("button", { name: "Second viewed chat", exact: true }),
-      ).toBeVisible();
+      await commitMessage(scenario, scenario.firstAgentId, "Parent visible pane update.");
+      await expect(parent.getByText("Parent visible pane update.", { exact: true })).toBeVisible();
+      await expect(child.getByText("Parent visible pane update.", { exact: true })).toHaveCount(0);
+      await commitMessage(scenario, scenario.secondAgentId, "Child visible pane update.");
+      await expect(child.getByText("Child visible pane update.", { exact: true })).toBeVisible();
+      await expect(parent.getByText("Child visible pane update.", { exact: true })).toHaveCount(0);
+      await expect(parent).toBeVisible();
     } finally {
       await scenario.cleanup();
     }
@@ -175,10 +174,7 @@ test.describe("Viewed agent timelines", () => {
     const scenario = await seedViewedTimelineScenario();
     try {
       await openAgent(page, scenario, scenario.firstAgentId);
-      await expect(page.getByRole("button", { name: "First viewed chat" })).toHaveAttribute(
-        "aria-selected",
-        "true",
-      );
+      await expect(chatRow(page, scenario.firstAgentId)).toHaveAttribute("aria-selected", "true");
       await gate.drop();
       await gate.waitForBlockedConnection();
       await commitMessage(scenario, scenario.firstAgentId, "Committed while the chat reconnects.");
@@ -208,14 +204,14 @@ test.describe("Viewed agent timelines", () => {
     const scenario = await seedViewedTimelineScenario();
     try {
       await openAgent(page, scenario, scenario.firstAgentId);
-      await selectAgent(page, "Second viewed chat");
+      await selectAgent(page, scenario.secondAgentId);
       await expect(page.getByRole("textbox", { name: "Message agent..." })).toBeVisible();
-      await selectAgent(page, "First viewed chat");
+      await selectAgent(page, scenario.firstAgentId);
       await gate.drop();
       await gate.waitForBlockedConnection();
       await expectReconnectingToastVisible(page);
 
-      await selectAgent(page, "Second viewed chat");
+      await selectAgent(page, scenario.secondAgentId);
       await expectReconnectingToastVisible(page, { timeout: 500 });
     } finally {
       gate.restore();

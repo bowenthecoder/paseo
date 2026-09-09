@@ -1,6 +1,11 @@
 import { expect, test, type Page } from "../support/fixtures";
 import { composerLocator, expectComposerVisible, submitMessage } from "../support/helpers/composer";
-import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
+import {
+  openAgentRoute,
+  seedMockAgentWorkspace,
+  type MockAgentWorkspace,
+} from "../support/helpers/mock-agent";
+import { getServerId } from "../support/helpers/server-id";
 import {
   expectSessionRowArchived,
   expectWorkspaceTabHidden,
@@ -8,8 +13,7 @@ import {
   openSessions,
 } from "../support/helpers/archive-tab";
 
-interface SlashCommandScenario {
-  agentId: string;
+interface SlashCommandScenario extends Omit<MockAgentWorkspace, "cleanup"> {
   title: string;
 }
 
@@ -37,7 +41,7 @@ async function withOpenReadyMockAgent(
     await expectWorkspaceTabVisible(page, session.agentId);
     await expectComposerVisible(page);
 
-    await run({ agentId: session.agentId, title: input.title });
+    await run({ ...session, title: input.title });
   } finally {
     await session.cleanup();
   }
@@ -76,34 +80,28 @@ async function createAgentFromReplacementDraft(page: Page): Promise<void> {
   await submitMessage(page, REPLACEMENT_PROMPT);
 }
 
-async function waitForReplacementAgentId(page: Page, oldAgentId: string): Promise<string> {
+async function waitForReplacementAgentId(scenario: SlashCommandScenario): Promise<string> {
   let newAgentId: string | null = null;
   await expect
     .poll(
       async () => {
-        const ids = await page
-          .locator('[data-testid^="workspace-tab-agent_"]')
-          .evaluateAll((nodes) =>
-            nodes.flatMap((node) => {
-              if (!(node instanceof HTMLElement)) {
-                return [];
-              }
-              const testId = node.getAttribute("data-testid") ?? "";
-              if (!testId.startsWith("workspace-tab-agent_")) {
-                return [];
-              }
-              if (node.offsetParent === null) {
-                return [];
-              }
-              return [testId.slice("workspace-tab-agent_".length)];
-            }),
-          );
-        newAgentId = ids.find((id) => id !== oldAgentId) ?? null;
-        return newAgentId;
+        const response = await scenario.client.fetchAgents({ scope: "active" });
+        const replacement = response.entries.find(
+          ({ agent }) =>
+            agent.workspaceId === scenario.workspaceId && agent.id !== scenario.agentId,
+        )?.agent;
+        newAgentId = replacement?.id ?? null;
+        return replacement;
       },
       { timeout: 30_000 },
     )
-    .not.toBeNull();
+    .toMatchObject({
+      provider: "mock",
+      workspaceId: scenario.workspaceId,
+      cwd: scenario.cwd,
+      model: "ten-second-stream",
+      currentModeId: "load-test",
+    });
   if (!newAgentId) {
     throw new Error("Replacement agent was not created.");
   }
@@ -135,12 +133,22 @@ test.describe("Client slash commands", () => {
     await withOpenReadyMockAgent(
       page,
       { title: "Slash clear e2e", model: "ten-second-stream", modeId: "load-test" },
-      async ({ agentId, title }) => {
+      async (scenario) => {
+        const { agentId, title } = scenario;
         await runClientSlashCommand(page, "/clear");
         await expectWorkspaceTabHidden(page, agentId);
         await expectReplacementDraftMatchesPreviousSetup(page);
         await createAgentFromReplacementDraft(page);
-        await waitForReplacementAgentId(page, agentId);
+        const replacementAgentId = await waitForReplacementAgentId(scenario);
+        await expect(
+          page.getByTestId(`sidebar-workspace-row-${getServerId()}:chat:${replacementAgentId}`),
+        ).toHaveAttribute("aria-selected", "true");
+        await expect(
+          page
+            .getByTestId("workspace-chat-pane")
+            .getByTestId("user-message")
+            .filter({ hasText: REPLACEMENT_PROMPT }),
+        ).toBeVisible();
         await expectAgentArchivedInSessions(page, title);
       },
     );

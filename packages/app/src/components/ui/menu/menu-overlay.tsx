@@ -3,6 +3,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
   type ReactElement,
   type RefObject,
@@ -408,6 +409,17 @@ export function AnchoredSurface({
   );
 }
 
+function resolveKeyboardSurface(scope: HTMLElement | null, target: Element | null) {
+  const focusedSurface = target?.closest<HTMLElement>('[data-menu-surface="true"]');
+  if (focusedSurface && scope?.contains(focusedSurface)) return focusedSurface;
+  // Right-click letters can arrive before the opening animation moves focus
+  // from the chat row. The top overlay already owns these keys, so use its
+  // innermost page until focus catches up.
+  return Array.from(scope?.querySelectorAll<HTMLElement>('[data-menu-surface="true"]') ?? []).at(
+    -1,
+  );
+}
+
 /**
  * The full-screen layer every floating menu surface lives in: a web portal into the overlay
  * root, or a transparent Modal on native. Submenus render inside their parent's layer rather
@@ -425,6 +437,7 @@ export function MenuOverlay({
   children: ReactElement | null;
 }): ReactElement | null {
   const floatingLayer = useOverlayLayer("floating");
+  const webOverlayRef = useRef<HTMLElement | null>(null);
 
   const handleWebOverlayKeyDown = useCallback(
     (event: KeyboardEvent) => {
@@ -436,7 +449,7 @@ export function MenuOverlay({
       }
 
       const target = event.target instanceof Element ? event.target : null;
-      const surface = target?.closest<HTMLElement>('[data-menu-surface="true"]');
+      const surface = resolveKeyboardSurface(webOverlayRef.current, target);
       if (!surface) return false;
       const items = Array.from(
         surface.querySelectorAll<HTMLElement>(
@@ -478,6 +491,14 @@ export function MenuOverlay({
     onKeyDown: handleWebOverlayKeyDown,
     restoreFocusRef,
   });
+  const setOverlayRef = useCallback(
+    (node: View | null) => {
+      webOverlayRef.current =
+        typeof HTMLElement !== "undefined" && node instanceof HTMLElement ? node : null;
+      setWebOverlayScope(node);
+    },
+    [setWebOverlayScope],
+  );
 
   if (!visible) return null;
 
@@ -487,7 +508,7 @@ export function MenuOverlay({
         {...{
           onContextMenu: (event: { preventDefault?: () => void }) => event.preventDefault?.(),
         }}
-        ref={setWebOverlayScope}
+        ref={setOverlayRef}
         collapsable={false}
         style={[
           styles.overlay,

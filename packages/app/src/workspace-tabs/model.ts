@@ -13,6 +13,8 @@ export interface WorkspaceDraftTabSetup {
 
 export interface WorkspaceWorkingDiffTabTarget {
   kind: "working_diff";
+  /** Source worktree when a child opens Changes in its parent's supporting pane. */
+  workspaceId?: string;
   focusPath?: string;
   focusRequestId?: number;
 }

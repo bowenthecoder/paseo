@@ -23,15 +23,19 @@ Freedom and flexibility. Every design decision follows from this:
 
 ### Projects and workspaces
 
-Projects are grouped in the sidebar, detected automatically from your filesystem and tagged by git remote when available.
+The sidebar lists individual chats under Pinned, manually created groups and Ungrouped. Users can
+move chats between groups without changing their working folders. Registered projects remain
+available through the folder selector; empty projects do not create chat rows.
 
-Each project opens as a workspace. For git projects, the default workspace is the main checkout. Users can create additional workspaces, which are isolated copies (git worktrees) where agents work without affecting main.
+Choose a connected device and folder, or use No folder to start at that device's home directory.
+For git projects, users can work in the existing checkout or create isolated worktrees where
+agents work without affecting main.
 
 ### Inside a workspace
 
 A workspace is a flexible canvas:
 
-- Launch multiple agents side by side in split panes
+- Run one chat at a time per workspace, with terminals, diffs and the browser in a side panel
 - Open terminals alongside agents
 - Mix and match providers within the same workspace
 
@@ -78,4 +82,4 @@ Anyone who builds software:
 - Scheduled agents (cron-style triggers) via app, CLI, and MCP
 - Frequent releases (multiple per week)
 - Community contributions across packaging, providers, and bug fixes
-- Key UX: split panes, keybinding customization, workspace model, in-app browser
+- Key UX: single chat view with a side panel, keybinding customization, workspace model, in-app browser

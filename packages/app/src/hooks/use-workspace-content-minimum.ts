@@ -19,9 +19,6 @@ export function useActiveWorkspaceLayoutKey(): string | null {
 export function useWorkspaceContentMinimum(): number {
   const key = useActiveWorkspaceLayoutKey();
   return useWorkspaceLayoutStore((state) =>
-    resolveWorkspaceContentMinimum(
-      key ? state.layoutByWorkspace[key]?.root : undefined,
-      key ? (state.explorerSidebarPaneIdByWorkspace[key] ?? undefined) : undefined,
-    ),
+    resolveWorkspaceContentMinimum(key ? state.layoutByWorkspace[key]?.root : undefined),
   );
 }

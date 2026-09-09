@@ -16,11 +16,10 @@ import {
 } from "@/subagents";
 import { SubagentsList } from "@/subagents/track";
 import { buildSubagentPillPresentation } from "@/subagents/track-presentation";
-import { navigateToAgent } from "@/utils/navigate-to-agent";
 
 function SubagentsPanel() {
   const { t } = useTranslation();
-  const { serverId, workspaceId, target, openTab, closeCurrentTab } = usePaneContext();
+  const { serverId, target, openTab, closeCurrentTab } = usePaneContext();
   invariant(target.kind === "subagents", "SubagentsPanel requires a subagents target");
   const rows = useSubagentsForParent({ serverId, parentAgentId: target.parentAgentId });
   const parentTitle = useSessionStore(
@@ -41,15 +40,9 @@ function SubagentsPanel() {
   }, [archiveFinished]);
   const onOpenSubagent = useCallback(
     (agentId: string) => {
-      const session = useSessionStore.getState().sessions[serverId];
-      const agent = session?.agents.get(agentId) ?? session?.agentDetails.get(agentId);
-      if (agent?.workspaceId && agent.workspaceId !== workspaceId) {
-        navigateToAgent({ serverId, agentId });
-        return;
-      }
       openTab({ kind: "agent", agentId });
     },
-    [openTab, serverId, workspaceId],
+    [openTab],
   );
   const onOpenProviderSubagent = useCallback(
     (parentAgentId: string, subagentId: string) => {

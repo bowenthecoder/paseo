@@ -145,7 +145,7 @@ function secondaryWorkspaceTabTargetsEqual(
     return workspaceFileLocationsEqual(left, right);
   }
   if (left.kind === "working_diff" && right.kind === "working_diff") {
-    return left.focusPath === right.focusPath && left.focusRequestId === right.focusRequestId;
+    return workingDiffTargetsEqual(left, right);
   }
   if (left.kind === "files" && right.kind === "files") {
     return true;
@@ -163,6 +163,17 @@ function secondaryWorkspaceTabTargetsEqual(
     return left.sha === right.sha;
   }
   return false;
+}
+
+function workingDiffTargetsEqual(
+  left: Extract<WorkspaceTabTarget, { kind: "working_diff" }>,
+  right: Extract<WorkspaceTabTarget, { kind: "working_diff" }>,
+): boolean {
+  return (
+    left.workspaceId === right.workspaceId &&
+    left.focusPath === right.focusPath &&
+    left.focusRequestId === right.focusRequestId
+  );
 }
 
 function workspaceDraftTabSetupsEqual(
@@ -227,7 +238,7 @@ export function buildDeterministicWorkspaceTabId(target: WorkspaceTabTarget): st
     return `commit_diff_${target.sha}`;
   }
   if (target.kind === "working_diff") {
-    return "working_diff";
+    return target.workspaceId ? `working_diff_${target.workspaceId}` : "working_diff";
   }
   if (target.kind === "changes_tree" || target.kind === "files" || target.kind === "pull_request") {
     return target.kind;
@@ -274,8 +285,10 @@ function normalizeWorkingDiffTabTarget(
 ): WorkspaceTabTarget | null {
   const focusPath = trimNonEmpty(value.focusPath)?.replace(/\\/g, "/") ?? null;
   const focusRequestId = normalizePositiveInteger(value.focusRequestId);
+  const workspaceId = trimNonEmpty(value.workspaceId);
   return {
     kind: "working_diff" as const,
+    ...(workspaceId ? { workspaceId } : {}),
     ...(focusPath ? { focusPath } : {}),
     ...(focusRequestId ? { focusRequestId } : {}),
   };

@@ -7,6 +7,7 @@ import { openWorkspaceWithAgents } from "./archive-tab";
 import { submitMessage } from "./composer";
 import type { SeedDaemonClient, SeededWorkspace } from "./seed-client";
 import { openAgentRoute } from "./mock-agent";
+import { getServerId } from "./server-id";
 import { rememberTimelineViewport, userScrollsTimelineToHistoryStart } from "./timeline-pagination";
 
 const IMAGE_PREVIEW_ERROR = "Unable to load image preview.";
@@ -211,7 +212,7 @@ export async function sendFollowUpAndExpectVisibleResponse(
 }
 
 async function selectSettledAgentTab(page: Page, agent: ArchiveTabAgent): Promise<void> {
-  const tab = page.getByRole("button", { name: agent.title, exact: true });
+  const tab = page.getByTestId(`sidebar-workspace-row-${getServerId()}:chat:${agent.id}`);
   await tab.click();
   await expect(page).toHaveTitle(agent.title);
   await expect(tab).toHaveAttribute("aria-selected", "true");
@@ -244,8 +245,8 @@ async function beginVisibleImageStabilityObservation(
             element.textContent?.trim() === errorText &&
             isVisible(element),
         );
-        const imageTab = document.querySelector(`[data-testid="${tabTestId}"]`);
-        if (imageTab?.getAttribute("aria-selected") !== "true") return;
+        const imagePanel = document.querySelector(`[data-testid="${tabTestId}"]`);
+        if (!imagePanel || !isVisible(imagePanel)) return;
         const imageVisible = Array.from(document.querySelectorAll('[role="img"]')).some(
           (element) => element.getAttribute("aria-label") === accessibleName && isVisible(element),
         );
@@ -268,7 +269,7 @@ async function beginVisibleImageStabilityObservation(
     {
       accessibleName: alt,
       errorText: IMAGE_PREVIEW_ERROR,
-      tabTestId: `workspace-tab-agent_${imageAgentId}`,
+      tabTestId: `workspace-panel-agent_${imageAgentId}`,
     },
   );
 }

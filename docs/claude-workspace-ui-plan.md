@@ -1,118 +1,181 @@
 # Paseo workspace and agent UI review
 
-Updated: 2026-09-08. Follow-up branch: `bowen/paseo-preview-fixes-20260908`; original feature branch: `bowen/claude-workspaces-subagents-20260908`.
+Updated: 2026-09-08. Integration branch: `bowen/paseo-integration-20260908` in
+`/Users/bowen/code/paseo-worktrees/paseo-integration`.
 
-## Bowen's requirements and accepted corrections
+The current task combines all pending app and subscriptions changes, fixes their interactions,
+and tests the resulting candidate until it is ready to publish. The installed app remains backed
+up and unchanged while Bowen's requested screenshot review is outstanding. The verification table below separates the completed app checks from any remaining plugin or
+rollout work.
 
-- Match the supplied Claude desktop screenshots: neutral `#111111` sidebar, `#151515` main surface, `#343434` selection, warm `#c3c2b8` chat text, compact 30 px desktop chat rows. Preserve comfortable touch targets.
-- Back up the old installed app before replacement. Show screenshots of the new executable with actual current workspaces and chats first. **Installation and live replacement are on hold for this review.** Earlier live publishing authorization does not override this latest instruction.
-- Simplify the sidebar to Pinned, manually created groups, and Ungrouped. Start existing chats ungrouped instead of displaying automatic host/repository groups. Preserve chat history, working folders, repositories, and worktrees.
-- Add New group, rename/remove group, drag chats between groups, and Move to group in the context menu. Pin/unpin chats; pinned chats appear first. Removing a group returns its chats to Ungrouped.
-- Let the user choose Local or a remote machine and the actual working folder. Explicitly associated folders should put new chats in the correct user-created group; manual moves take precedence. Do not silently change an existing chat's execution directory by dragging its sidebar row.
-- Right-click a chat and press its displayed letter to execute the action. **A archives immediately**, P pins/unpins, U toggles unread, R renames; include fork/delete and split-view actions. Typing in an input must not trigger these shortcuts.
-- Support Open in / Split right / Split below and validate working pane navigation.
-- Generate short meaningful chat titles, approximately 2–6 words, instead of long first-prompt snippets. Preserve manual renames and archived chats against delayed automatic naming.
-- Codex and Claude model selectors expose supported effort options. Show real subscription usage while using the app alongside context usage, including loading, unavailable, reconnect, and refresh states.
-- Grok 4.6 exposes actual effort levels. **The Fast option was explicitly withdrawn: do not add Fast mode.**
-- Validate Codex, Claude, and Grok subagent support end to end: X running tasks, a task list opening on the right, viewing a child, and reported token usage. Never fabricate unavailable metrics or simulate provider support as if it were real.
-- Set up Hermes, CueRetail Dashboard, and Tloom Git worktrees on this Mac and the authorized VPS. Keep operational checkouts intact.
-- Run focused automated checks and Playwright end to end, inspect real rendered screenshots, address bugs, and push the finished changes from Git worktrees.
+## Bowen's requirements and current direction
 
-## Preserved backup and worktrees
+- Match the supplied Claude screenshots: `#111111` sidebar, `#151515` main surface,
+  `#343434` selection, warm `#c3c2b8` chat text and compact 30 px desktop rows. Preserve
+  44 px touch targets. Show the actual app with current chats, rather than a mockup.
+- Back up the installed app before replacement. Preserve existing conversations, current manual
+  groups, drafts, repositories and worktrees throughout preview refreshes.
+- Put Pinned first, manual groups next and Ungrouped below. Remove automatic host/repository
+  grouping from the default chat view. Chats sharing a workspace remain independently pinnable,
+  movable, renameable and archivable. Empty registered folders remain available in the folder
+  selector without becoming chat rows.
+- Support New group, rename/remove group, drag/drop and Move to group. Removing a group returns
+  all of its chats to Ungrouped, including chats hidden by filters. Preserve groups the user has
+  since created manually; do not reset them again.
+- Choose a connected device and working folder. Folder association places a new chat in the
+  corresponding manual group; manual moves take precedence. Dragging a chat never changes its
+  execution directory.
+- Allow **No folder** on the selected MacBook, Jarvis or VPS. Start at that device's home and
+  browse its global file tree with its existing permissions. Discover device names from the
+  registry; do not hardcode workspaces or hosts.
+- Right-click a chat and press its displayed letter. **A archives immediately**, P pins/unpins,
+  U toggles unread and R renames. Keep fork and delete actions. Menu letters must not execute
+  while typing in an input, and archive completion must preserve newer navigation.
+- Use one primary chat with documents, Tasks and managed/provider-native children on the right.
+  This integration replaces the earlier generic Split right/Split below and Main/Side preference
+  implementation. Keep the parent visible and selected while inspecting a child; keep every
+  child's own folder and draft. The layout contract is in [Side panel](./side-panel.md).
+- Generate short meaningful titles, roughly 2–6 words. Preserve manual renames and archived
+  conversations against delayed automatic naming.
+- Show supported effort choices for Codex, Claude and Grok 4.6. **No Grok Fast mode**: Bowen
+  withdrew it. Show real subscription usage alongside context while working, including loading,
+  unavailable, reconnect and refresh states.
+- Show X running tasks, a right-hand task list, child details and reported tokens for Codex,
+  Claude and Grok. Keep provider-native metrics distinct from managed-child context. Do not
+  fabricate unavailable totals or present synthetic provider checks as real ones.
+- Fix encoded local image paths such as `Paseo%20Preview%2020260908/current-chats.png`.
+  Decode Markdown URLs once while preserving raw paths and literal percent filenames. Keep
+  loading/errors to a compact 32 px row, including images with remembered dimensions. Retry must
+  recover missing files, corrupt images and missing stored previews after remount and reload.
+- Replace the busy sidebar ring with a small warm glow. Preserve reduced-motion behavior and
+  stop activity animation when the chat completes or is inactive.
+- Keep the chat and composer usable on smaller Mac displays. Clamp restored windows to the
+  display, budget both sidebars around the chat, and preserve state when a panel is hidden or
+  the window resizes. Support rendered Markdown, source and text in the right panel.
+- Merge the held-message queue: explicit hold, edit/remove, Send now and ordered Send all, with
+  held messages and attachments surviving restart. New chat reuses available drafts; the Drafts
+  menu makes older saved drafts reachable after the tab-strip migration.
+- Merge the subscriptions Tool logs toggle alongside usage, provider registration and Routines
+  changes. Tool logs defaults off; changing it must also affect already-rendered tool output.
+- Keep Hermes, CueRetail Dashboard and Tloom worktrees on this Mac and the authorized VPS.
+  Work in isolated checkouts, run focused end-to-end checks, inspect screenshots and push the
+  completed app and plugin changes. Readiness requires observed results, not a promise of no bugs.
 
-- Installed app backup: `/Users/bowen/Applications/Paseo Backups/20260908-162435/Paseo.app`.
-- Original and backup app.asar SHA-256: `67818f9ed4f246484ef5cdc82a59f7be3d3587215c1c8b1d5049a2052b390f9b`.
-- Mac project worktrees: `/Users/bowen/code/paseo-worktrees/{hermes,dashboard,tloom}`.
-- VPS project worktrees: `/home/codex/code/paseo-worktrees/{hermes,dashboard,tloom}` on `hostinger-support`. All six registered in Paseo; no operational service was restarted.
-- Implementation worktree: `/Users/bowen/code/paseo-worktrees/paseo-ui`. Earlier changes copied from the separate checkout without removing it. Never restart the production daemon on port 6767 during this work.
+## Backups and worktrees
 
-## Implementation plan
+| Resource                             | Location or status                                                                 |
+| ------------------------------------ | ---------------------------------------------------------------------------------- |
+| Installed app backup                 | `/Users/bowen/Applications/Paseo Backups/20260908-162435/Paseo.app`                |
+| Original and backup app.asar SHA-256 | `67818f9ed4f246484ef5cdc82a59f7be3d3587215c1c8b1d5049a2052b390f9b`                 |
+| Mac project worktrees                | `/Users/bowen/code/paseo-worktrees/{hermes,dashboard,tloom}`                       |
+| VPS project worktrees                | `/home/codex/code/paseo-worktrees/{hermes,dashboard,tloom}` on `hostinger-support` |
+| App integration                      | `/Users/bowen/code/paseo-worktrees/paseo-integration`                              |
+| Subscriptions integration            | `/Users/bowen/code/paseo-worktrees/subscriptions-integration`                      |
+| Screenshot/review folder             | `/Users/bowen/Desktop/paseo-preview-20260908`                                      |
 
-- [x] Preserve installed app and checksum it; create linked implementation worktree.
-- [x] Implement initial shortcuts, split view, model effort controls, live account usage, Grok effort, and guarded short auto-titles; focused initial checks passed.
-- [x] Correct Claude theme against measured reference colors.
-- [x] Replace automatic sidebar grouping with persistent manual groups, pinning, drag/drop, group menus, and folder association.
-- [x] Verify machine/folder selection and correct new-chat group placement.
-- [x] Audit and implement provider subagent activity/token reporting (provider_subagents agent).
-- [x] Build running-task trigger, right task panel, child navigation and token display (subagent_ui agent).
-- [x] Integrate and run focused typecheck/lint/unit checks plus Playwright on grouping, shortcuts, folder routing, split view, usage, and subagents.
-- [x] Run real-provider checks for Codex, Claude, and Grok with harmless test tasks in isolated directories; record actual supported/unsupported metrics.
-- [x] Package preview, inspect screenshots using actual open workspaces, and show review artifacts.
-- [x] Commit and push checked source changes to a review branch; record remote URL and checks.
-- [ ] Replace installed/live app only after the requested screenshot review is complete.
+All six project worktrees were registered during the earlier feature work. Operational checkouts
+remain intact. The production daemon on port 6767 must not be restarted as part of testing.
 
-## Verification rules
+Before refreshing the review executable, back up its current profile and manual groups again.
+User-created groups such as PaseoBuild and CueRetail survive refreshes. The preview uses its own
+profile with built-in daemon management disabled. Capture its actual window without navigating
+or resizing the user's session. At Electron zoom, use raw CDP `Page.captureScreenshot` without
+clipping; Playwright's CSS-scaled capture cropped the visible composer. See
+[Browser capture harness](./browser-capture-harness.md).
 
-Run targeted tests with one worker and log output; do not run the full local suite. Coordinate builds and provider E2E across agents. Protect original chat data and production daemons. All claims of success require observed results; “no bugs” is the quality objective, not a guarantee beyond tested coverage. Keep this plan updated with results and unresolved issues.
+## Source being combined
 
-## Integration findings and checked behavior
+| Input                 | Checkpoint                                                | Meaning                                                                                        |
+| --------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Original app features | `85d2c46` on `bowen/claude-workspaces-subagents-20260908` | Earlier published review source, including feature commit `5164b55`                            |
+| Preview fixes         | `a38a19c80` on `bowen/paseo-preview-fixes-20260908`       | Encoded images, quiet glow, No folder, document/small-window and History fixes                 |
+| Held composer queue   | `ec7c8221e`                                               | Merged into the app integration branch at `abbb668d3`                                          |
+| Single-chat layout    | `76ed838`                                                 | Combined with fixes for routing, migration, selection, drafts and test coverage                |
+| Subscriptions         | `c48c514`                                                 | Combined registration/quota, Routines and Tool logs changes in the plugin integration worktree |
 
-Manual rows now represent root agent conversations, keyed by host and agent ID. Two conversations sharing a workspace remain independently pinnable, movable, renameable and archivable. Empty folders/worktrees are excluded from the chat list, while their registered projects remain selectable. Metadata uses paginated directory demand, without subscribing to every transcript. Child tasks stay in their parent's Tasks pane.
+The app integration combines all three app inputs. Source worktrees owned by the other tasks
+remain clean and unchanged at the checkpoints above. Review branches:
+[app integration](https://github.com/bowenthecoder/paseo/tree/bowen/paseo-integration-20260908) and
+[subscriptions integration](https://github.com/bowenthecoder/paseo-subscriptions/tree/bowen/paseo-integration-20260908).
+The final branch heads and push status are recorded with the local review evidence.
 
-Browser checks have passed group create/rename/remove and reload persistence, drag into a group/Pinned/Ungrouped, unread/read on opening, per-chat archive while its sibling stays open, letter rename and split navigation, and compact 30 px rows. Nine grouping/projection unit checks and five explicit chat-target identity checks pass. Folder association initially lost its project ID; the group now stores that ID with its host/path and supplies it on New chat. Group removal uses unfiltered hydrated membership so hidden chats return to Ungrouped as well.
+## Integrated verification and release readiness
 
-Real native subagents passed on Claude Sonnet 5, Codex B Sol and Grok 4.6: child appears running, Tasks pane opens on the right, output and reported tokens render, and child state survives reload. The final seven-case real-provider run also verified the parent final reply and context/account usage for Claude, both Codex accounts and Grok. A separate real Codex test verified short title generation. Codex child usage no longer overwrites parent usage; Grok native lifecycle and child channels are preserved through ACP replay. Grok native subagents required enabling its existing local configuration; the original is backed up at `~/.grok/config.toml.before-paseo-subagents-20260908-164637`.
+Focused checks ran with one worker and isolated test daemons. No full local test suite was run.
+[QA](./qa.md) owns the evidence standard and [Testing](./testing.md) owns test conventions.
 
-Subscriptions wiring is committed and pushed at `https://github.com/bowenthecoder/paseo-subscriptions/tree/bowen/provider-usage-wiring-20260908` (commit `28a9ef6`). Typecheck and 15 focused registration checks pass. The quota follow-up is pushed as `c17cc02`; 13 focused parser/cache/pill checks and an additional real Codex B browser run passed, with the UI showing the reported Weekly label. Primary accounts reuse matching built-in provider aliases; disabling a built-in writes `enabled: false`, since removing its override would re-enable the default. Other accounts and profile settings survive the toggle round trip. Live replacement is still on hold.
+| Area                           | Observed integration result                                                                                                                                                                                                                                                                           |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chat organization and composer | Group CRUD/reload, pinning, drag/drop, folder association, immediate menu letters, archive/navigation races, held queue, draft recovery and compact navigation passed.                                                                                                                                |
+| Documents and images           | Encoded/literal-percent paths, missing/corrupt/cache recovery, remembered-size loading/error rows, Preview/Source editing and saving, unsaved drafts, image refresh and unforced zoom passed. The original image hover handlers failed the same CSS check that the shared-hover fix passes.           |
+| Layout and children            | Primary/side migration, parent selection, independent drafts/folders, child diff contents, overflowing rail, grandchild/reload, child slash commands, terminal activity and worktree cwd passed.                                                                                                      |
+| Plugin panels                  | Workspace/agent context, secondary host preservation, command collisions, compact rendering and unavailable state passed.                                                                                                                                                                             |
+| Focused code checks            | 191 layout/child checks, additional targeted slash/file/rail/menu/archive checks, four Tasks browser component checks, the image hover component check and 12 desktop updater checks passed. Earlier overlapping runs are not added together.                                                         |
+| Real Codex / Claude / Grok     | Eight final cases passed: three native subagent flows, four real replies with supported effort and subscription/context usage (both Codex accounts), and one short-title flow.                                                                                                                        |
+| Subscriptions                  | Registration (15), quota (13), Tool logs unit checks (5) and Routines (289) passed. Types and bundles passed. Eleven lint findings match the existing baseline. The integrated browser check found missing switch checked-state attributes and a Tool logs reload race; final recovery check pending. |
+| App quality                    | Full repository formatting, lint (zero warnings/errors) and full workspace typecheck passed.                                                                                                                                                                                                          |
+| Packaged app                   | Electron export, desktop build, ARM64 package and local signature verification passed. This is a locally signed preview, not a notarized public release.                                                                                                                                              |
+| Actual-chat preview            | Refreshed the separate preview at 22:06 EDT. Manual groups match the backup exactly; the nonempty saved draft is retained. Migration pruned two empty draft records. Screenshots at the current display size and 1280×820 show the chat/composer with no image errors.                                |
+| Source publication / CI        | Final integration commit, branch push and CI handoff are being completed.                                                                                                                                                                                                                             |
+| Installed app / live daemons   | Held for the requested screenshot review. The installed app and production daemons have not been replaced or restarted.                                                                                                                                                                               |
 
-## Final verification and preview artifacts
+The fresh profile backup is
+`/Users/bowen/Desktop/paseo-preview-20260908/profile-before-integration-20260908-220615`.
+`current-chats.png` and `current-chats-small-mac.png` show the actual connected chats and groups.
+`preview-after-refresh.json` and `preview-small-mac.json` record dimensions, bundle identity and
+preservation checks. The temporary small-window instance was closed after capture; the main
+review preview remains available. Capture did not navigate or resize the user's main preview.
 
-Focused checks passed; no full local test suite was run. The final commit hook checks formatting, lint and the full workspace typecheck.
+Final focused browser evidence is spread across the regression, recovery and impact batches;
+red runs were followed by targeted fixes and rechecks. Key logs:
 
-| Area                  | Observed result                                                                                                                                                                                                                                                                   |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Manual chat groups    | All six browser scenarios passed across focused reruns: independent sibling chats, group CRUD/reload, drag/drop, pin/unpin, folder selection and creation, archive/unread, letter actions, split navigation and density.                                                          |
-| Keyboard navigation   | Two browser scenarios and 85 focused unit cases passed, including selecting different chats in the same workspace and pinning while Pinned is collapsed.                                                                                                                          |
-| Live provider tasks   | Claude, Codex B and Grok each created a real native child; running count, right task pane, output, numeric reported tokens, parent final reply and replay after reload passed.                                                                                                    |
-| Live effort and usage | Claude, Codex A, Codex B and Grok each replied using the requested effort with account usage and context shown. Both Codex accounts passed again with label-only model overrides to exercise native metadata inheritance.                                                         |
-| Short titles          | One real Codex title-generation browser case passed; targeted persistence checks protect manual renames and archived chats from delayed title generation.                                                                                                                         |
-| Provider contracts    | 55 registry checks, 99 shared ACP checks, five Grok child checks, a focused Codex child-usage check, and 12 Claude/Codex effort passthrough cases passed.                                                                                                                         |
-| Quota duration        | Thirty native Codex parser cases and four existing Codex quota-service cases passed. Weekly versus five-hour labels follow reported duration, never window position or reset countdown. Missing percentages remain unknown; malformed numeric metadata cannot become zero or one. |
-| Compact layout        | The compact task sheet browser case passed; manual chat touch rows retain 44 px targets.                                                                                                                                                                                          |
-| Packaged renderer     | Actual current chats hydrated across three hosts, no observed renderer page errors, and screenshots were inspected against the supplied reference.                                                                                                                                |
+- `/tmp/paseo-integration-regression-final-browser.log`: 21 passing cases; its four failures were resolved in subsequent targeted passes.
+- `/tmp/paseo-integration-recovery-final-browser.log`: documents, responsive navigation, mock native Tasks and draft migration.
+- `/tmp/paseo-integration-last-five-browser.log`: complete managed-child flow, wrapped worktree cwd and failed-setup revisit.
+- `/tmp/paseo-integration-zoom-web-browser.log`: image Preview/Source/refresh/zoom and plugin panel/host/compact flow, both passing.
+- `/tmp/paseo-integration-zoom-baseline-browser.log`: original hover handlers fail the same normal interaction.
+- `/tmp/paseo-integration-real-browser.log`: all eight real-provider cases passed; the separate installed-plugin Tool logs case exposed the remaining plugin issue.
+- `/tmp/paseo-integration-final-{format-check,lint,typecheck}.log`: full app quality checks.
+- `/tmp/paseo-integration-{export,desktop-main-build,desktop-package,sign-verify}.log`: packaged preview checks.
 
-Review folder: `/Users/bowen/Desktop/Paseo Preview 20260908`. `current-chats.png` shows actual current conversations. The user-created PaseoBuild and CueRetail groups appeared during preview use and have been preserved. `Provider checks/` contains separate, clearly identifiable real-provider smoke-test screenshots; those test conversations are isolated from current production chats.
+Older automatic-workspace sidebar helpers remain in other legacy browser suites. The focused
+results above do not claim those suites passed. Broader CI is a separate release gate. Native
+iOS/Android devices were not exercised in this pass; compact Chromium and macOS were.
 
-The preview uses a separate desktop profile with built-in daemon management disabled. It connects to current hosts for the existing-chat screenshots. New provider adapters were validated on isolated daemons; existing production hosts keep their running daemon versions until live rollout. In particular, the new Grok effort/child adapter and corrected quota labels require the new daemon/plugin source when deployed. The installed app and production daemon on port 6767 were not restarted or replaced.
+- [x] Preserve the installed app and create the six requested project worktrees.
+- [x] Combine the pending app/plugin inputs in isolated worktrees.
+- [x] Complete the selected app regressions and real-provider flows.
+- [x] Run full app formatting, lint and workspace types.
+- [x] Package, verify, back up and capture the refreshed actual-chat preview.
+- [ ] Finish the installed-plugin Tool logs reload regression.
+- [ ] Push both integration branches and record CI status.
+- [ ] Complete screenshot review before installed-app and live daemon/plugin rollout.
 
-Mac and VPS Codex model metadata were repaired with backups and safe configuration reloads. The VPS backup is `/home/codex/.paseo/config.json.before-effort-metadata-20260908-1732`. Each configured VPS model was matched to that VPS's own CLI model cache. Native Codex capability inheritance is also fixed in source so future label-only overrides retain effort controls.
+## Earlier baseline evidence
 
-## Pushed review source
+These results preceded the single-chat/queue/plugin merge. Some exercised the retired tab,
+Split right/Split below and Main/Side controls and must be adapted before validating this candidate.
 
-App feature commit `5164b55` is pushed to `https://github.com/bowenthecoder/paseo/tree/bowen/claude-workspaces-subagents-20260908`. Its commit hook passed formatting, lint (zero warnings/errors) and the full workspace typecheck. Subscriptions is pushed through `c17cc02` on the branch linked above. Both implementation worktrees were clean after their feature commits.
+| Baseline                     | Observed coverage                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Original chat UI             | Six focused group/action browser scenarios covered independent sibling chats, group CRUD/reload, drag/drop, pin/unpin, folder association, archive/unread, letters, density and the then-current split navigation. Two keyboard scenarios and 85 focused keyboard unit checks passed.                                                             |
+| Original real providers      | Claude Sonnet 5, Codex B Sol and Grok 4.6 created native children; running counts, right task views, output, reported tokens, parent replies and reload passed. Claude, Codex A, Codex B and Grok replied with requested effort and displayed context/account usage. A real Codex short-title case and native metadata-inheritance checks passed. |
+| Provider contracts           | 55 registry, 99 shared ACP, 5 Grok child, a focused Codex child-usage check and 12 Claude/Codex effort passthrough checks passed. Thirty Codex quota parser cases and four quota-service cases passed.                                                                                                                                            |
+| Preview fixes at `a38a19c80` | Sixteen distinct focused Playwright scenarios covered encoded/missing/corrupt image recovery, No folder across devices, manual folder grouping, quiet activity, documents/global files, small-screen layout and History/remote deletion.                                                                                                          |
+| Preview image/history units  | Fourteen final cache/hook checks covered stored preview loss and stale failures; thirty replica checks covered removal, reconnect, authoritative deletion and stale replies. The commit hook passed formatting, lint and the full workspace typecheck.                                                                                            |
+| Queue input                  | The queue branch recorded five persistence/hold E2E cases and four browser component cases before the layout merge.                                                                                                                                                                                                                               |
+| Packaged baseline            | The local preview signature verified, current chats hydrated across three hosts, and the installed app checksum still matched the backup. `current-chats-full-window.png` in the review folder captures the actual preview without the zoom-related crop.                                                                                         |
 
-The complete locally signed review candidate is `packages/desktop/release/reviewed/mac-arm64/Paseo.app` in the app worktree. Its signature verifies. The review folder includes `Open preview.command`, the checks, screenshots and a separate `manual-chat-groups-backup.json` preserving groups made during preview use. The installed app's checksum was checked again after packaging and still matches the original backup.
+Follow-up evidence logs: `/tmp/paseo-followup-browser-core.log`,
+`/tmp/paseo-followup-verified-browser.log`, `/tmp/paseo-followup-image-and-history-final.log`,
+`/tmp/paseo-history-focus-fixed.log`, and `/tmp/paseo-preview-fixes-checkpoint.log`.
+The image-and-history log includes a History failure that was subsequently fixed and passed in
+its separate final log. Queue evidence is in `/tmp/paseo-e2e-hold-persist.log` and
+`/tmp/paseo-browser-queue.log`.
 
-## Follow-up: file previews, smaller screens and device chats
-
-Worktree: `/Users/bowen/code/paseo-worktrees/paseo-preview-fixes`, branch `bowen/paseo-preview-fixes-20260908`. Another active task checkpointed the earlier shared checkout at `4eba84c` and switched it to a queue branch. This follow-up continues in its own worktree, preserving that checkpoint and the other task.
-
-Accepted direction: preserve the measured Claude spacing and colors, give the active chat usable width on smaller Macs, open supporting documents beside it, and replace the busy sidebar ring with a quiet warm glow. No folder starts at the selected device's home; the file explorer can browse Parent, Home, Device root, and the working folder using that device's existing permissions.
-
-- [x] Decode local Markdown URL paths exactly once; preserve raw filesystem paths, literal percent filenames and inline-code paths.
-- [x] Replace the bulky unknown-size image placeholder with a compact 32 px loading/error row. Retry recovers missing files, corrupt images and missing stored previews. Successful repaired images survive remount; stale failures cannot evict a newer image.
-- [x] Clamp fresh and restored desktop windows to the usable display area. Keep chat/composer visible on smaller screens.
-- [x] Budget sidebar and Explorer widths around visible chat/document panes. Explicitly reopening Chats can hide Explorer or use a temporary drawer; drafts and pane state survive.
-- [x] Constrain displayed split widths while preserving saved proportions. At 800 px, two panes each receive about 399.5 px; a wider window restores the preferred ratio and dragging starts from the displayed divider.
-- [x] Open Markdown/text links to the side by default, preserve explicit stored preferences, add Main/Side link context actions, and support rendered Markdown, source, text, close and return to draft.
-- [x] Submit No folder chats on the selected discovered device; preserve explicit manual group placement and allow returning from a selected folder to device home.
-- [x] Use a small warm sidebar glow that stops on completion, inactivity and reduced motion.
-- [x] Fix Close → immediate History selecting the wrong tab. Filtered directory removals preserve explicitly opened archived details while an authoritative lookup checks existence. Remote deletion and stale replies still remove deleted chats; no new daemon protocol is required.
-- [ ] Refresh the locally signed preview with current profile backup, capture actual current chats, and push the checked follow-up branch.
-
-### Follow-up verification
-
-Sixteen distinct Playwright scenarios passed across focused runs with one worker. No full local test suite was run.
-
-| Area                       | Browser scenarios and evidence                                                                                                                                                                                                                                     |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Local image/document paths | Three: encoded spaces/literal percent names, missing-file Retry, corrupt PNG repair with History remount and reload. `/tmp/paseo-followup-image-and-history-final.log` has the final three passes; its separately recorded History failure was subsequently fixed. |
-| Device/folder selection    | Three No folder cases plus the existing folder-to-manual-group regression. `/tmp/paseo-followup-browser-core.log`.                                                                                                                                                 |
-| Quiet activity             | One case verifies measured color/size, animation, reduced motion and completion. Same core log.                                                                                                                                                                    |
-| Documents and global files | Four cases cover rendered/source/text, missing file recovery, Main/Side preference, compact return with draft, Parent/Home/Device root, and files outside the working folder on the correct host. `/tmp/paseo-followup-verified-browser.log`.                      |
-| Smaller screens            | One laptop composer case and two sidebar toggle/drawer cases. Same verified browser log.                                                                                                                                                                           |
-| History/deletion           | One case verifies immediate close/reopen focuses the target and deletion from another client removes it and restores the surviving tab. `/tmp/paseo-history-focus-fixed.log`.                                                                                      |
-
-Focused unit coverage includes path parsing/decoding, image lifecycle and cache resource ownership, saved preferences, no-folder selection, Files navigation, displayed split sizes, responsive sidebar state and desktop window bounds. Fourteen final image-cache/hook checks passed, including stored preview loss and delayed stale errors. The History race was reproduced with real replica/layout stores before fixing it; targeted removal, reconnect and stale-reply checks supplement the browser case.
-
-The complete preview will remain separate from `/Applications/Paseo.app` for the user's requested screenshot review. Production daemon port 6767 is not restarted. Current manual groups and drafts must be preserved during refresh; the installed original still matches its saved backup checksum.
+Native provider changes were tested on isolated daemons. Current production hosts retain their
+running versions until rollout; the Grok effort/child adapter and corrected quota labels require
+the corresponding new daemon/plugin source. Local Grok configuration was backed up at
+`~/.grok/config.toml.before-paseo-subagents-20260908-164637`. Mac and VPS Codex metadata repairs
+used backups and safe configuration reloads; the VPS backup is
+`/home/codex/.paseo/config.json.before-effort-metadata-20260908-1732`.

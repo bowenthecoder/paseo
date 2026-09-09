@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { TestInfo } from "@playwright/test";
+import { buildHostWorkspaceRoute } from "../../src/utils/host-routes";
 import { expect, test, type Page } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
 import { openCommandCenter } from "../support/helpers/command-center";
@@ -10,16 +11,13 @@ import { addConnectedHostAndReload } from "../support/helpers/hosts";
 import { startIsolatedHostDaemon } from "../support/helpers/isolated-host-daemon";
 import { buildAgentRoute } from "../support/helpers/mock-agent";
 import { connectNewWorkspaceDaemonClient } from "../support/helpers/new-workspace";
+import { expectAppRoute } from "../support/helpers/route-assertions";
 import { seedWorkspace } from "../support/helpers/seed-client";
 import { getServerId } from "../support/helpers/server-id";
 import {
   closeMobileAgentSidebar,
   expectMobileAgentSidebarHidden,
 } from "../support/helpers/sidebar";
-import {
-  switchWorkspaceViaSidebar,
-  waitForWorkspaceInSidebar,
-} from "../support/helpers/workspace-ui";
 
 const PLUGIN_ID = "workspace-panel-e2e";
 const WIDE_VIEWPORT = { width: 1280, height: 900 };
@@ -27,6 +25,34 @@ const COMPACT_VIEWPORT = { width: 390, height: 844 };
 
 function isSettledWorkspaceUrl(url: URL): boolean {
   return url.pathname.includes("/workspace/") && !url.searchParams.has("open");
+}
+
+async function openEmptyWorkspace(
+  page: Page,
+  input: { serverId: string; workspaceId: string },
+): Promise<void> {
+  // Manual chat groups omit empty workspaces. Open the host-owned workspace
+  // explicitly so its plugin context can be tested before creating an agent.
+  const route = buildHostWorkspaceRoute(input.serverId, input.workspaceId);
+  await page.goto(route);
+  await expectAppRoute(page, route, { timeout: 60_000 });
+  const chat = page.getByTestId("workspace-chat-pane").filter({ visible: true });
+  await expect(chat).toBeVisible();
+  await expect(chat.getByRole("textbox", { name: "Message agent..." })).toBeEditable();
+  await expect(chat.locator('[data-testid^="workspace-panel-agent_"]')).toHaveCount(0);
+}
+
+async function preserveSecondaryHostForNavigation(page: Page, serverId: string): Promise<void> {
+  // addConnectedHostAndReload only protects its own reload. The fixture's extra
+  // hosts seed keeps this test daemon registered across later full navigations.
+  await page.evaluate((secondaryServerId) => {
+    const hosts = JSON.parse(localStorage.getItem("@paseo:daemon-registry") ?? "[]") as Array<{
+      serverId: string;
+    }>;
+    const secondaryHost = hosts.find((host) => host.serverId === secondaryServerId);
+    if (!secondaryHost) throw new Error(`Expected registered secondary host ${secondaryServerId}`);
+    localStorage.setItem("@paseo:e2e-extra-hosts", JSON.stringify([secondaryHost]));
+  }, serverId);
 }
 
 function pluginSource(input: { workspaceId: string; agentId: string }): string {
@@ -200,18 +226,9 @@ test.describe("plugin workspace panels and Command Center", () => {
         port: secondaryDaemon.port,
         primaryLabel: "Primary plugin host",
       });
-      await waitForWorkspaceInSidebar(page, {
-        serverId: getServerId(),
-        workspaceId: primary.workspaceId,
-      });
-      await waitForWorkspaceInSidebar(page, {
-        serverId: secondaryDaemon.serverId,
-        workspaceId: secondary.workspaceId,
-      });
-
+      await preserveSecondaryHostForNavigation(page, secondaryDaemon.serverId);
       await test.step("workspace context opens the real wide panel bridge", async () => {
-        await switchWorkspaceViaSidebar({
-          page,
+        await openEmptyWorkspace(page, {
           serverId: getServerId(),
           workspaceId: primary.workspaceId,
         });
@@ -274,15 +291,14 @@ test.describe("plugin workspace panels and Command Center", () => {
         await page.waitForURL(isSettledWorkspaceUrl);
         await expect(
           page
-            .getByTestId(`workspace-tab-agent_${navigationAgentId}`)
+            .getByTestId(`workspace-panel-agent_${navigationAgentId}`)
             .filter({ visible: true })
             .first(),
         ).toBeVisible();
       });
 
       await test.step("switching hosts removes commands from an uninstalled host", async () => {
-        await switchWorkspaceViaSidebar({
-          page,
+        await openEmptyWorkspace(page, {
           serverId: secondaryDaemon.serverId,
           workspaceId: secondary.workspaceId,
         });

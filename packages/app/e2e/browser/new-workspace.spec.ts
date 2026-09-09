@@ -489,7 +489,7 @@ test.describe("New workspace flow", () => {
         .filter({ visible: true });
       await expect(activeWorkspaceDeckEntry).toBeVisible({ timeout: 30_000 });
 
-      const agentTabs = activeWorkspaceDeckEntry.locator('[data-testid^="workspace-tab-agent_"]');
+      const agentTabs = activeWorkspaceDeckEntry.locator('[data-testid^="workspace-panel-agent_"]');
       await expect(agentTabs).toHaveCount(1, { timeout: 30_000 });
 
       // Workspace setup may auto-open a setup tab that steals focus,
@@ -567,15 +567,15 @@ test.describe("New workspace flow", () => {
         .filter({ visible: true });
       await expect(activeWorkspaceDeckEntry).toBeVisible({ timeout: 30_000 });
 
-      const draftTabs = activeWorkspaceDeckEntry.locator('[data-testid^="workspace-tab-draft_"]');
+      const draftTabs = activeWorkspaceDeckEntry.locator('[data-testid^="workspace-panel-draft_"]');
       await expect(draftTabs).toHaveCount(1, { timeout: 30_000 });
       await expect(
-        activeWorkspaceDeckEntry.locator('[data-testid^="workspace-tab-agent_"]'),
+        activeWorkspaceDeckEntry.locator('[data-testid^="workspace-panel-agent_"]'),
       ).toHaveCount(0);
 
       agentCreatedDelay.release();
       await expect(
-        activeWorkspaceDeckEntry.locator('[data-testid^="workspace-tab-agent_"]'),
+        activeWorkspaceDeckEntry.locator('[data-testid^="workspace-panel-agent_"]'),
       ).toHaveCount(1, { timeout: 30_000 });
     } finally {
       agentCreatedDelay.release();

@@ -44,8 +44,7 @@ export function AssistantMarkdownLink({
     () => ({ onPress, accessibilityRole: "link" }),
     [onPress],
   );
-  const openMain = useStableEvent(() => open(source, "main"));
-  const openToSide = useStableEvent(() => open(source, "side"));
+  const openFile = useStableEvent(() => open(source, "side"));
   const unwrapForMarkdownCopy = source.sourceType === "inline-code" || source.markup === "linkify";
 
   if (isNative) {
@@ -110,11 +109,7 @@ export function AssistantMarkdownLink({
           <ContextMenuTrigger contextOnly style={FILE_LINK_TOOLTIP_TRIGGER_STYLE}>
             {anchor}
           </ContextMenuTrigger>
-          <FileActionsContextMenuContent
-            fileKind="file"
-            onOpenFile={openMain}
-            onOpenToSide={openToSide}
-          />
+          <FileActionsContextMenuContent fileKind="file" onOpenFile={openFile} />
         </ContextMenu>
       ) : (
         anchor

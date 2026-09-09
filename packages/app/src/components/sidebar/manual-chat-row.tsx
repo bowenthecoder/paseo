@@ -13,12 +13,13 @@ import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { useSidebarChatGroupsStore } from "@/stores/sidebar-chat-groups-store";
 import { useSidebarUnreadStore } from "@/stores/sidebar-unread-store";
-import { findPaneById } from "@/stores/workspace-layout-actions";
+import { DEFAULT_PANE_ID, findPaneById } from "@/stores/workspace-layout-actions";
 import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { SidebarWorkspaceContextMenu, SidebarWorkspaceMenu } from "./sidebar-workspace-menu";
 import { useOpenKebabMenuVisibility } from "./use-open-kebab-menu-visibility";
 import type { ManualChatEntry } from "./manual-chat-groups";
+import { archiveSidebarChat } from "./archive-chat";
 
 function useChatSelected(chat: ManualChatEntry): boolean {
   const active = useActiveWorkspaceSelection();
@@ -27,7 +28,7 @@ function useChatSelected(chat: ManualChatEntry): boolean {
     const key = `${chat.serverId}:${chat.workspaceId}`;
     const layout = state.layoutByWorkspace[key];
     if (!layout) return false;
-    const focusedTabId = findPaneById(layout.root, layout.focusedPaneId)?.focusedTabId;
+    const focusedTabId = findPaneById(layout.root, DEFAULT_PANE_ID)?.focusedTabId;
     const target = state.getWorkspaceTabs(key).find((tab) => tab.tabId === focusedTabId)?.target;
     return target?.kind === "agent" && target.agentId === chat.agentId;
   });
@@ -72,10 +73,15 @@ export const ManualChatRow = memo(function ManualChatRow({
   }, [chat.workspaceKey]);
   const archive = useCallback(() => {
     if (archiving) return;
-    void archiveAgent({ serverId: chat.serverId, agentId: chat.agentId }).catch((error) =>
+    void archiveSidebarChat({
+      serverId: chat.serverId,
+      workspaceId: chat.workspaceId,
+      agentId: chat.agentId,
+      archiveAgent,
+    }).catch((error) =>
       toast.error(error instanceof Error ? error.message : "Unable to archive chat"),
     );
-  }, [archiveAgent, archiving, chat.agentId, chat.serverId, toast]);
+  }, [archiveAgent, archiving, chat.agentId, chat.serverId, chat.workspaceId, toast]);
   const showRename = useCallback(() => setRenameOpen(true), []);
   const closeRename = useCallback(() => setRenameOpen(false), []);
   const rename = useCallback(

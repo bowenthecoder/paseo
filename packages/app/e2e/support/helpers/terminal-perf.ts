@@ -20,7 +20,10 @@ export async function getTerminalBufferText(page: Page): Promise<string> {
           buffer: {
             active: {
               length: number;
-              getLine: (i: number) => { translateToString: (trim: boolean) => string } | null;
+              getLine: (i: number) => {
+                isWrapped: boolean;
+                translateToString: (trim: boolean) => string;
+              } | null;
             };
           };
           onWriteParsed: (cb: () => void) => { dispose: () => void };
@@ -35,7 +38,13 @@ export async function getTerminalBufferText(page: Page): Promise<string> {
     for (let i = 0; i < buf.length; i++) {
       const line = buf.getLine(i);
       if (line) {
-        lines.push(line.translateToString(true));
+        // A narrower side panel wraps long paths without adding a terminal newline.
+        const text = line.translateToString(!buf.getLine(i + 1)?.isWrapped);
+        if (line.isWrapped && lines.length > 0) {
+          lines[lines.length - 1] += text;
+        } else {
+          lines.push(text);
+        }
       }
     }
     return lines.join("\n");
@@ -82,7 +91,7 @@ export async function navigateToTerminal(
   // Its presence is the user-visible proof that workspace and terminal state have hydrated.
   // The tab reconciliation effect also auto-creates terminal tabs once hydration completes,
   // so we give it enough time for the full workspace hydration + tab creation cycle.
-  const terminalTab = page.locator(`[data-testid="workspace-tab-terminal_${input.terminalId}"]`);
+  const terminalTab = page.locator(`[data-testid="workspace-panel-terminal_${input.terminalId}"]`);
   await terminalTab.waitFor({ state: "visible", timeout: 30_000 });
   await terminalTab.click();
 

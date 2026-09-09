@@ -9,7 +9,7 @@ import { buildEffectiveBindings, resolveKeyboardShortcut } from "../../keyboard/
 describe("buildBrowserKeyboardPolicy", () => {
   it("publishes only chord starts while no browser chord is pending", () => {
     const bindings = buildEffectiveBindings({
-      "workspace-tab-new-ctrl-t-non-mac": "Ctrl+Y",
+      "workspace-tab-target-browser-ctrl-shift-b-non-mac": "Ctrl+Y",
       "workspace-terminal-new-ctrl-shift-t-non-mac": "Ctrl+F12 Ctrl+F11",
     });
 
@@ -121,7 +121,7 @@ describe("buildBrowserKeyboardPolicy", () => {
 
   it("publishes Mod bindings for the current shortcut platform", () => {
     const bindings = buildEffectiveBindings({
-      "workspace-tab-new-cmd-t-mac": "Mod+Y",
+      "workspace-tab-target-browser-cmd-shift-b-mac": "Mod+Y",
     });
 
     expect(
@@ -176,20 +176,6 @@ describe("buildBrowserKeyboardPolicy", () => {
         shift: false,
       });
     }
-  });
-
-  it("marks editable-only exclusions for enforcement inside the guest", () => {
-    const bindings = buildEffectiveBindings({});
-    const policy = buildBrowserKeyboardPolicy({ bindings, isMac: true, isDesktop: true });
-
-    expect(policy.prefixes).toContainEqual({
-      alt: false,
-      code: "ArrowLeft",
-      control: false,
-      editable: false,
-      meta: true,
-      shift: true,
-    });
   });
 
   it("does not publish plain browser keys", () => {

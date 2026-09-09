@@ -30,7 +30,6 @@ export type SendBehavior = ActiveTurnBehavior | "queue";
 export type ReleaseChannel = "stable" | "beta";
 export type ServiceUrlBehavior = "ask" | "in-app" | "external";
 export type WorkspaceTitleSource = "title" | "branch";
-export type PullRequestOpenLocation = "main" | "side" | "explorer";
 /** What a sidebar workspace row shows in the space to the right of its title. */
 export type SidebarWorkspaceTrailing = "diff" | "timestamp" | "none";
 export type ToolCallDetailLevel = "overview" | "detailed";
@@ -86,26 +85,7 @@ export interface AppSettings {
   toolCallDetailLevel: ToolCallDetailLevel;
   chatOutlineEnabled: boolean;
   vimKeybindings: boolean;
-  /** Desktop-only preferences for implicit opens into the ordinary side pane. */
-  openInSidePane: OpenInSidePanePreferences;
-  pullRequestOpenLocation: PullRequestOpenLocation;
 }
-
-export interface OpenInSidePanePreferences {
-  explorerFiles: boolean;
-  diffs: boolean;
-  chatFiles: boolean;
-  diffFiles: boolean;
-  subagents: boolean;
-}
-
-export const DEFAULT_OPEN_IN_SIDE_PANE_PREFERENCES: OpenInSidePanePreferences = {
-  explorerFiles: false,
-  diffs: false,
-  chatFiles: true,
-  diffFiles: false,
-  subagents: false,
-};
 
 export interface Settings extends AppSettings {
   manageBuiltInDaemon: boolean;
@@ -134,8 +114,6 @@ export const DEFAULT_CLIENT_SETTINGS: AppSettings = {
   toolCallDetailLevel: "detailed",
   chatOutlineEnabled: true,
   vimKeybindings: false,
-  openInSidePane: DEFAULT_OPEN_IN_SIDE_PANE_PREFERENCES,
-  pullRequestOpenLocation: "explorer",
 };
 
 export const DEFAULT_APP_SETTINGS: Settings = {
@@ -228,28 +206,9 @@ const StoredAppSettingsSchema = z
     compactToolCalls: z.boolean().optional().catch(undefined),
     chatOutlineEnabled: z.boolean().catch(true),
     vimKeybindings: z.boolean().catch(false),
-    openInSidePane: z
-      .object({
-        explorerFiles: z.boolean().catch(false),
-        diffs: z.boolean().optional(),
-        // COMPAT(diffDestinationPreference): legacy split preferences, remove after 2027-02-26.
-        explorerChanges: z.boolean().optional(),
-        changesLinks: z.boolean().optional(),
-        chatFiles: z.boolean().catch(DEFAULT_OPEN_IN_SIDE_PANE_PREFERENCES.chatFiles),
-        diffFiles: z.boolean().catch(false),
-        subagents: z.boolean().catch(false),
-        // COMPAT(pullRequestOpenLocation): legacy side-pane toggle, remove after 2027-02-26.
-        pullRequests: z.boolean().optional(),
-      })
-      .transform(({ explorerChanges, changesLinks, pullRequests, ...preferences }) => ({
-        ...preferences,
-        diffs: preferences.diffs ?? explorerChanges ?? changesLinks ?? false,
-        legacyPullRequestsInSidePane: pullRequests,
-      }))
-      .catch({
-        ...DEFAULT_OPEN_IN_SIDE_PANE_PREFERENCES,
-        legacyPullRequestsInSidePane: undefined,
-      }),
+    // COMPAT(singleChatLayout): destination preferences for a split layout that no longer
+    // exists. Accepted and dropped so an existing blob still parses; remove after 2027-09-08.
+    openInSidePane: z.unknown().optional(),
     pullRequestOpenLocation: z.enum(["main", "side", "explorer"]).optional(),
     // COMPAT(explorerSidebarRouting): replaced by source-specific side-pane preferences in v0.6.
     openSupportingTabsInSidePanel: z.boolean().optional().catch(undefined),
@@ -258,7 +217,11 @@ const StoredAppSettingsSchema = z
     releaseChannel: z.enum(["stable", "beta"]).optional().catch(undefined),
   })
   .transform((stored) => {
-    const { legacyPullRequestsInSidePane, ...openInSidePane } = stored.openInSidePane;
+    const {
+      openInSidePane: _openInSidePane,
+      pullRequestOpenLocation: _pullRequestOpenLocation,
+      ...rest
+    } = stored;
     const needsWrite =
       (stored.uiBaseFontSize === undefined && stored.uiFontSize !== undefined) ||
       stored.contentFontSize === undefined;
@@ -275,10 +238,7 @@ const StoredAppSettingsSchema = z
     const toolCallDetailLevel =
       stored.toolCallDetailLevel ?? (stored.compactToolCalls ? "overview" : "detailed");
     return {
-      ...stored,
-      openInSidePane,
-      pullRequestOpenLocation:
-        stored.pullRequestOpenLocation ?? (legacyPullRequestsInSidePane ? "side" : "explorer"),
+      ...rest,
       uiBaseFontSize,
       contentFontSize: stored.contentFontSize ?? uiBaseFontSize,
       sidebarChecksDisplay,

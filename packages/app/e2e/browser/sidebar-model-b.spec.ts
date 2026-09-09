@@ -7,7 +7,7 @@ import { getServerId } from "../support/helpers/server-id";
 import { projectEquivalenceViewKey } from "../support/helpers/project-view-key";
 import { selectSidebarStatusGrouping } from "../support/helpers/sidebar";
 import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
-import { getVisibleWorkspaceAgentTabIds } from "../support/helpers/workspace-tabs";
+import { getVisibleWorkspaceAgentPanelIds } from "../support/helpers/workspace-tabs";
 
 // Model B sidebar shape: every project — git or non-git, single- or
 // multi-workspace — renders as the same expandable parent, the deepest sidebar
@@ -96,12 +96,15 @@ test.describe("Model B sidebar shape", () => {
     try {
       // Open the workspace and materialize both an agent tab and a terminal tab.
       await gotoWorkspace(page, mock.workspaceId);
-      const agentTabs = await getVisibleWorkspaceAgentTabIds(page);
-      expect(agentTabs).toContain(`workspace-tab-agent_${mock.agentId}`);
+      const agentTabs = await getVisibleWorkspaceAgentPanelIds(page);
+      expect(agentTabs).toContain(`workspace-panel-agent_${mock.agentId}`);
 
       await clickNewTerminal(page);
       await expect(
-        page.locator('[data-testid^="workspace-tab-terminal_"]').filter({ visible: true }).first(),
+        page
+          .locator('[data-testid^="workspace-panel-terminal_"]')
+          .filter({ visible: true })
+          .first(),
       ).toBeVisible({ timeout: 30_000 });
 
       // The deepest level inside the sidebar is the workspace row: no tab,

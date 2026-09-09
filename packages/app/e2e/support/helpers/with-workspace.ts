@@ -1,14 +1,12 @@
 import { execSync } from "node:child_process";
 import path from "node:path";
 import type { Page } from "@playwright/test";
-import { waitForTabBar } from "./launcher";
-import { selectWorkspaceInSidebar } from "./sidebar";
+import { buildHostWorkspaceRoute } from "../../../src/utils/host-routes";
+import { waitForChatSurface } from "./launcher";
+import { expectAppRoute } from "./route-assertions";
+import { getServerId } from "./server-id";
 import { createTempGitRepo, resolveTempRoot } from "./workspace";
-import {
-  connectWorkspaceSetupClient,
-  openHomeWithProject,
-  type WorkspaceSetupDaemonClient,
-} from "./workspace-setup";
+import { connectWorkspaceSetupClient, type WorkspaceSetupDaemonClient } from "./workspace-setup";
 
 export interface CreatedWorkspace {
   workspaceId: string;
@@ -60,7 +58,7 @@ export function createWithWorkspace(page: Page): WithWorkspaceHandle {
         { cwd: repo.path, stdio: "ignore" },
       );
       worktrees.push({ repoPath: repo.path, worktreePath: workspacePath });
-      // Register the parent project so the sidebar lists it before we navigate.
+      // Keep the parent project registered for worktree ownership and cleanup.
       const added = await client.addProject(repo.path);
       if (!added.project) {
         throw new Error(added.error ?? `Failed to add project ${repo.path}`);
@@ -81,9 +79,12 @@ export function createWithWorkspace(page: Page): WithWorkspaceHandle {
       workspaceId,
       repoPath: workspacePath,
       navigateTo: async () => {
-        await openHomeWithProject(page, repo.path);
-        await selectWorkspaceInSidebar(page, workspaceId);
-        await waitForTabBar(page);
+        // Empty workspaces have no row in manual chat groups. Their direct route
+        // still applies the app's saved layout and normal setup/default view.
+        const route = buildHostWorkspaceRoute(getServerId(), workspaceId);
+        await page.goto(route);
+        await expectAppRoute(page, route, { timeout: 30_000 });
+        await waitForChatSurface(page);
       },
     };
   };

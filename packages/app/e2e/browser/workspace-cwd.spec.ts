@@ -65,9 +65,9 @@ test.describe("Workspace cwd correctness", () => {
         timeout: 30_000,
       });
 
-      await expect(page.locator('[data-testid^="workspace-tab-agent_"]').first()).toBeVisible({
-        timeout: 30_000,
-      });
+      await expect(page.getByTestId("workspace-chat-pane").filter({ visible: true })).toContainText(
+        message,
+      );
 
       await expect
         .poll(() => fetchSingleAgentForWorkspace(workspace), { timeout: 30_000 })

@@ -54,7 +54,7 @@ test("Markdown images and document links decode local URL paths once", async ({ 
     const preview = page.getByTestId("workspace-file-pane");
     await expect(preview).toContainText("PERCENT_FILENAME_OK", { timeout: 30_000 });
     await expect(preview).not.toContainText("ENOENT");
-    await expect(page.getByTestId(`workspace-tab-file_${documentPath}`).first()).toBeVisible();
+    await expect(page.getByTestId(`workspace-panel-file_${documentPath}`).first()).toBeVisible();
   } finally {
     await workspace.cleanup();
   }
@@ -98,6 +98,51 @@ test("an unavailable local image stays compact and Retry reads the recovered fil
     await expectAssistantImageRendered(page, image);
     await expect(error).toHaveCount(0);
   } finally {
+    await workspace.cleanup();
+  }
+});
+
+test("remembered image dimensions keep loading and failure rows compact on a later message", async ({
+  page,
+}) => {
+  const workspace = await seedWorkspace({ repoPrefix: "markdown-known-image-size-" });
+  let gate: Awaited<ReturnType<typeof delayFileReadResponse>> | undefined;
+  try {
+    const image = await createSmallAssistantPng(workspace, {
+      alt: "Original screenshot",
+      fileName: "remembered screenshot.png",
+    });
+    const imagePath = path.join(workspace.repoPath, image.relativePath);
+    const agent = await createSettledMockAgent(workspace, "Remember screenshot dimensions");
+    await workspace.client.sendAgentMessage(
+      agent.id,
+      `Emit settled assistant image Markdown: ![${image.alt}](${encodeURI(imagePath)})`,
+    );
+    await workspace.client.waitForFinish(agent.id, 30_000);
+    gate = await delayFileReadResponse(page, imagePath, { skipReads: 1 });
+    await openAssistantImageTimeline(page, agent);
+    await expectAssistantImageRendered(page, image);
+
+    await unlink(imagePath);
+    await workspace.client.sendAgentMessage(
+      agent.id,
+      `Emit settled assistant image Markdown: ![Later screenshot](${encodeURI(imagePath)})`,
+    );
+    await workspace.client.waitForFinish(agent.id, 30_000);
+    await gate.waitUntilHeld();
+    const loading = page.getByTestId("assistant-image-loading");
+    await expect(loading).toBeVisible();
+    expect((await loading.boundingBox())!.height).toBeLessThanOrEqual(40);
+    gate.release();
+    const error = page.getByTestId("assistant-image-error");
+    await expect(error).toContainText("Image unavailable");
+    expect((await error.boundingBox())!.height).toBeLessThanOrEqual(40);
+    await createSmallAssistantPng(workspace, { alt: image.alt, fileName: image.relativePath });
+    await error.getByRole("button", { name: "Retry", exact: true }).click();
+    await expectAssistantImageRendered(page, { ...image, alt: "Later screenshot" });
+    await expect(error).toHaveCount(0);
+  } finally {
+    gate?.release();
     await workspace.cleanup();
   }
 });

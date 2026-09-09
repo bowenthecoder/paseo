@@ -39,14 +39,10 @@ function source(gitActions: GitActions): {
         newAgent: "New agent",
         newTerminal: "New terminal",
         newBrowser: "New browser",
-        splitRight: "Split pane right",
-        splitDown: "Split pane down",
         changes: "Changes",
         files: "Files",
         pullRequest: "Pull request",
-        openPanel: (name, placement) => `Open ${name} ${placement}`,
-        previousTab: "Previous tab",
-        nextTab: "Next tab",
+        openPanel: (name) => `Open ${name}`,
         closeCurrentTab: "Close current tab",
         renameTab: "Rename",
         reloadAgent: "Reload agent",
@@ -54,18 +50,6 @@ function source(gitActions: GitActions): {
         copyAgentId: "Copy agent id",
         copyTerminalId: "Copy terminal id",
         copyFilePath: "Copy file path",
-        closeTabsLeft: "Close tabs left",
-        closeTabsRight: "Close tabs right",
-        closeOtherTabs: "Close other tabs",
-        focusPaneLeft: "Focus pane left",
-        focusPaneRight: "Focus pane right",
-        focusPaneUp: "Focus pane up",
-        focusPaneDown: "Focus pane down",
-        moveTabLeft: "Move tab left",
-        moveTabRight: "Move tab right",
-        moveTabUp: "Move tab up",
-        moveTabDown: "Move tab down",
-        closePane: "Close pane",
         toggleFocusMode: "Toggle focus mode",
         toggleExplorerSidebar: "Toggle Explorer sidebar",
         rename: "Rename workspace",
@@ -79,15 +63,12 @@ function source(gitActions: GitActions): {
       icons: {},
       shortcuts: {},
       capabilities: {
-        canSplitPanes: true,
         canOpenBrowserTabs: true,
         isGit: false,
         canPin: false,
         canShowSetup: false,
       },
       activeTabKind: null,
-      activeTabIndex: -1,
-      activeTabCount: 0,
       currentBranch: null,
       isPinned: false,
       labelCatalog: null,
@@ -146,7 +127,7 @@ describe("workspace command center contributions", () => {
     expect(contributions.filter((item) => item.id === "git:pull")).toHaveLength(1);
   });
 
-  it("orders New agent before Git and keeps terminal, browser, and splits search-only", () => {
+  it("orders New agent before Git and keeps terminal and browser search-only", () => {
     const fixture = source({
       primary: gitAction("commit", "Commit"),
       secondary: [],
@@ -158,14 +139,7 @@ describe("workspace command center contributions", () => {
     expect(
       contributions
         .filter((item) =>
-          [
-            "tab:new-agent",
-            "git:commit",
-            "tab:new-terminal",
-            "tab:new-browser",
-            "pane:split-right",
-            "pane:split-down",
-          ].includes(item.id),
+          ["tab:new-agent", "git:commit", "tab:new-terminal", "tab:new-browser"].includes(item.id),
         )
         .map(({ id, visibility }) => ({ id, visibility })),
     ).toEqual([
@@ -173,15 +147,12 @@ describe("workspace command center contributions", () => {
       { id: "git:commit", visibility: "always" },
       { id: "tab:new-terminal", visibility: "query" },
       { id: "tab:new-browser", visibility: "query" },
-      { id: "pane:split-right", visibility: "query" },
-      { id: "pane:split-down", visibility: "query" },
     ]);
   });
 
-  it("omits browser and split actions when their existing capabilities are unavailable", () => {
+  it("omits browser actions when the host cannot open browser tabs", () => {
     const fixture = source({ primary: null, secondary: [], menu: [] });
     fixture.value.capabilities = {
-      canSplitPanes: false,
       canOpenBrowserTabs: false,
       isGit: false,
       canPin: false,
@@ -193,12 +164,11 @@ describe("workspace command center contributions", () => {
     expect(contributions.some((item) => item.id === "tab:new-agent")).toBe(true);
     expect(contributions.some((item) => item.id === "tab:new-terminal")).toBe(true);
     expect(contributions.some((item) => item.id === "tab:new-browser")).toBe(false);
-    expect(contributions.some((item) => item.id.startsWith("pane:"))).toBe(false);
     expect(contributions.some((item) => item.id === "workspace:rename")).toBe(true);
     expect(contributions.some((item) => item.id === "workspace:copy-path")).toBe(true);
   });
 
-  it("dispatches every tab and pane command to the workspace scope", () => {
+  it("dispatches every tab command to the workspace scope", () => {
     const fixture = source({ primary: null, secondary: [], menu: [] });
     const contributions = buildWorkspaceCommandCenterContributions(fixture.value);
 
@@ -223,8 +193,6 @@ describe("workspace command center contributions", () => {
     expect(contributions.some((item) => item.id === "tab:new-agent")).toBe(true);
     expect(contributions.some((item) => item.id === "tab:new-terminal")).toBe(true);
     expect(contributions.some((item) => item.id === "tab:new-browser")).toBe(true);
-    expect(contributions.some((item) => item.id === "pane:split-right")).toBe(true);
-    expect(contributions.some((item) => item.id === "pane:split-down")).toBe(true);
     expect(contributions.some((item) => item.id.startsWith("git:"))).toBe(false);
   });
 
@@ -318,7 +286,6 @@ describe("workspace command center contributions", () => {
   // root set, where they would silently no-op off a workspace route.
   it("builds the Explorer sidebar and focus toggles in the workspace set", () => {
     const fixture = source({ primary: null, secondary: [], menu: [] });
-    fixture.value.capabilities.canSplitPanes = false;
     const contributions = buildWorkspaceCommandCenterContributions(fixture.value);
 
     contributions.find((item) => item.id === "workspace:toggle-explorer-sidebar")?.run();
@@ -331,22 +298,6 @@ describe("workspace command center contributions", () => {
     for (const contribution of contributions) {
       expect(contribution.group).toBe("workspace");
     }
-  });
-
-  // `buildPaneContributions` dispatches this same action as `pane:focus-mode-toggle` once split
-  // panes are available, so the standalone entry must step aside there — otherwise the palette
-  // lists "Toggle focus mode" twice for the one `workspace.focus.toggle` action.
-  it("omits the standalone focus toggle when the pane set already covers it", () => {
-    const fixture = source({ primary: null, secondary: [], menu: [] });
-    fixture.value.capabilities.canSplitPanes = true;
-    const contributions = buildWorkspaceCommandCenterContributions(fixture.value);
-
-    const focusToggles = contributions.filter(
-      (item) =>
-        item.presentation.kind === "action" && item.presentation.title === "Toggle focus mode",
-    );
-    expect(focusToggles).toHaveLength(1);
-    expect(focusToggles[0]?.id).toBe("pane:focus-mode-toggle");
   });
 
   it("omits the labels group when the catalog hasn't loaded", () => {

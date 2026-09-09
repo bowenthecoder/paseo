@@ -70,7 +70,7 @@ function expectedAttentionReason(state: HookActivityState): "finished" | "needs_
 }
 
 function terminalTab(page: Page, terminalId: string) {
-  return page.getByTestId(`workspace-tab-terminal_${terminalId}`).first();
+  return page.getByTestId(`workspace-side-panel-view-terminal_${terminalId}`).first();
 }
 
 async function expectTerminalTabStatus(
@@ -78,11 +78,9 @@ async function expectTerminalTabStatus(
   terminalId: string,
   status: TabStatusBucket,
 ): Promise<void> {
-  await expect(
-    terminalTab(page, terminalId).locator(`[data-status-bucket="${status}"]`),
-  ).toBeVisible({
-    timeout: 15_000,
-  });
+  const view = terminalTab(page, terminalId);
+  await expect(view).toBeVisible({ timeout: 15_000 });
+  await expect(view).toHaveAttribute("data-status-bucket", status, { timeout: 15_000 });
 }
 
 async function focusTerminalTab(page: Page, terminalId: string): Promise<void> {
