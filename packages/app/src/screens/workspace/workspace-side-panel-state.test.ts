@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const storage = vi.hoisted(() => new Map<string, string>());
+
 vi.mock("@react-native-async-storage/async-storage", () => {
-  const storage = new Map<string, string>();
   return {
     default: {
       getItem: vi.fn(async (key: string) => storage.get(key) ?? null),
@@ -54,13 +55,17 @@ function isSidePanelOpen(store: Store): boolean {
 describe("workspace side panel", () => {
   let store: Store;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    storage.clear();
     store = createWorkspaceLayoutStore();
+    await store.persist.rehydrate();
+    expect(store.getState().layoutByWorkspace).toEqual({});
     store.getState().openTab({
       workspaceKey: WORKSPACE,
       target: { kind: "agent", agentId: "agent-1" },
       intent: "reveal",
     });
+    expect(layoutOf(store).focusedPaneId).toBe(DEFAULT_PANE_ID);
   });
 
   it("keeps the chat in the chat pane and puts a terminal in the side panel", () => {

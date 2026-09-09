@@ -15,8 +15,10 @@ integration worktrees. The installed application and production daemon are prese
   default account's keychain entry. Unknown usage and credit values remain unknown.
   Configuration is resolved after delayed probes, and completed batches revalidate
   account generations before returning previously collected usage.
-  Custom aliases receive account controls when delayed discovery completes; toggling
-  an account preserves its command, label and environment. Failed initial account
+  Custom aliases receive account controls when delayed discovery completes. Toggling
+  an account restores every matching provider and preserves each provider's full
+  configuration, including inherited environment and conventional profile settings.
+  Failed initial account
   discovery remains retryable with Refresh in the model picker.
 - Relinking an account clears previous-account numbers in plugin, native server and
   application caches. Superseded requests cannot replace the current account's
@@ -58,6 +60,9 @@ Real browser and isolated-daemon checks passed for:
   displaying exact stdout in CLI tool logs, then restoring it after reload.
 - Installed subscriptions CLI/tool-log toggles; failed/canceled Overview output at
   1440 and 390 pixels; keyboard sidebar actions and provider removal.
+- Delayed real account discovery for an arbitrary Codex alias, with the usage tooltip
+  identifying account 2. Both account-2 provider configurations survive off/on intact,
+  and the alias completes another native reply after re-enabling and reload.
 - Continuous fast diff scrolling, including wrapped and split layouts, with bounded
   canvases and React updates after the live-geometry correction.
 

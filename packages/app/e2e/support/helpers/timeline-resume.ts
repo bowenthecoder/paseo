@@ -56,6 +56,16 @@ export function expectResumeOverflowFallsBackToOneTail(
   expect(gate.getTimelineRequestCount("tail") - before.tail).toBe(1);
 }
 
+// A timeline that left the hot subscription set has no trusted cursor left, so revisiting it
+// fetches one authoritative tail without attempting a resume first.
+export function expectEvictedTimelineRefetchesOneTail(
+  gate: DaemonWebSocketGate,
+  before: TimelineRequestCounts,
+): void {
+  expect(gate.getTimelineRequestCount("after") - before.after).toBe(0);
+  expect(gate.getTimelineRequestCount("tail") - before.tail).toBe(1);
+}
+
 export async function disconnectViewedTimeline(
   page: Page,
   gate: DaemonWebSocketGate,

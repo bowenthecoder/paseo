@@ -14,6 +14,8 @@ const alias = "work-codex";
 const customLabel = "Work Codex B review";
 const model = "gpt-5.6-sol";
 let expectedEnv: Record<string, string>;
+const accountProviderIds = ["codex-b", alias];
+const expectedProfiles = new Map<string, unknown>();
 type SubscriptionReviewClient = Pick<
   DaemonClient,
   | "connect"
@@ -47,6 +49,18 @@ const slotMappingsSchema = z.object({
 });
 function mapsAliasToCodexB(slot: z.infer<typeof slotMappingsSchema>["slots"][number]): boolean {
   return slot.id === "codex-b" && slot.providerIds?.includes(alias) === true;
+}
+function settingsWithoutEnabled(profile: unknown): Record<string, unknown> | null {
+  const parsed = z.record(z.string(), z.unknown()).safeParse(profile);
+  if (!parsed.success) return null;
+  delete parsed.data.enabled;
+  return parsed.data;
+}
+
+function expectedProviderStates(enabled: boolean) {
+  return Object.fromEntries(
+    accountProviderIds.map((id) => [id, { exists: true, settingsPreserved: true, enabled }]),
+  );
 }
 const connectSubscriptionClient = () =>
   connectDaemonClient<SubscriptionReviewClient>({ clientIdPrefix: "subscriptions-custom-alias" });
@@ -94,6 +108,11 @@ test.beforeAll(async () => {
         },
       },
     });
+    const configured = (await client.getDaemonConfig()).config.providers;
+    for (const id of accountProviderIds) {
+      if (!configured[id]) throw new Error(`Expected configured account provider: ${id}`);
+      expectedProfiles.set(id, configured[id]);
+    }
     await client.installDirectoryPlugin(pluginPath);
   } finally {
     await client.close();
@@ -188,7 +207,10 @@ test("arbitrary provider gains its B account pill after real slot discovery, pre
     await expect(usage).toBeVisible({ timeout: 60_000 });
     await expect(usage).toContainText(/\d+\s*%/);
     await usage.hover();
-    await expect(page.getByText("Codex 2", { exact: true }).last()).toBeVisible();
+    const usagePopup = page
+      .getByText("Click the usage badge to refresh", { exact: true })
+      .locator("..");
+    await expect(usagePopup.getByText("Codex 2", { exact: true })).toBeVisible();
     await page.mouse.move(0, 0);
     await openModelPicker(page);
     await expect(page.getByTestId("model-picker-usage")).toContainText("Codex 2", {
@@ -209,35 +231,44 @@ test("arbitrary provider gains its B account pill after real slot discovery, pre
     expect(current?.provider).toBe(alias);
     expect(current?.model).toBe(model);
     const preservedConfig = async () => {
-      const provider = (await client.getDaemonConfig()).config.providers[alias];
-      return {
-        exists: Boolean(provider),
-        label: provider?.label,
-        envPreserved: isDeepStrictEqual(provider?.env, expectedEnv),
-        enabled: provider?.enabled !== false,
-      };
+      const providers = (await client.getDaemonConfig()).config.providers;
+      return Object.fromEntries(
+        accountProviderIds.map((id) => [
+          id,
+          {
+            exists: providers[id] !== undefined,
+            settingsPreserved: isDeepStrictEqual(
+              settingsWithoutEnabled(providers[id]),
+              settingsWithoutEnabled(expectedProfiles.get(id)),
+            ),
+            enabled: providers[id]?.enabled !== false,
+          },
+        ]),
+      );
     };
-    await expect
-      .poll(preservedConfig)
-      .toEqual({ exists: true, label: customLabel, envPreserved: true, enabled: true });
+    await expect.poll(preservedConfig).toEqual(expectedProviderStates(true));
     await client.invokePluginRpc("subscriptions", "subscriptions.set-enabled", {
       slotId: "codex-b",
       enabled: false,
     });
-    await expect
-      .poll(preservedConfig)
-      .toEqual({ exists: true, label: customLabel, envPreserved: true, enabled: false });
+    await expect.poll(preservedConfig).toEqual(expectedProviderStates(false));
     await client.invokePluginRpc("subscriptions", "subscriptions.set-enabled", {
       slotId: "codex-b",
       enabled: true,
     });
-    await expect
-      .poll(preservedConfig)
-      .toEqual({ exists: true, label: customLabel, envPreserved: true, enabled: true });
+    await expect.poll(preservedConfig).toEqual(expectedProviderStates(true));
     await page.reload();
     await expect(pill).toContainText("Codex 2", { timeout: 60_000 });
     await expect(panel.getByText("PASEO_CUSTOM_ALIAS_B_OK", { exact: true }).last()).toBeVisible();
     await expect(usage).toContainText(/\d+\s*%/);
+    await composer.fill(
+      "Reply with exactly PASEO_CUSTOM_ALIAS_B_REENABLED. Do not use tools, read files, or change anything.",
+    );
+    await composer.press("Enter");
+    await expect(
+      panel.getByText("PASEO_CUSTOM_ALIAS_B_REENABLED", { exact: true }).last(),
+    ).toBeVisible({ timeout: 120_000 });
+    await expect.poll(preservedConfig).toEqual(expectedProviderStates(true));
     await page.screenshot({ path: testInfo.outputPath("custom-alias-reply-restored.png") });
     await testInfo.attach("custom-alias-evidence", {
       contentType: "application/json",
@@ -251,6 +282,8 @@ test("arbitrary provider gains its B account pill after real slot discovery, pre
           aliasWasMappedToB,
           nativeReply: true,
           customEnvironmentPreserved: true,
+          restoredProviderIds: accountProviderIds,
+          fullProviderSettingsPreserved: true,
           isolatedHome: process.env.E2E_PASEO_HOME,
         },
         null,
