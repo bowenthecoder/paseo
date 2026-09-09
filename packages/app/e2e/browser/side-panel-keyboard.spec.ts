@@ -35,6 +35,9 @@ test.describe("side panel keyboard", () => {
         timeout: 30_000,
       });
 
+      // Escape yields to the composer (interrupt) and to a focused terminal, so this is the
+      // case it owns: focus outside both, panel open.
+      await page.getByTestId("workspace-header-title").click();
       await page.keyboard.press("Escape");
       await expect(page.getByTestId("workspace-side-panel")).toHaveCount(0, { timeout: 15_000 });
     } finally {

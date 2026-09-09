@@ -402,7 +402,6 @@ function getOpenTabPlacement(
 ): {
   layout: WorkspaceLayout;
   placement: WorkspaceTabPlacement;
-  explorerSidebarPaneId: string | null;
 } {
   const layout = getWorkspaceLayout(state.layoutByWorkspace, workspaceKey);
   const explorerSidebarPaneId = EXPLORER_SIDEBAR_PANE_ID;
@@ -431,7 +430,6 @@ function getOpenTabPlacement(
   return {
     layout,
     placement: resolvedPlacement,
-    explorerSidebarPaneId,
   };
 }
 
@@ -524,7 +522,7 @@ export function createWorkspaceLayoutStore(
           }
           const focusedLayout = keepWorkspaceFocusOutOfExplorerSidebar(
             result.layout,
-            placement.explorerSidebarPaneId,
+            EXPLORER_SIDEBAR_PANE_ID,
             placement.layout.focusedPaneId,
           );
           // A terminal, tree or browser can only live in the side panel, so an explicit open
@@ -839,7 +837,6 @@ export function createWorkspaceLayoutStore(
             const explorerSidebarPaneId = EXPLORER_SIDEBAR_PANE_ID;
             const currentLayout = keepWorkspaceFocusOutOfExplorerSidebar(
               rawLayout,
-              explorerSidebarPaneId,
               rawLayout.focusedPaneId,
             );
             const nextState = reconcileWorkspaceTabs(
@@ -848,13 +845,11 @@ export function createWorkspaceLayoutStore(
                 pinnedAgentIds: state.pinnedAgentIdsByWorkspace[normalizedWorkspaceKey] ?? null,
                 pendingAgentIds: state.pendingAgentIdsByWorkspace[normalizedWorkspaceKey] ?? null,
                 hiddenAgentIds: state.hiddenAgentIdsByWorkspace[normalizedWorkspaceKey] ?? null,
-                explorerSidebarPaneId,
               },
               snapshot,
             );
             const nextLayout = keepWorkspaceFocusOutOfExplorerSidebar(
               nextState.layout,
-              explorerSidebarPaneId,
               currentLayout.focusedPaneId,
             );
             if (nextLayout === rawLayout) {
@@ -1187,7 +1182,6 @@ export function createWorkspaceLayoutStore(
           )) {
             layoutByWorkspace[workspaceKey] = restoreEmptyPanesInLayout(
               flattenLayoutToSingleChat(stripEphemeralTabsFromLayout(persistedLayout)),
-              EXPLORER_SIDEBAR_PANE_ID,
             );
           }
           return {

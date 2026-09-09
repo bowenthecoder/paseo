@@ -111,7 +111,6 @@ interface OpenTabInLayoutInput {
   now: number;
   placement: WorkspaceTabPlacement;
   /** Required so a new caller cannot silently opt out of Explorer placement rules. */
-  explorerSidebarPaneId: string | null;
 }
 
 interface CreateTabInLayoutInput extends OpenTabInLayoutInput {
@@ -176,7 +175,6 @@ export interface WorkspaceTabReconcileState {
   pinnedAgentIds?: ReadonlySet<string> | null;
   pendingAgentIds?: ReadonlySet<string> | null;
   hiddenAgentIds?: ReadonlySet<string> | null;
-  explorerSidebarPaneId: string | null;
 }
 
 export interface WorkspaceTabSnapshot {
@@ -838,7 +836,6 @@ export function stripEphemeralTabsFromLayout(layout: WorkspaceLayout): Workspace
 
 function restoreEmptyPanesInNode(
   node: SplitNodeInternal,
-  explorerSidebarPaneId: string | null,
 ): SplitNodeInternal {
   if (node.kind === "pane") {
     return node.pane.tabs.length > 0
@@ -846,7 +843,7 @@ function restoreEmptyPanesInNode(
       : createPaneNode({
           id: node.pane.id,
           tabs:
-            node.pane.id === explorerSidebarPaneId
+            node.pane.id === EXPLORER_SIDEBAR_PANE_ID
               ? createDefaultExplorerSidebarTabs()
               : [createNewWorkspaceTab()],
           hidden: node.pane.hidden,
@@ -856,7 +853,7 @@ function restoreEmptyPanesInNode(
     id: node.group.id,
     direction: node.group.direction,
     children: node.group.children.map((child) =>
-      restoreEmptyPanesInNode(child, explorerSidebarPaneId),
+      restoreEmptyPanesInNode(child),
     ),
     sizes: node.group.sizes,
   });
@@ -864,12 +861,11 @@ function restoreEmptyPanesInNode(
 
 export function restoreEmptyPanesInLayout(
   layout: WorkspaceLayout,
-  explorerSidebarPaneId: string | null = null,
 ): WorkspaceLayout {
   const normalized = normalizeLayout(layout);
   return {
     ...normalized,
-    root: restoreEmptyPanesInNode(asInternalNode(normalized.root), explorerSidebarPaneId),
+    root: restoreEmptyPanesInNode(asInternalNode(normalized.root)),
   };
 }
 
@@ -1013,12 +1009,11 @@ function resolvePlacementPane(input: {
   layout: { root: SplitNodeInternal; focusedPaneId: string | null };
   target: WorkspaceTabTarget;
   placement: WorkspaceTabPlacement;
-  explorerSidebarPaneId: string | null;
 }): SplitPaneInternal | null {
   const supportsTarget = (pane: SplitPane) =>
     panelSupportsHost(
       input.target.kind,
-      pane.id === input.explorerSidebarPaneId ? "explorer" : "main",
+      pane.id === EXPLORER_SIDEBAR_PANE_ID ? "explorer" : "main",
     );
   const requestedCandidate =
     input.placement.mode === "pane" || input.placement.mode === "prefer"
@@ -1039,7 +1034,7 @@ function resolvePlacementPane(input: {
     return focusedPane as SplitPaneInternal;
   }
 
-  const hiddenExplorerPane = findPaneById(input.layout.root, input.explorerSidebarPaneId);
+  const hiddenExplorerPane = findPaneById(input.layout.root, EXPLORER_SIDEBAR_PANE_ID);
   return hiddenExplorerPane && supportsTarget(hiddenExplorerPane)
     ? (hiddenExplorerPane as SplitPaneInternal)
     : null;
@@ -1053,7 +1048,6 @@ function insertNewTabIntoPane(
     layout,
     target: input.target,
     placement: input.placement,
-    explorerSidebarPaneId: input.explorerSidebarPaneId,
   });
   if (!targetPane) {
     return null;
@@ -1727,7 +1721,6 @@ function isTerminalTab(
 function openEntityTabWithoutFocusing(input: {
   layout: WorkspaceLayout;
   target: WorkspaceTabTarget;
-  explorerSidebarPaneId: string | null;
 }): WorkspaceLayout {
   return (
     insertNewTabIntoPane({
@@ -1735,7 +1728,6 @@ function openEntityTabWithoutFocusing(input: {
       target: input.target,
       now: Date.now(),
       placement: AMBIENT_PLACEMENT,
-      explorerSidebarPaneId: input.explorerSidebarPaneId,
       createTabId: () => buildDeterministicWorkspaceTabId(input.target),
       focus: false,
     })?.layout ?? input.layout
@@ -1829,7 +1821,6 @@ function addMissingEntityTabs(input: {
   standaloneTerminalIds: Set<string>;
   hasActivePendingTerminalCreate: boolean;
   hasActivePendingDraftCreate: boolean;
-  explorerSidebarPaneId: string | null;
 }): WorkspaceLayout {
   const {
     autoOpenAgentIds,
@@ -1837,7 +1828,6 @@ function addMissingEntityTabs(input: {
     standaloneTerminalIds,
     hasActivePendingTerminalCreate,
     hasActivePendingDraftCreate,
-    explorerSidebarPaneId,
   } = input;
   let nextLayout = input.layout;
   const currentEntityTabs = collectAllTabs(nextLayout.root);
@@ -1859,7 +1849,6 @@ function addMissingEntityTabs(input: {
     nextLayout = openEntityTabWithoutFocusing({
       layout: nextLayout,
       target: { kind: "agent", agentId },
-      explorerSidebarPaneId,
     });
     currentAgentIds.add(agentId);
   }
@@ -1873,7 +1862,6 @@ function addMissingEntityTabs(input: {
       nextLayout = openEntityTabWithoutFocusing({
         layout: nextLayout,
         target: { kind: "terminal", terminalId },
-        explorerSidebarPaneId,
       });
       currentTerminalIds.add(terminalId);
     }
@@ -1886,7 +1874,6 @@ function seedDraftForEmptyWorkspace(input: {
   snapshot: WorkspaceTabSnapshot;
   activeAgentIds: Set<string>;
   knownTerminalIds: Set<string>;
-  explorerSidebarPaneId: string | null;
 }): WorkspaceLayout {
   const ready = input.snapshot.agentsHydrated && input.snapshot.terminalsHydrated;
   const creatingContent =
@@ -1894,8 +1881,8 @@ function seedDraftForEmptyWorkspace(input: {
     input.snapshot.hasActivePendingTerminalCreate === true;
   const hasWorkspaceEntities = input.activeAgentIds.size > 0 || input.knownTerminalIds.size > 0;
   const explorerTabIds = new Set(
-    input.explorerSidebarPaneId
-      ? (findPaneById(input.layout.root, input.explorerSidebarPaneId)?.tabIds ?? [])
+    EXPLORER_SIDEBAR_PANE_ID
+      ? (findPaneById(input.layout.root, EXPLORER_SIDEBAR_PANE_ID)?.tabIds ?? [])
       : [],
   );
   const hasContentTab = collectAllTabs(input.layout.root).some(
@@ -1912,7 +1899,6 @@ function seedDraftForEmptyWorkspace(input: {
       target: { kind: "draft", draftId },
       now: Date.now(),
       placement: FOCUSED_PANE_PLACEMENT,
-      explorerSidebarPaneId: input.explorerSidebarPaneId,
       createTabId: () => draftId,
     })?.layout ?? input.layout
   );
@@ -2003,7 +1989,6 @@ export function reconcileWorkspaceTabs(
     standaloneTerminalIds,
     hasActivePendingTerminalCreate: snapshot.hasActivePendingTerminalCreate ?? false,
     hasActivePendingDraftCreate: snapshot.hasActivePendingDraftCreate ?? false,
-    explorerSidebarPaneId: state.explorerSidebarPaneId,
   });
 
   nextLayout = seedDraftForEmptyWorkspace({
@@ -2011,7 +1996,6 @@ export function reconcileWorkspaceTabs(
     snapshot,
     activeAgentIds,
     knownTerminalIds,
-    explorerSidebarPaneId: state.explorerSidebarPaneId,
   });
 
   if (reconciledFocusedTabId) {

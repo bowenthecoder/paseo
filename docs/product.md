@@ -31,7 +31,7 @@ Each project opens as a workspace. For git projects, the default workspace is th
 
 A workspace is a flexible canvas:
 
-- Launch multiple agents side by side in split panes
+- Run one chat at a time per workspace, with terminals, diffs and the browser in a side panel
 - Open terminals alongside agents
 - Mix and match providers within the same workspace
 
@@ -78,4 +78,4 @@ Anyone who builds software:
 - Scheduled agents (cron-style triggers) via app, CLI, and MCP
 - Frequent releases (multiple per week)
 - Community contributions across packaging, providers, and bug fixes
-- Key UX: split panes, keybinding customization, workspace model, in-app browser
+- Key UX: single chat view with a side panel, keybinding customization, workspace model, in-app browser
