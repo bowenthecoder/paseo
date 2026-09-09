@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   PLAN_APPROVAL_ACTIONS,
@@ -51,8 +52,16 @@ describe("Grok plan approval extension", () => {
   });
 
   it("locates Grok's plan file for a session", () => {
+    // Joined with the platform separator: Windows runs Grok from its own home directory too.
     expect(grokPlanFilePath("/Users/bowen", "/var/folders/tmp/probe", "01a0-session")).toBe(
-      "/Users/bowen/.grok/sessions/%2Fvar%2Ffolders%2Ftmp%2Fprobe/01a0-session/plan.md",
+      path.join(
+        "/Users/bowen",
+        ".grok",
+        "sessions",
+        "%2Fvar%2Ffolders%2Ftmp%2Fprobe",
+        "01a0-session",
+        "plan.md",
+      ),
     );
   });
 
