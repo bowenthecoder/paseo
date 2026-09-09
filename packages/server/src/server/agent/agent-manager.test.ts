@@ -10921,6 +10921,82 @@ test("first accepted prompt names an empty-created chat once without delaying it
   }
 });
 
+test("legacy names that are only the raw first prompt get generated names, typed names stay", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-title-backfill-"));
+  const storage = new AgentStorage(join(workdir, "agents"), logger);
+  const testClient = new SessionRecordingAgentClient();
+  const manager = new AgentManager({
+    clients: { codex: testClient },
+    registry: storage,
+    logger,
+  });
+  const calls: Array<{ agentId: string; prompt: string; expectedTitle: string }> = [];
+  manager.setAgentTitleGenerationCallback((input) => {
+    calls.push({
+      agentId: input.agentId,
+      prompt: input.prompt,
+      expectedTitle: input.expectedTitle,
+    });
+  });
+  try {
+    const rawPromptChat = await manager.createAgent(
+      { provider: "codex", cwd: workdir, title: "Investigate order sync failures now" },
+      undefined,
+      { workspaceId: undefined },
+    );
+    await manager.runAgent(rawPromptChat.id, "Investigate order sync failures now");
+    const typedChat = await manager.createAgent(
+      { provider: "codex", cwd: workdir, title: "Sync bug" },
+      undefined,
+      { workspaceId: undefined },
+    );
+    await manager.runAgent(typedChat.id, "Investigate order sync failures now");
+    // The test provider never echoes prompts; deliver the first user message the way a real one does.
+    for (const session of testClient.sessions) {
+      session.pushEvent({
+        type: "timeline",
+        provider: "codex",
+        turnId: "active-turn-1",
+        item: { type: "user_message", text: "Investigate order sync failures now" },
+      });
+    }
+    // Both records predate provenance: no titleSource, nothing attempted.
+    for (const id of [rawPromptChat.id, typedChat.id]) {
+      const record = (await storage.get(id))!;
+      await storage.upsert({
+        ...record,
+        titleSource: undefined,
+        titleGenerationAttempted: undefined,
+      });
+    }
+
+    await expect(manager.backfillLegacyTitles()).resolves.toBe(1);
+    expect(calls).toEqual([
+      {
+        agentId: rawPromptChat.id,
+        prompt: "Investigate order sync failures now",
+        expectedTitle: "Investigate order sync failures now",
+      },
+    ]);
+    expect((await storage.get(rawPromptChat.id))?.titleSource).toBe("provisional");
+    expect((await storage.get(rawPromptChat.id))?.titleGenerationAttempted).toBe(true);
+    expect((await storage.get(typedChat.id))?.title).toBe("Sync bug");
+    expect((await storage.get(typedChat.id))?.titleSource).toBeUndefined();
+
+    // A second sweep finds nothing left to do, and the generated name lands normally.
+    await expect(manager.backfillLegacyTitles()).resolves.toBe(0);
+    await manager.setGeneratedTitle(
+      rawPromptChat.id,
+      "Investigate order sync failures now",
+      "Investigate order sync",
+    );
+    expect((await storage.get(rawPromptChat.id))?.title).toBe("Investigate order sync");
+  } finally {
+    await Promise.all(manager.listAgents().map((agent) => manager.closeAgent(agent.id)));
+    rmSync(workdir, { recursive: true, force: true });
+  }
+});
+
 test("title scheduling ignores injected and rename prompts and preserves explicit and legacy names", async () => {
   const workdir = mkdtempSync(join(tmpdir(), "agent-manager-title-eligibility-"));
   const storage = new AgentStorage(join(workdir, "agents"), logger);

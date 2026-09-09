@@ -160,6 +160,7 @@ export const en = {
     clientCommands: {
       archiveAgent: "Archive the current agent",
       freshDraft: "Archive this agent and start a fresh draft",
+      planMode: "Switch plan mode on or off for this agent",
     },
     github: {
       searching: "Searching...",
@@ -1855,6 +1856,11 @@ export const en = {
       one: "ran {{count}} command",
       other: "ran {{count}} commands",
     },
+    createdFiles: {
+      one: "created a file",
+      other: "created {{count}} files",
+    },
+    readFile: "read {{name}}",
     readFiles: {
       one: "read {{count}} file",
       other: "read {{count}} files",
@@ -1864,13 +1870,15 @@ export const en = {
       other: "searched {{count}} times",
     },
     otherTools: {
-      one: "used {{count}} other tool",
-      other: "used {{count}} other tools",
+      one: "used {{count}} tool",
+      other: "used {{count}} tools",
     },
     paseoCalls: {
       one: "called Paseo {{count}} time",
       other: "called Paseo {{count}} times",
     },
+    failedSuffix: "({{count}} failed)",
+    separator: ", ",
     and: "and",
   },
   renameModal: {

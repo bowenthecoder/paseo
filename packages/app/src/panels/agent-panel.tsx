@@ -109,6 +109,7 @@ import type { WorkspaceFileOpenRequest } from "@/workspace/file-open";
 import { deriveSidebarStateBucket } from "@/utils/sidebar-agent-state";
 import type { ClientSlashCommand } from "@/client-slash-commands";
 import { executeAgentClientCommand } from "@/client-slash-commands/execute";
+import { useToast } from "@/contexts/toast-context";
 
 interface ChatAgentStateShape {
   serverId: string | null;
@@ -1656,6 +1657,8 @@ function ActiveAgentComposer({
   const paneContext = usePaneContext();
   const { workspaceId } = paneContext;
   const { archiveAgent } = useArchiveAgent();
+  const runtimeClient = useHostRuntimeClient(serverId);
+  const toast = useToast();
   const workspaceAttachmentScopeKey = useWorkspaceAttachmentScopeKey({
     serverId,
     cwd,
@@ -1700,9 +1703,18 @@ function ActiveAgentComposer({
         pane: paneContext,
         archiveAgent,
         navigateToWorkspace,
+        setAgentMode: async (targetAgentId, modeId) => {
+          if (!runtimeClient) throw new Error("Daemon client unavailable");
+          await runtimeClient.setAgentMode(targetAgentId, modeId);
+        },
+        setAgentFeature: async (targetAgentId, featureId, value) => {
+          if (!runtimeClient) throw new Error("Daemon client unavailable");
+          await runtimeClient.setAgentFeature(targetAgentId, featureId, value);
+        },
+        notify: (message) => toast.show(message),
       });
     },
-    [agentId, archiveAgent, paneContext, serverId],
+    [agentId, archiveAgent, paneContext, runtimeClient, serverId, toast],
   );
 
   const inputAreaStyle = useMemo(

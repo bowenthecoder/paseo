@@ -19,6 +19,7 @@ import {
 import { AppState, useWindowDimensions, View } from "react-native";
 import { GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
+import { ChatDragRoot } from "@/components/sidebar/chat-drag";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { AppearanceProvider } from "@/appearance/provider";
@@ -28,12 +29,12 @@ import { CommandCenterProvider } from "@/command-center/provider";
 import { CommandCenterWorkspaceActions } from "@/command-center/workspace-registration";
 import { PluginCommandCenterActions } from "@/plugins/command-center/registration";
 import { AddProjectFlowHost } from "@/components/add-project-flow-host";
+import { AppearanceStyleBoundary } from "@/components/appearance-style-boundary";
 import { WorktreeSetupCalloutSource } from "@/components/worktree-setup-callout-source";
 import { DownloadToast } from "@/components/download-toast";
 import { QuittingOverlay } from "@/components/quitting-overlay";
 import { KeyboardShortcutsDialog } from "@/components/keyboard-shortcuts-dialog";
 import { AppDiagnosticHost } from "@/components/app-diagnostic-host";
-import { AppearanceStyleBoundary } from "@/components/appearance-style-boundary";
 import { LeftSidebar } from "@/components/left-sidebar";
 import { DesktopSidebarFrame } from "@/components/desktop-sidebar-frame";
 import { WindowSidebarMenuToggle } from "@/components/headers/menu-header";
@@ -69,7 +70,6 @@ import {
   resolveStartupNavigationReady,
   shouldRunStartupGiveUpTimer,
   startHostRuntimeBootstrap,
-  bindHostRuntimeAppState,
   type StartupBlocker,
 } from "@/navigation/host-runtime-bootstrap";
 import { registerWorkspaceRouteNavigationRef } from "@/navigation/workspace-route-navigation";
@@ -380,11 +380,6 @@ async function shouldStartBuiltInDaemon(): Promise<boolean> {
 function HostRuntimeBootstrapProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const store = getHostRuntimeStore();
-    return bindHostRuntimeAppState(store, AppState);
-  }, []);
-
-  useEffect(() => {
-    const store = getHostRuntimeStore();
     const daemonStartService = getDaemonStartService({ store });
     startHostRuntimeBootstrap({
       store,
@@ -555,82 +550,74 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
       keyboardShortcutsEnabled={keyboardShortcutsEnabled}
     />
   );
-  let themedSidebarChrome = sidebarChrome;
-  if (isWeb) {
-    themedSidebarChrome = <AppearanceStyleBoundary>{sidebarChrome}</AppearanceStyleBoundary>;
-  }
   const workspaceChrome = (
-    <View style={rowStyle}>
-      {!isCompactLayout ? (
-        <DesktopSidebarFrame
-          overlay={sidebarControl.overlay}
-          onClose={sidebarControl.close}
-          scopeRef={sidebarControl.overlayScopeRef}
-        >
-          <WindowChromeRegion corners={appChromeLayout.sidebarCorners}>
-            {themedSidebarChrome}
-          </WindowChromeRegion>
-        </DesktopSidebarFrame>
-      ) : null}
-      {usesCompactExplorerHost ? (
-        <CompactExplorerSidebarHost
-          enabled={chromeEnabled}
-          presentation={explorerSidebarPresentation === "dock" ? "dock" : "overlay"}
-        >
-          <WindowChromeRegion corners={chromeEnabled ? "both" : appChromeLayout.contentCorners}>
+    <ChatDragRoot>
+      <View style={rowStyle}>
+        {!isCompactLayout ? (
+          <DesktopSidebarFrame
+            overlay={sidebarControl.overlay}
+            onClose={sidebarControl.close}
+            scopeRef={sidebarControl.overlayScopeRef}
+          >
+            <WindowChromeRegion corners={appChromeLayout.sidebarCorners}>
+              {sidebarChrome}
+            </WindowChromeRegion>
+          </DesktopSidebarFrame>
+        ) : null}
+        {usesCompactExplorerHost ? (
+          <CompactExplorerSidebarHost
+            enabled={chromeEnabled}
+            presentation={explorerSidebarPresentation === "dock" ? "dock" : "overlay"}
+          >
+            <WindowChromeRegion corners={chromeEnabled ? "both" : appChromeLayout.contentCorners}>
+              <View style={flexStyle}>{children}</View>
+            </WindowChromeRegion>
+          </CompactExplorerSidebarHost>
+        ) : (
+          <WindowChromeRegion corners={appChromeLayout.contentCorners}>
             <View style={flexStyle}>{children}</View>
           </WindowChromeRegion>
-        </CompactExplorerSidebarHost>
-      ) : (
-        <WindowChromeRegion corners={appChromeLayout.contentCorners}>
-          <View style={flexStyle}>{children}</View>
-        </WindowChromeRegion>
-      )}
-    </View>
+        )}
+      </View>
+    </ChatDragRoot>
   );
 
-  // Native panel gesture hosts outlive appearance keys, like native navigators.
-  // Their tracked styles update in place; web numeric styles still need remounting.
   const surface = (
     <View style={layoutStyles.surfaceFill}>
       {workspaceChrome}
-      <AppearanceStyleBoundary>
-        {!isCompactLayout && appChromeLayout.sidebarToggleOwner === "window" ? (
-          <WindowChromeRegion corners="top-left">
-            <WindowChromeSafeArea
-              placement="inline"
-              horizontalPadding={WINDOW_SIDEBAR_TOGGLE_HORIZONTAL_PADDING}
-              pointerEvents="box-none"
-              style={layoutStyles.windowSidebarToggle}
-            >
-              <WindowSidebarMenuToggle />
-            </WindowChromeSafeArea>
-          </WindowChromeRegion>
-        ) : null}
-        <DesktopWindowControls />
-        <FloatingPanelPortalHost />
-      </AppearanceStyleBoundary>
-      {isCompactLayout ? themedSidebarChrome : null}
-      <AppearanceStyleBoundary>
-        <DownloadToast />
-        <RosettaCalloutSource />
-        <UpdateCalloutSource />
-        <LegacyAgentSkillsMigration />
-        <WorktreeSetupCalloutSource />
-        <CommandCenterRootActions />
-        <CommandCenterWorkspaceActions />
-        <PluginCommandCenterActions />
-        <WorkspacePinShortcutHandler />
-        <WorkspaceRenameHost />
-        <CommandCenter />
-        <AddProjectFlowHost />
-        <HostChooserModal />
-        <ProviderSettingsHost />
-        <WorkspaceSetupDialog />
-        <KeyboardShortcutsDialog />
-        <AppDiagnosticHost />
-        <QuittingOverlay />
-      </AppearanceStyleBoundary>
+      {!isCompactLayout && appChromeLayout.sidebarToggleOwner === "window" ? (
+        <WindowChromeRegion corners="top-left">
+          <WindowChromeSafeArea
+            placement="inline"
+            horizontalPadding={WINDOW_SIDEBAR_TOGGLE_HORIZONTAL_PADDING}
+            pointerEvents="box-none"
+            style={layoutStyles.windowSidebarToggle}
+          >
+            <WindowSidebarMenuToggle />
+          </WindowChromeSafeArea>
+        </WindowChromeRegion>
+      ) : null}
+      <DesktopWindowControls />
+      <FloatingPanelPortalHost />
+      {isCompactLayout ? sidebarChrome : null}
+      <DownloadToast />
+      <RosettaCalloutSource />
+      <UpdateCalloutSource />
+      <LegacyAgentSkillsMigration />
+      <WorktreeSetupCalloutSource />
+      <CommandCenterRootActions />
+      <CommandCenterWorkspaceActions />
+      <PluginCommandCenterActions />
+      <WorkspacePinShortcutHandler />
+      <WorkspaceRenameHost />
+      <CommandCenter />
+      <AddProjectFlowHost />
+      <HostChooserModal />
+      <ProviderSettingsHost />
+      <WorkspaceSetupDialog />
+      <KeyboardShortcutsDialog />
+      <AppDiagnosticHost />
+      <QuittingOverlay />
     </View>
   );
 
@@ -696,7 +683,7 @@ function ProvidersWrapper({ children }: { children: ReactNode }) {
         <OfferLinkListener upsertDaemonFromOfferUrl={upsertConnectionFromOfferUrl} />
         <HostSessionManager />
         <FaviconStatusSync />
-        {children}
+        <AppearanceStyleBoundary>{children}</AppearanceStyleBoundary>
       </VoiceProvider>
     </AppearanceProvider>
   );
@@ -907,15 +894,11 @@ const ROOT_STACK_SCREEN_OPTIONS = {
   headerShown: false,
   animation: "none" as const,
 };
-const ROOT_STACK_NESTED_NAVIGATOR_SCREENS = ["h/[serverId]"] as const;
 
 function RootStack() {
   const storeReady = useStoreReady();
   return (
-    <ThemedStack
-      screenOptions={ROOT_STACK_SCREEN_OPTIONS}
-      nestedNavigatorScreens={ROOT_STACK_NESTED_NAVIGATOR_SCREENS}
-    >
+    <ThemedStack screenOptions={ROOT_STACK_SCREEN_OPTIONS}>
       <Stack.Screen name="index" />
       <Stack.Protected guard={storeReady}>
         <Stack.Screen name="welcome" />
@@ -930,7 +913,6 @@ function RootStack() {
       <Stack.Screen name="h/[serverId]" />
       <Stack.Screen name="settings/hosts/[serverId]/index" />
       <Stack.Screen name="settings/hosts/[serverId]/[hostSection]" />
-      <Stack.Screen name="settings/hosts/[serverId]/plugins/[pluginId]/[screenId]" />
       <Stack.Screen name="settings/hosts/[serverId]/projects/index" />
       <Stack.Screen name="settings/hosts/[serverId]/projects/[projectId]" />
     </ThemedStack>

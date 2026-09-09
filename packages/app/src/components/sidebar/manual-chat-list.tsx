@@ -28,11 +28,7 @@ import {
   type ManualChatSection,
   type ManualChatEntry,
 } from "./manual-chat-groups";
-import {
-  ManualGroupDragRoot,
-  ManualGroupDropZone,
-  ManualGroupDraggable,
-} from "./manual-group-drag";
+import { ManualGroupDropZone, ManualGroupDraggable } from "./manual-group-drag";
 
 export function SidebarManualChatList({
   listHeaderComponent,
@@ -46,10 +42,6 @@ export function SidebarManualChatList({
   const allChatEntriesByKey = useMemo(
     () => new Map(allManualChatEntries.map((chat) => [chat.workspaceKey, chat])),
     [allManualChatEntries],
-  );
-  const chatEntriesByKey = useMemo(
-    () => new Map(manualChatEntries.map((chat) => [chat.workspaceKey, chat])),
-    [manualChatEntries],
   );
   const grouping = useSidebarChatGroupsStore(
     useShallow(({ groups, assignments, order, collapsed, pinned, workspaceDefaults }) => ({
@@ -65,44 +57,29 @@ export function SidebarManualChatList({
     () => buildManualChatSections(manualChatEntries, grouping),
     [manualChatEntries, grouping],
   );
-  const drop = useCallback(
-    (key: string, groupId: string) => {
-      if (!chatEntriesByKey.has(key)) return;
-      const state = useSidebarChatGroupsStore.getState();
-      const pinned = groupId === PINNED_CHAT_GROUP;
-      state.setPinned(key, pinned);
-      if (!pinned) state.moveChat(key, groupId === UNGROUPED_CHATS ? null : groupId);
-    },
-    [chatEntriesByKey],
-  );
   return (
     <>
-      <ManualGroupDragRoot onDrop={drop}>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.content}
-          testID="sidebar-project-workspace-list-scroll"
-        >
-          {listHeaderComponent}
-          {sections.map((section) => (
-            <ManualGroupDropZone key={section.id} groupId={section.id}>
-              <View style={styles.section} testID={`sidebar-chat-section-${section.id}`}>
-                <ManualChatGroupHeader section={section} workspaces={allChatEntriesByKey} />
-                {!section.collapsed
-                  ? section.rows.map((workspace) => (
-                      <ManualGroupDraggable
-                        key={workspace.workspaceKey}
-                        workspaceKey={workspace.workspaceKey}
-                      >
-                        <ManualChatRow chat={workspace} onWorkspacePress={onWorkspacePress} />
-                      </ManualGroupDraggable>
-                    ))
-                  : null}
-              </View>
-            </ManualGroupDropZone>
-          ))}
-        </ScrollView>
-      </ManualGroupDragRoot>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        testID="sidebar-project-workspace-list-scroll"
+      >
+        {listHeaderComponent}
+        {sections.map((section) => (
+          <ManualGroupDropZone key={section.id} groupId={section.id}>
+            <View style={styles.section} testID={`sidebar-chat-section-${section.id}`}>
+              <ManualChatGroupHeader section={section} workspaces={allChatEntriesByKey} />
+              {!section.collapsed
+                ? section.rows.map((workspace) => (
+                    <ManualGroupDraggable key={workspace.workspaceKey} chat={workspace}>
+                      <ManualChatRow chat={workspace} onWorkspacePress={onWorkspacePress} />
+                    </ManualGroupDraggable>
+                  ))
+                : null}
+            </View>
+          </ManualGroupDropZone>
+        ))}
+      </ScrollView>
       <ChatGroupEditor />
     </>
   );

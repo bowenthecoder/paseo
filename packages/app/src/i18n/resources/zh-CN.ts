@@ -163,6 +163,7 @@ export const zhCN: TranslationResources = {
     clientCommands: {
       archiveAgent: "归档当前 Agent",
       freshDraft: "归档此 Agent 并开始新的草稿",
+      planMode: "为此代理开启或关闭计划模式",
     },
     github: {
       searching: "正在搜索...",
@@ -1824,6 +1825,11 @@ export const zhCN: TranslationResources = {
       one: "运行了 {{count}} 个命令",
       other: "运行了 {{count}} 个命令",
     },
+    createdFiles: {
+      one: "创建了 1 个文件",
+      other: "创建了 {{count}} 个文件",
+    },
+    readFile: "读取了 {{name}}",
     readFiles: {
       one: "读取了 {{count}} 个文件",
       other: "读取了 {{count}} 个文件",
@@ -1840,6 +1846,8 @@ export const zhCN: TranslationResources = {
       one: "调用了 Paseo {{count}} 次",
       other: "调用了 Paseo {{count}} 次",
     },
+    failedSuffix: "（{{count}} 个失败）",
+    separator: "，",
     and: "并",
   },
   renameModal: {

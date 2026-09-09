@@ -3,6 +3,7 @@ import { Text, View, type LayoutChangeEvent } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { X, Plus, Grid2X2, Maximize2, RotateCw } from "lucide-react-native";
+import { ChatSplitDropZone } from "@/components/sidebar/chat-drag";
 import { WorkspacePaneFocusBoundary } from "@/screens/workspace/workspace-pane-focus-boundary";
 import { RetainedPanel } from "@/components/retained-panel";
 import { collectChatPanes } from "@/stores/workspace-layout-actions";
@@ -356,6 +357,35 @@ export function WorkspaceChatLayout({
     </PaneContentToolbar>
   );
 
+  const chatGrid = (
+    <View style={styles.chatGrid} testID="workspace-chat-grid">
+      {chatPanes.map((pane) => (
+        <RetainedPanel
+          key={pane.id}
+          active={!focusModeEnabled || pane.id === focusedChatId}
+          style={cellStyle}
+        >
+          <WorkspaceChatView
+            pane={pane}
+            uiTabs={uiTabs}
+            normalizedServerId={normalizedServerId}
+            normalizedWorkspaceId={normalizedWorkspaceId}
+            isWorkspaceFocused={isWorkspaceFocused}
+            isPaneFocused={
+              layout.focusedPaneId === pane.id ||
+              Boolean(focusModeEnabled && pane.id === focusedChatId)
+            }
+            showChrome={chatPanes.length > 1 && !focusModeEnabled}
+            onFocusPane={handleFocusPane}
+            onCloseView={closeChatView}
+            onReloadAgent={onReloadAgent}
+            buildPaneContentModel={buildPaneContentModel}
+          />
+        </RetainedPanel>
+      ))}
+    </View>
+  );
+
   return (
     <RenderProfile id="WorkspaceChatLayout">
       <View style={styles.workspaceShell} onLayout={handleShellLayout}>
@@ -363,32 +393,13 @@ export function WorkspaceChatLayout({
           <View style={styles.chatColumn} testID="workspace-chat-pane">
             {focusModeEnabled ? <WorkspaceFocusModeHeader /> : renderHeader?.()}
             {!focusModeEnabled ? viewToolbar : null}
-            <View style={styles.chatGrid} testID="workspace-chat-grid">
-              {chatPanes.map((pane) => (
-                <RetainedPanel
-                  key={pane.id}
-                  active={!focusModeEnabled || pane.id === focusedChatId}
-                  style={cellStyle}
-                >
-                  <WorkspaceChatView
-                    pane={pane}
-                    uiTabs={uiTabs}
-                    normalizedServerId={normalizedServerId}
-                    normalizedWorkspaceId={normalizedWorkspaceId}
-                    isWorkspaceFocused={isWorkspaceFocused}
-                    isPaneFocused={
-                      layout.focusedPaneId === pane.id ||
-                      Boolean(focusModeEnabled && pane.id === focusedChatId)
-                    }
-                    showChrome={chatPanes.length > 1 && !focusModeEnabled}
-                    onFocusPane={handleFocusPane}
-                    onCloseView={closeChatView}
-                    onReloadAgent={onReloadAgent}
-                    buildPaneContentModel={buildPaneContentModel}
-                  />
-                </RetainedPanel>
-              ))}
-            </View>
+            <ChatSplitDropZone
+              serverId={normalizedServerId}
+              workspaceId={normalizedWorkspaceId}
+              enabled={isWorkspaceFocused && !focusModeEnabled}
+            >
+              {chatGrid}
+            </ChatSplitDropZone>
           </View>
         </WindowChromeRegion>
         {showSidePanel && sidePane ? (

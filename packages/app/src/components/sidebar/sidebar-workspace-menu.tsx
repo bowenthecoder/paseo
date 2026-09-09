@@ -100,6 +100,8 @@ export interface SidebarWorkspaceMenuProps {
   onCopyPath?: () => void;
   onCopyBranchName?: () => void;
   onRename?: () => void;
+  /** Archives this chat and opens a fresh draft with the same setup. */
+  onReset?: () => void;
   onMarkAsRead?: () => void;
   onArchive: () => void;
   archiveLabel?: string;
@@ -195,6 +197,46 @@ function WorkspaceLabelsMenuItem({
   );
 }
 
+function WorkspaceRenameMenuItems({
+  surface,
+  workspaceKey,
+  agentId,
+  onRename,
+  onReset,
+  renameIcon,
+  renameLabel,
+}: Pick<SidebarWorkspaceMenuItemsProps, "workspaceKey" | "agentId" | "onRename" | "onReset"> & {
+  surface: MenuSurface;
+  renameIcon: ComponentProps<typeof DropdownMenuItem>["leading"];
+  renameLabel: string;
+}) {
+  return (
+    <>
+      {onRename ? (
+        <WorkspaceMenuItem
+          surface={surface}
+          shortcut="R"
+          testID={`sidebar-workspace-menu-rename-${workspaceKey}`}
+          leading={renameIcon}
+          onSelect={onRename}
+        >
+          {renameLabel}
+        </WorkspaceMenuItem>
+      ) : null}
+      {agentId && onReset ? (
+        <WorkspaceMenuItem
+          surface={surface}
+          shortcut="N"
+          testID={`sidebar-workspace-menu-reset-${workspaceKey}`}
+          onSelect={onReset}
+        >
+          Reset context (new chat)
+        </WorkspaceMenuItem>
+      ) : null}
+    </>
+  );
+}
+
 function useWorkspaceMenuPresentation(agentId: string | undefined, isPinned: boolean | undefined) {
   const { t } = useTranslation();
   if (agentId) {
@@ -224,6 +266,7 @@ function SidebarWorkspaceMenuItems({
   onCopyPath,
   onCopyBranchName,
   onRename,
+  onReset,
   onMarkAsRead,
   onArchive,
   archiveLabel,
@@ -265,17 +308,15 @@ function SidebarWorkspaceMenuItems({
         onCopyPath={onCopyPath}
         onCopyBranchName={onCopyBranchName}
       />
-      {onRename ? (
-        <WorkspaceMenuItem
-          surface={surface}
-          shortcut="R"
-          testID={`sidebar-workspace-menu-rename-${workspaceKey}`}
-          leading={presentation.renameIcon}
-          onSelect={onRename}
-        >
-          {presentation.renameLabel}
-        </WorkspaceMenuItem>
-      ) : null}
+      <WorkspaceRenameMenuItems
+        surface={surface}
+        workspaceKey={workspaceKey}
+        agentId={agentId}
+        onRename={onRename}
+        onReset={onReset}
+        renameIcon={presentation.renameIcon}
+        renameLabel={presentation.renameLabel}
+      />
       {onMarkAsRead ? (
         <WorkspaceMenuItem
           surface={surface}
@@ -342,6 +383,7 @@ export function SidebarWorkspaceMenu({
   onCopyPath,
   onCopyBranchName,
   onRename,
+  onReset,
   onMarkAsRead,
   onArchive,
   archiveLabel,
@@ -395,6 +437,7 @@ export function SidebarWorkspaceMenu({
           onCopyPath={onCopyPath}
           onCopyBranchName={onCopyBranchName}
           onRename={onRename}
+          onReset={onReset}
           onMarkAsRead={onMarkAsRead}
           onArchive={onArchive}
           archiveLabel={archiveLabel}
@@ -428,6 +471,7 @@ export function SidebarWorkspaceContextMenu({
   onCopyPath,
   onCopyBranchName,
   onRename,
+  onReset,
   onMarkAsRead,
   onArchive,
   archiveLabel,
@@ -517,6 +561,7 @@ export function SidebarWorkspaceContextMenu({
           onCopyPath={onCopyPath}
           onCopyBranchName={onCopyBranchName}
           onRename={onRename}
+          onReset={onReset}
           onMarkAsRead={onMarkAsRead}
           onArchive={onArchive}
           archiveLabel={archiveLabel}

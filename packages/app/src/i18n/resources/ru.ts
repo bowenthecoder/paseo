@@ -163,6 +163,7 @@ export const ru: TranslationResources = {
     clientCommands: {
       archiveAgent: "Архивировать текущего агента",
       freshDraft: "Архивировать этого агента и создать новый черновик",
+      planMode: "Включить или выключить режим плана для этого агента",
     },
     github: {
       searching: "Идет поиск...",
@@ -1875,6 +1876,11 @@ export const ru: TranslationResources = {
       one: "выполнена {{count}} команда",
       other: "выполнены команды ({{count}})",
     },
+    createdFiles: {
+      one: "создал файл",
+      other: "создал файлов: {{count}}",
+    },
+    readFile: "прочитал {{name}}",
     readFiles: {
       one: "прочитан {{count}} файл",
       other: "прочитаны файлы ({{count}})",
@@ -1891,6 +1897,8 @@ export const ru: TranslationResources = {
       one: "выполнен {{count}} вызов Paseo",
       other: "выполнены вызовы Paseo ({{count}})",
     },
+    failedSuffix: "({{count}} с ошибкой)",
+    separator: ", ",
     and: "и",
   },
   renameModal: {

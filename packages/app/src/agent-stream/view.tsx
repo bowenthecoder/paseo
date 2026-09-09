@@ -704,6 +704,11 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
 
     const renderThoughtItem = useCallback(
       (layoutItem: StreamLayoutItem, item: Extract<StreamItem, { kind: "thought" }>) => {
+        // The grouped overview reads like the Claude Code app: finished reasoning stays out
+        // of the way, and only reasoning that is still streaming shows as activity.
+        if (toolCallDetailLevel === "overview" && item.status === "ready") {
+          return null;
+        }
         return (
           <ThoughtSlot
             itemId={item.id}
@@ -715,7 +720,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           />
         );
       },
-      [autoExpandReasoning, setInlineDetailsExpanded],
+      [autoExpandReasoning, setInlineDetailsExpanded, toolCallDetailLevel],
     );
 
     const renderSingleToolCallItem = useCallback(

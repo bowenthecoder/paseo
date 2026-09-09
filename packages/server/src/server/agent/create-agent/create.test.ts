@@ -293,6 +293,60 @@ test("session create stamps the new worktree's workspaceId when a setup continua
   }
 });
 
+test("mcp create keeps a prompt-derived name provisional so the first prompt can name the chat", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "create-agent-test-"));
+  const storage = new AgentStorage(join(workdir, "agents"), logger);
+  const agentManager = createRealAgentManager(storage);
+  const providerSnapshotManager = createProviderSnapshotManagerStub().manager;
+
+  try {
+    const { snapshot: parent } = await createAgentCommand(
+      { agentManager, agentStorage: storage, logger, providerSnapshotManager },
+      {
+        kind: "session",
+        config: { provider: "codex", cwd: workdir },
+        workspaceId: "ws-parent",
+        labels: {},
+        provisionalTitle: null,
+        firstAgentContext: { attachments: [] },
+        buildSessionConfig: async (config) => ({ sessionConfig: config }),
+      },
+    );
+    const { snapshot: prompted } = await createAgentCommand(
+      { agentManager, agentStorage: storage, logger, providerSnapshotManager },
+      {
+        kind: "mcp",
+        provider: "codex/gpt-5.4",
+        initialPrompt: "Please investigate order sync failures in the nightly job",
+        background: true,
+        notifyOnFinish: false,
+        callerAgentId: parent.id,
+      },
+    );
+    const storedPrompted = await storage.get(prompted.id);
+    expect(storedPrompted?.title).toBe("investigate order sync failures in the");
+    expect(storedPrompted?.titleSource).toBe("provisional");
+
+    const { snapshot: named } = await createAgentCommand(
+      { agentManager, agentStorage: storage, logger, providerSnapshotManager },
+      {
+        kind: "mcp",
+        provider: "codex/gpt-5.4",
+        title: "Nightly sync",
+        initialPrompt: "Please investigate order sync failures in the nightly job",
+        background: true,
+        notifyOnFinish: false,
+        callerAgentId: parent.id,
+      },
+    );
+    const storedNamed = await storage.get(named.id);
+    expect(storedNamed?.title).toBe("Nightly sync");
+    expect(storedNamed?.titleSource).toBe("manual");
+  } finally {
+    await removeRealAgentManagerWorkdir({ agentManager, storage, workdir });
+  }
+});
+
 test("mcp create stamps the new worktree's workspaceId, not the parent's", async () => {
   const workdir = mkdtempSync(join(tmpdir(), "create-agent-test-"));
   const storage = new AgentStorage(join(workdir, "agents"), logger);

@@ -2367,6 +2367,80 @@ export class AgentManager {
   }
 
   /** Persist eligibility before dispatch; metadata generation never holds the coding turn. */
+  /**
+   * Records written before title provenance existed carry no `titleSource`. When such a name
+   * is exactly what the first prompt would have produced as a placeholder, it was never
+   * chosen by anyone and may still be replaced by a generated name.
+   */
+  private async isLegacyProvisionalTitle(record: StoredAgentRecord): Promise<boolean> {
+    if (record.titleSource !== undefined || !record.title) return false;
+    const firstPrompt = getFirstUserMessageTextFromRows(await this.getTimelineRows(record.id));
+    if (!firstPrompt) return false;
+    const { provisionalTitle } = resolveCreateAgentTitles({ initialPrompt: firstPrompt });
+    return provisionalTitle !== null && provisionalTitle === record.title.trim();
+  }
+
+  /**
+   * Names chats that predate automatic naming and still show their raw first prompt. Runs
+   * once after startup, one chat at a time, and never touches names people typed.
+   */
+  async backfillLegacyTitles(): Promise<number> {
+    const generate = this.onAgentTitleGeneration;
+    const registry = this.registry;
+    if (!generate || !registry) return 0;
+    let scheduled = 0;
+    for (const listed of await registry.list()) {
+      if (listed.archivedAt || listed.titleGenerationAttempted || listed.titleSource !== undefined)
+        continue;
+      if (!listed.title) continue;
+      const input = await this.runLifecycleMutation(
+        listed.id,
+        async (): Promise<AgentTitleGenerationInput | null> => {
+          const record = await registry.get(listed.id);
+          if (!record || record.archivedAt || record.titleGenerationAttempted || !record.title)
+            return null;
+          if (!(await this.isLegacyProvisionalTitle(record))) return null;
+          const prompt = getFirstUserMessageTextFromRows(await this.getTimelineRows(record.id));
+          if (!prompt) return null;
+          const expectedTitle = record.title;
+          const active = this.agents.get(record.id);
+          if (active) {
+            await this.persistSnapshot(active, {
+              title: expectedTitle,
+              titleSource: "provisional",
+              titleGenerationAttempted: true,
+            });
+            this.emitState(active, { persist: false });
+          } else {
+            await registry.upsert({
+              ...record,
+              titleSource: "provisional",
+              titleGenerationAttempted: true,
+            });
+          }
+          return {
+            agentId: record.id,
+            expectedTitle,
+            cwd: record.cwd,
+            prompt,
+            provider: record.provider,
+            model: record.config?.model ?? record.runtimeInfo?.model ?? null,
+            thinkingOptionId:
+              record.config?.thinkingOptionId ?? record.runtimeInfo?.thinkingOptionId ?? null,
+          };
+        },
+      ).catch((error) => {
+        this.logger.warn({ err: error, agentId: listed.id }, "Failed to backfill chat name");
+        return null;
+      });
+      if (input) {
+        scheduled += 1;
+        generate(input);
+      }
+    }
+    return scheduled;
+  }
+
   private scheduleTitleForAcceptedPrompt(
     agent: ActiveManagedAgent,
     prompt: AgentPromptInput,
@@ -2385,11 +2459,11 @@ export class AgentManager {
       agent.id,
       async (): Promise<AgentTitleGenerationInput | null> => {
         const record = await this.registry?.get(agent.id);
+        if (!record || record.archivedAt || record.titleGenerationAttempted) return null;
         if (
-          !record ||
-          record.archivedAt ||
-          record.titleGenerationAttempted ||
-          (record.title && record.titleSource !== "provisional")
+          record.title &&
+          record.titleSource !== "provisional" &&
+          !(await this.isLegacyProvisionalTitle(record))
         )
           return null;
         const expectedTitle =

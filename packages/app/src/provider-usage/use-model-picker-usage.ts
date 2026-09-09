@@ -1,20 +1,42 @@
+import type { UseQueryResult } from "@tanstack/react-query";
 import { useInstalledPlugin } from "@/plugins/registry";
 import { subscriptionSlotId } from "./subscription-usage";
 import { parseSubscriptionUsage } from "./subscription-usage";
 import { useFetchQuery } from "@/data/query";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
-import type { ProviderUsageView } from "./types";
+import type { ProviderUsage, ProviderUsageView } from "./types";
 import { useProviderUsage } from "./use-provider-usage";
 import { subscriptionUsageQueryKey } from "./query-cache";
 
-export function useModelPickerUsage(serverId: string | null, providerId: string, enabled: boolean) {
+interface SubscriptionUsageSource {
+  canFetch: boolean;
+  query: UseQueryResult<ProviderUsage[], Error>;
+}
+
+/**
+ * Whether the picker reads these providers' numbers from the Subscriptions plugin.
+ * The host maps custom IDs to accounts; their names cannot tell us whether they match.
+ */
+export function useRequestsSubscriptions(
+  serverId: string | null,
+  providerIds: readonly string[],
+): boolean {
   const plugin = useInstalledPlugin(serverId ?? "", "subscriptions");
-  // The host maps custom IDs to accounts; their names cannot tell us whether they match.
-  const requestsSubscriptions = plugin !== null || /^(claude|codex)-[ab]$/.test(providerId);
+  return plugin !== null || providerIds.some((id) => /^(claude|codex)-[ab]$/.test(id));
+}
+
+/**
+ * The plugin's account list. Every model-picker usage reader shares one query key,
+ * so a picker with five accounts still performs one account lookup per interval.
+ */
+export function useSubscriptionUsage(
+  serverId: string | null,
+  input: { enabled: boolean; requestsSubscriptions: boolean },
+): SubscriptionUsageSource {
   const client = useHostRuntimeClient(serverId ?? "");
   const connected = useHostRuntimeIsConnected(serverId ?? "");
   const canFetch = Boolean(client && connected && serverId);
-  const queryEnabled = enabled && requestsSubscriptions && canFetch;
+  const queryEnabled = input.enabled && input.requestsSubscriptions && canFetch;
   const query = useFetchQuery({
     dataShape: "value",
     queryKey: subscriptionUsageQueryKey(serverId),
@@ -29,6 +51,12 @@ export function useModelPickerUsage(serverId: string | null, providerId: string,
     refetchInterval: queryEnabled ? 120_000 : false,
     retry: false,
   });
+  return { canFetch, query };
+}
+
+export function useModelPickerUsage(serverId: string | null, providerId: string, enabled: boolean) {
+  const requestsSubscriptions = useRequestsSubscriptions(serverId, [providerId]);
+  const { canFetch, query } = useSubscriptionUsage(serverId, { enabled, requestsSubscriptions });
   const slotId = subscriptionSlotId(providerId, query.data);
   const isSubscription = requestsSubscriptions && slotId !== null;
   // A failed first lookup has not ruled out a custom account mapping. Keep its

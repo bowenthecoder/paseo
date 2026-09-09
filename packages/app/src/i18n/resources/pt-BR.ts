@@ -163,6 +163,7 @@ export const ptBR: TranslationResources = {
     clientCommands: {
       archiveAgent: "Arquivar o agente atual",
       freshDraft: "Arquivar este agente e iniciar um novo rascunho",
+      planMode: "Ativar ou desativar o modo de plano deste agente",
     },
     github: {
       searching: "Buscando...",
@@ -1876,6 +1877,11 @@ export const ptBR: TranslationResources = {
       one: "executou {{count}} comando",
       other: "executou {{count}} comandos",
     },
+    createdFiles: {
+      one: "criou um arquivo",
+      other: "criou {{count}} arquivos",
+    },
+    readFile: "leu {{name}}",
     readFiles: {
       one: "leu {{count}} arquivo",
       other: "leu {{count}} arquivos",
@@ -1892,6 +1898,8 @@ export const ptBR: TranslationResources = {
       one: "chamou o Paseo {{count}} vez",
       other: "chamou o Paseo {{count}} vezes",
     },
+    failedSuffix: "({{count}} com falha)",
+    separator: ", ",
     and: "e",
   },
   renameModal: {

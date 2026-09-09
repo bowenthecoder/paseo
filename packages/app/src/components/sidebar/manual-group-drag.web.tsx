@@ -1,49 +1,9 @@
-import { useCallback, useMemo, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
-import {
-  DndContext,
-  PointerSensor,
-  KeyboardSensor,
-  useSensor,
-  useSensors,
-  useDraggable,
-  useDroppable,
-  pointerWithin,
-  rectIntersection,
-  type DragEndEvent,
-  type CollisionDetection,
-} from "@dnd-kit/core";
-
-const groupCollision: CollisionDetection = (args) => {
-  const hits = pointerWithin(args);
-  return hits.length ? hits : rectIntersection(args);
-};
-
-export function ManualGroupDragRoot({
-  children,
-  onDrop,
-}: {
-  children: ReactNode;
-  onDrop: (workspaceKey: string, groupId: string) => void;
-}) {
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor),
-  );
-  const finish = useCallback(
-    ({ active, over }: DragEndEvent) => {
-      const groupId = over?.data.current?.groupId;
-      if (typeof groupId === "string") onDrop(String(active.id), groupId);
-    },
-    [onDrop],
-  );
-  return (
-    <DndContext sensors={sensors} collisionDetection={groupCollision} onDragEnd={finish}>
-      {children}
-    </DndContext>
-  );
-}
+import { useDraggable, useDroppable } from "@dnd-kit/core";
+import type { ManualChatEntry } from "./manual-chat-groups";
+import type { ChatDragPayload } from "./chat-drag-store";
 
 export function ManualGroupDropZone({
   children,
@@ -74,23 +34,34 @@ const styles = StyleSheet.create((theme) => ({
 
 export function ManualGroupDraggable({
   children,
-  workspaceKey,
+  chat,
 }: {
   children: ReactNode;
-  workspaceKey: string;
+  chat: ManualChatEntry;
 }) {
-  const { setNodeRef, attributes, listeners, transform, isDragging } = useDraggable({
-    id: workspaceKey,
+  const payload = useMemo<ChatDragPayload>(
+    () => ({
+      kind: "chat",
+      workspaceKey: chat.workspaceKey,
+      serverId: chat.serverId,
+      workspaceId: chat.workspaceId,
+      agentId: chat.agentId,
+      title: chat.title ?? chat.name,
+    }),
+    [chat.agentId, chat.name, chat.serverId, chat.title, chat.workspaceId, chat.workspaceKey],
+  );
+  const { setNodeRef, attributes, listeners, isDragging } = useDraggable({
+    id: chat.workspaceKey,
+    data: payload,
   });
+  // The row stays in place; the ChatDragRoot overlay chip is what follows the pointer.
   const style = useMemo(
     () => ({
       position: "relative" as const,
-      zIndex: isDragging ? 2 : undefined,
       opacity: isDragging ? 0.5 : 1,
-      transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
       touchAction: "pan-y",
     }),
-    [isDragging, transform],
+    [isDragging],
   );
   return (
     <div ref={setNodeRef} {...attributes} {...listeners} tabIndex={-1} style={style}>

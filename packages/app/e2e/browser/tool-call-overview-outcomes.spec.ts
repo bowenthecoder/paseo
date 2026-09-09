@@ -28,11 +28,10 @@ for (const viewport of [
       await agent.client.sendAgentMessage(agent.agentId, "Emit the overview tool outcome fixture.");
       await agent.client.waitForFinish(agent.agentId, 30_000);
       const group = page.getByTestId("tool-call-group");
-      const expected = "1 tool failed, 1 tool canceled, and read 1 file";
+      const expected = "Ran 1 command (1 failed), read overview-fixture.ts, 1 tool canceled";
       await expect(group).toHaveCount(1);
       await expect(group).toContainText(expected);
       await expect(group).not.toContainText("edited");
-      await expect(group).not.toContainText("ran");
       await page.screenshot({ path: testInfo.outputPath("collapsed-outcomes.png") });
       await group.click();
       await expect(page.getByTestId("tool-call-badge").filter({ visible: true })).toHaveCount(3);
