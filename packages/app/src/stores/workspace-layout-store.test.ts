@@ -35,6 +35,7 @@ import {
   stripEphemeralTabsFromLayout,
   type SplitNode,
   type SplitPane,
+  type WorkspaceLayout,
 } from "@/stores/workspace-layout-store";
 
 const SERVER_ID = "server-1";
@@ -1059,6 +1060,87 @@ describe("workspace-layout-store actions", () => {
 
     const layout = workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey];
     expect(findPaneContainingTab(layout.root, filesTabId as string)?.id).toBe("explorer");
+  });
+
+  it("keeps empty chat views when startup reconciliation closes every stale split chat", () => {
+    // Captured from a real desktop profile that crashed on launch: main was already empty,
+    // both remaining chats were split views whose agents had been archived or moved away.
+    const workspaceKey = createWorkspaceKey();
+    const store = workspaceLayoutStore.getState();
+    const layout = {
+      root: {
+        kind: "group",
+        group: {
+          id: "workspace-root",
+          direction: "horizontal",
+          children: [
+            {
+              kind: "group",
+              group: {
+                id: "workspace-chats",
+                direction: "vertical",
+                children: [
+                  {
+                    kind: "group",
+                    group: {
+                      id: "workspace-chats-top",
+                      direction: "horizontal",
+                      children: [
+                        createPane({ id: "main", tabIds: [] }),
+                        createPane({
+                          id: "chat-2",
+                          tabIds: ["agent_moved"],
+                          targetsByTabId: {
+                            agent_moved: { kind: "agent", agentId: "moved", view: "split" },
+                          },
+                        }),
+                      ],
+                      sizes: [0.5, 0.5],
+                    },
+                  },
+                  createPane({
+                    id: "chat-3",
+                    tabIds: ["agent_archived"],
+                    targetsByTabId: {
+                      agent_archived: { kind: "agent", agentId: "archived", view: "split" },
+                    },
+                  }),
+                ],
+                sizes: [0.5, 0.5],
+              },
+            },
+            createPane({
+              id: "explorer",
+              tabIds: ["files", "changes_tree"],
+              hidden: true,
+              targetsByTabId: { files: { kind: "files" }, changes_tree: { kind: "changes_tree" } },
+            }),
+          ],
+          sizes: [0.78, 0.22],
+        },
+      },
+      focusedPaneId: "chat-3",
+      parentTabIdByTabId: { agent_archived: "agent_moved" },
+    } satisfies WorkspaceLayout;
+    workspaceLayoutStore.setState({ layoutByWorkspace: { [workspaceKey]: layout } });
+
+    expect(() =>
+      store.reconcileTabs(workspaceKey, {
+        agentsHydrated: true,
+        terminalsHydrated: true,
+        activeAgentIds: [],
+        autoOpenAgentIds: [],
+        knownAgentIds: [],
+        standaloneTerminalIds: [],
+      }),
+    ).not.toThrow();
+
+    const reconciled = workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey];
+    expect(findPaneContainingTab(reconciled.root, "agent_moved")).toBeNull();
+    expect(findPaneContainingTab(reconciled.root, "agent_archived")).toBeNull();
+    expect(findPaneById(reconciled.root, "main")).not.toBeNull();
+    expect(findPaneById(reconciled.root, "explorer")?.hidden).toBe(true);
+    expect(findPaneById(reconciled.root, reconciled.focusedPaneId)).not.toBeNull();
   });
 
   it("keeps reconcile auto-opened agents out of the focused explorer pane", () => {
