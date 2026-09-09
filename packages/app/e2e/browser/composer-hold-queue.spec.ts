@@ -107,6 +107,29 @@ test.describe("Composer hold queue", () => {
     }
   });
 
+  test("a held message is still there, and still held, after a reload", async ({ page }) => {
+    test.setTimeout(120_000);
+    const agent = await openIdleAgent(page, "hold-queue-reload-");
+    try {
+      await holdMessage(page, "still here after reload");
+      await expect(heldRows(page)).toHaveCount(1);
+      // The draft store batches its writes on a 200ms interval.
+      await page.waitForTimeout(1_000);
+
+      await page.reload();
+      await expectComposerVisible(page);
+
+      const row = heldRows(page).first();
+      await expect(row).toBeVisible({ timeout: 30_000 });
+      await expect(row).toContainText("still here after reload");
+      await expect(row.getByTestId("composer-queued-message-held")).toBeVisible();
+      await expect(userMessages(page)).toHaveCount(0);
+      await expectAgentIdle(page);
+    } finally {
+      await agent.cleanup();
+    }
+  });
+
   test("Send all submits every held message in queue order", async ({ page }) => {
     test.setTimeout(120_000);
     const agent = await openIdleAgent(page, "hold-queue-send-all-");

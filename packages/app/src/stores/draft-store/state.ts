@@ -6,7 +6,7 @@ import {
 import { PluginResourceComposerAttachmentSchema } from "@/plugins/attachments";
 import { z } from "zod";
 
-export const DRAFT_STORE_VERSION = 5;
+export const DRAFT_STORE_VERSION = 6;
 export const FINALIZED_DRAFT_TTL_MS = 5 * 60 * 1000;
 
 export interface LegacyDraftImage {
@@ -32,9 +32,26 @@ export interface DraftRecord {
   version: number;
 }
 
+/**
+ * A composer message parked in an agent's queue. Mirrors the composer's
+ * `QueuedComposerMessage`, minus the workspace attachments (review snapshots, browser elements)
+ * that drafts do not persist either — those are re-derived from the workspace, not stored.
+ */
+export interface QueuedDraftMessage {
+  id: string;
+  text: string;
+  attachments: UserComposerAttachment[];
+  /** Held messages wait for an explicit send and must come back held after a reload. */
+  hold?: boolean;
+}
+
+/** serverId -> agentId -> that agent's queue, in order. */
+export type QueuedDraftMessagesByServer = Record<string, Record<string, QueuedDraftMessage[]>>;
+
 export interface DraftStoreState {
   drafts: Record<string, DraftRecord>;
   createModalDraft: DraftRecord | null;
+  queues: QueuedDraftMessagesByServer;
 }
 
 export const AttachmentMetadataSchema = z.strictObject({
@@ -116,9 +133,20 @@ const DraftRecordSchema: z.ZodType<DraftRecord> = z.strictObject({
   updatedAt: z.number(),
   version: z.number().int().positive(),
 });
+export const QueuedDraftMessageSchema = z.strictObject({
+  id: z.string(),
+  text: z.string(),
+  attachments: z.array(UserComposerAttachmentSchema),
+  hold: z.boolean().optional(),
+}) satisfies z.ZodType<QueuedDraftMessage>;
+export const QueuedDraftMessagesByServerSchema: z.ZodType<QueuedDraftMessagesByServer> = z.record(
+  z.string(),
+  z.record(z.string(), z.array(QueuedDraftMessageSchema)),
+);
 export const DraftStoreStateSchema: z.ZodType<DraftStoreState> = z.strictObject({
   drafts: z.record(z.string(), DraftRecordSchema),
   createModalDraft: DraftRecordSchema.nullable(),
+  queues: QueuedDraftMessagesByServerSchema,
 });
 
 export function isAttachmentMetadata(value: unknown): value is AttachmentMetadata {
@@ -216,7 +244,28 @@ export function collectReferencedAttachmentIdsFromState(state: DraftStoreState):
     }
   }
 
+  // Queued messages are read from the persisted record rather than from the live session, so a
+  // queue that has not been hydrated into a session yet still keeps its images off the GC list.
+  for (const agentQueues of Object.values(state.queues)) {
+    for (const queue of Object.values(agentQueues)) {
+      collectQueuedImageIds(queue, referencedIds);
+    }
+  }
+
   return referencedIds;
+}
+
+function collectQueuedImageIds(
+  queue: readonly QueuedDraftMessage[],
+  referencedIds: Set<string>,
+): void {
+  for (const queued of queue) {
+    for (const attachment of queued.attachments) {
+      if (attachment.kind === "image") {
+        referencedIds.add(attachment.metadata.id);
+      }
+    }
+  }
 }
 
 export function pruneFinalizedDraftRecords(input: {
