@@ -6,8 +6,8 @@ import { ensureExplorerSidebar, openFilesPanel } from "../support/helpers/worksp
 
 const APP_SETTINGS_KEY = "@paseo:app-settings";
 
-function visibleMainPane(page: Page) {
-  return page.getByTestId("workspace-pane-main").filter({ visible: true });
+function visibleChatPane(page: Page) {
+  return page.getByTestId("workspace-chat-pane").filter({ visible: true });
 }
 
 function composerChangesPill(page: Page) {
@@ -84,7 +84,7 @@ test("composer diff stat reveals Changes, then opens the diff in the configured 
       timeout: 30_000,
     });
     await expect(sidePane.getByTestId("working-diff-panel")).toBeVisible({ timeout: 30_000 });
-    await expect(visibleMainPane(page).getByTestId("working-diff-panel")).toHaveCount(0);
+    await expect(visibleChatPane(page).getByTestId("working-diff-panel")).toHaveCount(0);
 
     await test.step("Explorer navigation does not replace the side pane", async () => {
       await openFilesPanel(page);
@@ -141,7 +141,7 @@ test("composer diff stat reveals Changes, then opens the diff in the focused pan
     await revealComposerChangesInExplorer(page);
     await openComposerDiff(page);
 
-    const mainPane = visibleMainPane(page);
+    const mainPane = visibleChatPane(page);
     await expect(mainPane.getByTestId("workspace-panel-working_diff")).toBeVisible({
       timeout: 30_000,
     });

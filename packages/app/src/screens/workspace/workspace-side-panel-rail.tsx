@@ -56,6 +56,7 @@ function WorkspaceSidePanelRailEntry({
   onSelect: (tabId: string) => void;
   onClose: (tabId: string) => Promise<void> | void;
 }) {
+  const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
   const handlePress = useCallback(() => onSelect(item.tab.tabId), [item.tab.tabId, onSelect]);
   const handleHoverIn = useCallback(() => setHovered(true), []);
@@ -98,9 +99,23 @@ function WorkspaceSidePanelRailEntry({
               >
                 {presentation.label}
               </Text>
+              {/* A laid-out sibling of the label, not an overlay, so a truncated label ends
+                  before the dot rather than running underneath it. */}
+              {presentation.modified ? (
+                <View
+                  style={styles.entryModifiedDot}
+                  accessibilityLabel={t("workspace.tabs.modified")}
+                  testID={`workspace-side-panel-modified-${item.tab.tabId}`}
+                />
+              ) : null}
             </Pressable>
           </TooltipTrigger>
-          <TooltipContent side="bottom" align="center" offset={8}>
+          <TooltipContent
+            side="bottom"
+            align="center"
+            offset={8}
+            testID={`workspace-side-panel-tooltip-${item.tab.tabId}`}
+          >
             <Text style={styles.tooltipText}>{presentation.tooltip}</Text>
           </TooltipContent>
         </Tooltip>
@@ -127,6 +142,7 @@ function WorkspaceSidePanelRailEntry({
       item.isActive,
       item.tab.tabId,
       showClose,
+      t,
     ],
   );
 
@@ -235,6 +251,12 @@ const styles = StyleSheet.create((theme) => ({
   },
   entryLabelActive: {
     color: theme.colors.foreground,
+  },
+  entryModifiedDot: {
+    width: 6,
+    height: 6,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.foregroundMuted,
   },
   entryCloseButton: {
     width: 18,
