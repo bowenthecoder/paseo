@@ -14,6 +14,7 @@ import {
   type ManagedAgent,
 } from "./agent-manager.js";
 import { AgentStorage } from "./agent-storage.js";
+import { wrapSessionProvider } from "./provider-registry.js";
 import { InMemoryAgentTimelineStore } from "./agent-timeline-store.js";
 import { toAgentPayload } from "./agent-projections.js";
 import { projectTimelineRows } from "./timeline-projection.js";
@@ -10976,11 +10977,14 @@ test("wakes an idle Codex parent once the last spawned child settles", async () 
 });
 
 describe("Codex parent completion fallback", () => {
-  async function fixture() {
+  async function fixture(provider = "codex") {
     const workdir = mkdtempSync(join(tmpdir(), "agent-manager-codex-fallback-"));
     const prompts: string[] = [];
     let rejectNextStart = false;
     class RecordingSession extends TestAgentSession {
+      override describePersistence() {
+        return { ...super.describePersistence(), metadata: { provider: "codex" } };
+      }
       override async startTurn(prompt?: AgentPromptInput): Promise<{ turnId: string }> {
         if (rejectNextStart) {
           rejectNextStart = false;
@@ -10994,15 +10998,15 @@ describe("Codex parent completion fallback", () => {
     class Client extends TestAgentClient {
       override async createSession(config: AgentSessionConfig): Promise<AgentSession> {
         session = new RecordingSession(config);
-        return session;
+        return wrapSessionProvider(provider, session);
       }
     }
     const manager = new AgentManager({
-      clients: { codex: new Client() },
+      clients: { [provider]: new Client() },
       registry: new AgentStorage(join(workdir, "agents"), logger),
       logger,
     });
-    const parent = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+    const parent = await manager.createAgent({ provider, cwd: workdir }, undefined, {
       workspaceId: undefined,
     });
     const child = (status: "running" | "completed", id = "child") =>
@@ -11033,6 +11037,35 @@ describe("Codex parent completion fallback", () => {
       },
     };
   }
+
+  test("wakes a Codex subscription alias and still suppresses a native continuation", async () => {
+    const f = await fixture("codex-a");
+    try {
+      expect(f.manager.getAgent(f.parent.id)?.provider).toBe("codex-a");
+      await f.settle();
+      await vi.waitFor(() => expect(f.prompts).toHaveLength(1), { timeout: 3000 });
+      await vi.waitFor(() => expect(f.manager.getAgent(f.parent.id)?.lifecycle).toBe("idle"));
+      await f.settle();
+      f.session.pushEvent({ type: "turn_started", provider: "codex", turnId: "native-alias" });
+      f.session.pushEvent({ type: "turn_completed", provider: "codex", turnId: "native-alias" });
+      await new Promise((resolve) => setTimeout(resolve, 1150));
+      expect(f.prompts).toHaveLength(1);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  test("rechecks active-tail completions for a Codex subscription alias", async () => {
+    const f = await fixture("codex-a");
+    try {
+      f.session.pushEvent({ type: "turn_started", provider: "codex", turnId: "native-alias" });
+      await f.settle();
+      f.session.pushEvent({ type: "turn_completed", provider: "codex", turnId: "native-alias" });
+      await vi.waitFor(() => expect(f.prompts).toHaveLength(1), { timeout: 3000 });
+    } finally {
+      await f.cleanup();
+    }
+  });
 
   test("does not wake for terminal replay or presentation-only updates", async () => {
     const f = await fixture();
