@@ -39,10 +39,7 @@ import {
   expectResumeOverflowFallsBackToOneTail,
   rememberTimelineRequestCounts,
 } from "../support/helpers/timeline-resume";
-import {
-  waitForWorkspaceInSidebar,
-  workspaceDeckEntryLocator,
-} from "../support/helpers/workspace-ui";
+import { workspaceDeckEntryLocator } from "../support/helpers/workspace-ui";
 import { expectInFlightForkAvailable } from "../support/helpers/assistant-fork";
 import {
   scrollTimelineToNewestLoadedEdge,
@@ -471,10 +468,9 @@ async function expectHiddenStreamingSubmissionOrderAfterWorkspaceEviction(
 
     await target.client.waitForFinish(target.agentId, 30_000);
     const requestsBeforeReturn = rememberTimelineRequestCounts(gate);
-    await waitForWorkspaceInSidebar(page, {
-      serverId: getServerId(),
-      workspaceId: target.workspaceId,
-    });
+    await expect(
+      page.getByTestId(`sidebar-workspace-row-${getServerId()}:chat:${target.agentId}`),
+    ).toBeVisible();
     await openAgentRoute(page, target);
     await expectComposerVisible(page);
     await subscriptions.waitForSubscribedAgents([target.agentId]);
@@ -792,9 +788,21 @@ async function expectCreatedAgentHandoff(
   userMessage: Locator,
 ): Promise<void> {
   await expect(page.getByTestId("turn-working-indicator")).toBeVisible();
-  await expect(page.getByTestId(/^workspace-panel-agent_/).first()).toBeVisible({
+  await expect(
+    page
+      .getByTestId("workspace-chat-pane")
+      .filter({ visible: true })
+      .getByTestId("agent-chat-scroll"),
+  ).toBeVisible({
     timeout: 30_000,
   });
+  await expect(
+    page
+      .locator(
+        '[data-testid^="sidebar-workspace-row-"][data-testid*=":chat:"][aria-selected="true"]',
+      )
+      .filter({ visible: true }),
+  ).toHaveCount(1);
   await expect(userMessage).toHaveAttribute("aria-busy", "false", { timeout: 30_000 });
   await expect(page.getByTestId("turn-working-indicator")).toBeVisible();
   await expect(page.getByTestId("user-message").filter({ hasText: prompt })).toHaveCount(1);

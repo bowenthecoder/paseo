@@ -16,7 +16,6 @@ import {
   submitNewWorkspacePrompt,
 } from "../support/helpers/new-workspace";
 import { seedWorkspace } from "../support/helpers/seed-client";
-import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
 
 const CREATE_AGENT_PREFERENCES_KEY = "@paseo:create-agent-preferences";
 const MODELESS_PROVIDER = "modeless-profile-e2e";
@@ -147,7 +146,6 @@ test.describe("Agent profiles repair modeless provider preferences", () => {
 
     try {
       await gotoAppShell(page);
-      await waitForSidebarHydration(page);
       await openGlobalNewWorkspaceComposer(page);
       await selectNewWorkspaceProject(page, {
         projectKey: workspace.projectKey,
@@ -210,7 +208,6 @@ test.describe("Agent profiles repair modeless provider preferences", () => {
 
     try {
       await gotoAppShell(page);
-      await waitForSidebarHydration(page);
       await openGlobalNewWorkspaceComposer(page);
       await selectNewWorkspaceProject(page, {
         projectKey: workspace.projectKey,

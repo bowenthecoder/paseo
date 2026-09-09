@@ -30,13 +30,8 @@ import {
   openNewWorkspaceComposer,
 } from "../support/helpers/new-workspace";
 import { gotoAppShell } from "../support/helpers/app";
-import {
-  waitForSidebarHydration,
-  switchWorkspaceViaSidebar,
-} from "../support/helpers/workspace-ui";
 import { seedWorkspace } from "../support/helpers/seed-client";
 import { hasGithubAuth, createTempGithubRepo } from "../support/helpers/github-fixtures";
-import { getServerId } from "../support/helpers/server-id";
 import { openFileExplorer } from "../support/helpers/file-explorer";
 
 const MINIMAL_PNG = Buffer.from(
@@ -218,12 +213,6 @@ test.describe("Composer attachments", () => {
 
     try {
       await gotoAppShell(page);
-      await waitForSidebarHydration(page);
-      await switchWorkspaceViaSidebar({
-        page,
-        serverId: getServerId(),
-        workspaceId: workspace.workspaceId,
-      });
 
       await openNewWorkspaceComposer(page, {
         projectKey: workspace.projectKey,
@@ -319,19 +308,12 @@ test.describe("Composer attachments", () => {
 
   test("composer is locked while new workspace agent is being created", async ({ page }) => {
     test.setTimeout(120_000);
-    const serverId = getServerId();
 
     const agentCreatedDelay = await delayBrowserAgentCreatedStatus(page);
     const workspace = await seedWorkspace({ repoPrefix: "attach-lock-" });
 
     try {
       await gotoAppShell(page);
-      await waitForSidebarHydration(page);
-      await switchWorkspaceViaSidebar({
-        page,
-        serverId,
-        workspaceId: workspace.workspaceId,
-      });
 
       await openNewWorkspaceComposer(page, {
         projectKey: workspace.projectKey,

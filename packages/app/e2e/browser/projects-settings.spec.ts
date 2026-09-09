@@ -45,6 +45,7 @@ import {
   unblockPaseoConfigWrites,
 } from "../support/helpers/project-settings";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import { openCompactSettings } from "../support/helpers/settings";
 import {
   addProjectFlowInput,
@@ -208,6 +209,7 @@ test.describe("Projects settings", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
 
       projectId = await addProjectFromSidebar(page, repo.path);
       await openProjectSettingsFromSidebar(page, projectId);

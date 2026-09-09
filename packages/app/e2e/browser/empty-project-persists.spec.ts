@@ -2,6 +2,7 @@ import path from "node:path";
 import { existsSync } from "node:fs";
 import { test, expect, type Page } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import {
   addProjectFlowInput,
   chooseAddProjectMethod,
@@ -83,6 +84,7 @@ test.describe("Project picker search", () => {
     projectPickerFixture,
   }) => {
     await gotoAppShell(page);
+    await selectSidebarProjectGrouping(page);
     await waitForSidebarProjectListReady(page);
     await openAddProjectFlow(page);
     await chooseAddProjectMethod(page, "directory-search");
@@ -102,6 +104,7 @@ test.describe("Project picker search", () => {
     page,
   }) => {
     await gotoAppShell(page);
+    await selectSidebarProjectGrouping(page);
     await waitForSidebarProjectListReady(page);
     await openAddProjectFlow(page);
     await chooseAddProjectMethod(page, "directory-search");
@@ -124,6 +127,7 @@ test.describe("Project with no workspaces persists", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarProjectListReady(page);
 
       projectId = await addProjectFromPicker(page, repo.path);
@@ -161,6 +165,7 @@ test.describe("Project with no workspaces persists", () => {
       const globalNewWorkspace = page.getByTestId("sidebar-global-new-workspace");
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await expect(projectRow).toBeVisible({ timeout: 30_000 });
       const workspaceRow = page.getByTestId(workspaceRowTestId(workspace.workspaceId));
@@ -204,6 +209,7 @@ test.describe("Project remove", () => {
       const projectRow = page.getByTestId(`sidebar-project-row-${projectViewKey}`);
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await expect(projectRow).toBeVisible({ timeout: 30_000 });
       await expect(page.getByTestId(workspaceRowTestId(workspace.workspaceId))).toBeVisible({

@@ -20,8 +20,6 @@ import {
   connectWorkspaceSetupClient,
   createWorkspaceThroughDaemon,
   expectSetupPanel,
-  openHomeWithProject,
-  navigateToWorkspaceViaSidebar,
   returnHomeFromWorkspace,
   openWorkspaceScriptsMenu,
   startWorkspaceScriptFromMenu,
@@ -61,8 +59,7 @@ test.describe("Workspace setup streaming", () => {
         cwd: repo.path,
         worktreeSlug: `setup-open-${Date.now()}`,
       });
-      await openHomeWithProject(page, repo.path);
-      await navigateToWorkspaceViaSidebar(page, workspace.id);
+      await gotoWorkspace(page, workspace.id);
 
       await expectSetupTabNotSeeded(page, workspace.id);
     } finally {
@@ -71,7 +68,7 @@ test.describe("Workspace setup streaming", () => {
     }
   });
 
-  test("runs setup through the sidebar and leaves the workspace usable", async ({ page }) => {
+  test("completed setup leaves the workspace chat and files usable", async ({ page }) => {
     const client = await connectWorkspaceSetupClient();
     const repo = await createTempGitRepo("setup-ui-flow-", {
       paseoConfig: {
@@ -100,8 +97,7 @@ test.describe("Workspace setup streaming", () => {
       });
       await completed;
 
-      await openHomeWithProject(page, repo.path);
-      await navigateToWorkspaceViaSidebar(page, workspace.id);
+      await gotoWorkspace(page, workspace.id);
 
       await expectSetupTabNotSeeded(page, workspace.id);
       await expectSetupPanel(page);
@@ -269,8 +265,7 @@ test.describe("Workspace setup streaming", () => {
       });
       await completed;
 
-      await openHomeWithProject(page, repo.path);
-      await navigateToWorkspaceViaSidebar(page, workspace.id);
+      await gotoWorkspace(page, workspace.id);
 
       await waitForWorkspaceTabsVisible(page);
       await expectNoTerminalTabs(page);

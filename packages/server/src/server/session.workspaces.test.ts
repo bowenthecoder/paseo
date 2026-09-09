@@ -1020,6 +1020,17 @@ test("create_agent_request keeps requested child cwd when grouped under an exist
           dispose: () => {},
         }),
         workspaceGitService,
+        workspaceAutoName: new WorkspaceAutoName({
+          agentManager,
+          workspaceRegistry,
+          workspaceGitService,
+          providerSnapshotManager: createProviderSnapshotManagerStub().manager,
+          readDaemonConfig: () => ({ metadataGeneration: { providers: [] } }),
+          gitMutation: { notifyGitMutation: async () => {} },
+          emitWorkspaceUpdateForCwd: async () => {},
+          emitWorkspaceUpdateForWorkspaceId: async () => {},
+          logger: asSessionLogger(logger),
+        }),
         daemonConfigStore: asDaemonConfigStore({
           get: () => ({ mcp: { injectIntoAgents: false }, providers: {} }),
           onChange: () => () => {},
@@ -1038,6 +1049,11 @@ test("create_agent_request keeps requested child cwd when grouped under an exist
       attachments: [],
     });
 
+    const status = findByType(emitted, "status")?.payload;
+    expect(status, JSON.stringify(status)).toMatchObject({
+      status: "agent_created",
+      agent: { cwd: child },
+    });
     const [createdAgent] = agentManager.listAgents();
     expect(createdAgent?.cwd).toBe(child);
     const createdWorkspace = await workspaceRegistry.get(createdAgent!.workspaceId!);
@@ -1056,10 +1072,6 @@ test("create_agent_request keeps requested child cwd when grouped under an exist
     ).resolves.toMatchObject({
       projectKey: createdWorkspace!.projectId,
       checkout: { cwd: child },
-    });
-    expect(findByType(emitted, "status")?.payload).toMatchObject({
-      status: "agent_created",
-      agent: { cwd: child },
     });
   } finally {
     rmSync(workdir, { recursive: true, force: true });

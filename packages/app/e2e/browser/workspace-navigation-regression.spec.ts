@@ -21,21 +21,18 @@ import {
   expectWorkspaceTabsAbsent,
 } from "../support/helpers/workspace-tabs";
 import {
-  expectSidebarWorkspaceSelected,
   expectWorkspaceHeader,
   expectWorkspaceHeaderAbsent,
   expectMenuButtonVisible,
   expectHostConnectingOrOffline,
   expectReconnectingToastVisible,
   expectReconnectingToastGone,
-  switchWorkspaceViaSidebar,
-  waitForSidebarHydration,
-  waitForWorkspaceInSidebar,
   workspaceDeckEntryLocator,
   expectWorkspaceDeckEntryCount,
 } from "../support/helpers/workspace-ui";
 import { clickSettingsBackToWorkspace } from "../support/helpers/settings";
 import { getServerId } from "../support/helpers/server-id";
+import { selectChatInSidebar } from "../support/helpers/sidebar";
 import { expectAppRoute } from "../support/helpers/route-assertions";
 import { installDaemonWebSocketGate } from "../support/helpers/daemon-websocket-gate";
 import { addConnectedHostAndReload, addOfflineHostAndReload } from "../support/helpers/hosts";
@@ -161,8 +158,6 @@ test.describe("Workspace navigation regression", () => {
         title: `workspace-reconnect-${Date.now()}`,
       });
 
-      await gotoAppShell(page);
-      await waitForSidebarHydration(page);
       await page.goto(buildHostAgentDetailRoute(serverId, agent.id, agent.workspaceId));
       await page.waitForURL(
         (url) => url.pathname.includes("/workspace/") && !url.searchParams.has("open"),
@@ -213,7 +208,7 @@ test.describe("Workspace navigation regression", () => {
     });
 
     try {
-      await Promise.all([
+      const [primaryAgent, secondaryAgent] = await Promise.all([
         createMockIdleAgent(primaryWorkspace.client, {
           cwd: primaryWorkspace.repoPath,
           workspaceId: primaryWorkspace.workspaceId,
@@ -232,20 +227,16 @@ test.describe("Workspace navigation regression", () => {
         label: "Inactive host",
         port: secondaryHost.port,
       });
-      await waitForWorkspaceInSidebar(page, {
+      await selectChatInSidebar(page, {
         serverId: secondaryHost.serverId,
         workspaceId: secondaryWorkspace.workspaceId,
-      });
-      await switchWorkspaceViaSidebar({
-        page,
-        serverId: secondaryHost.serverId,
-        workspaceId: secondaryWorkspace.workspaceId,
+        agentId: secondaryAgent.id,
       });
       await waitForWorkspaceTabsVisible(page);
-      await switchWorkspaceViaSidebar({
-        page,
+      await selectChatInSidebar(page, {
         serverId: getServerId(),
         workspaceId: primaryWorkspace.workspaceId,
+        agentId: primaryAgent.id,
       });
       await waitForWorkspaceTabsVisible(page);
 
@@ -286,17 +277,22 @@ test.describe("Workspace navigation regression", () => {
     const secondWorkspace = await seedWorkspace({ repoPrefix: "workspace-cold-url-b-" });
 
     try {
+      const secondAgent = await createMockIdleAgent(secondWorkspace.client, {
+        cwd: secondWorkspace.repoPath,
+        workspaceId: secondWorkspace.workspaceId,
+        title: "Second workspace chat",
+      });
       await page.goto(buildHostWorkspaceRoute(serverId, firstWorkspace.workspaceId));
-      await waitForSidebarHydration(page);
+      await expectComposerVisible(page);
       await expect(page).toHaveURL(buildHostWorkspaceRoute(serverId, firstWorkspace.workspaceId), {
         timeout: 30_000,
       });
 
-      const secondRow = page.getByTestId(
-        `sidebar-workspace-row-${serverId}:${secondWorkspace.workspaceId}`,
-      );
-      await expect(secondRow).toBeVisible({ timeout: 30_000 });
-      await secondRow.click();
+      await selectChatInSidebar(page, {
+        serverId,
+        workspaceId: secondWorkspace.workspaceId,
+        agentId: secondAgent.id,
+      });
 
       await expect(page).toHaveURL(buildHostWorkspaceRoute(serverId, secondWorkspace.workspaceId), {
         timeout: 30_000,
@@ -307,7 +303,7 @@ test.describe("Workspace navigation regression", () => {
     }
   });
 
-  test("sidebar navigation and reload keep workspace selection and tabs aligned", async ({
+  test("sidebar navigation and reload keep workspace selection and chat aligned", async ({
     page,
   }) => {
     const serverId = getServerId();
@@ -327,8 +323,6 @@ test.describe("Workspace navigation regression", () => {
         title: `workspace-nav-b-${Date.now()}`,
       });
 
-      await gotoAppShell(page);
-      await waitForSidebarHydration(page);
       await openWorkspaceWithAgents(page, [firstAgent, secondAgent]);
 
       const firstDeckEntry = workspaceDeckEntryLocator(page, serverId, firstWorkspace.workspaceId);
@@ -338,26 +332,21 @@ test.describe("Workspace navigation regression", () => {
         secondWorkspace.workspaceId,
       );
 
-      await switchWorkspaceViaSidebar({
-        page,
+      await selectChatInSidebar(page, {
         serverId,
         workspaceId: firstWorkspace.workspaceId,
+        agentId: firstAgent.id,
       });
       await waitForWorkspaceTabsVisible(page);
       await expect(page).toHaveURL(buildHostWorkspaceRoute(serverId, firstWorkspace.workspaceId), {
         timeout: 30_000,
       });
-      await expectSidebarWorkspaceSelected({
-        page,
-        serverId,
-        workspaceId: firstWorkspace.workspaceId,
-      });
-      await expectSidebarWorkspaceSelected({
-        page,
-        serverId,
-        workspaceId: secondWorkspace.workspaceId,
-        selected: false,
-      });
+      await expect(
+        page.getByTestId(`sidebar-workspace-row-${serverId}:chat:${firstAgent.id}`),
+      ).toHaveAttribute("aria-selected", "true");
+      await expect(
+        page.getByTestId(`sidebar-workspace-row-${serverId}:chat:${secondAgent.id}`),
+      ).toHaveAttribute("aria-selected", "false");
       await expectWorkspaceHeader(page, {
         title: firstWorkspace.workspaceName,
         subtitle: firstWorkspace.projectDisplayName,
@@ -370,26 +359,21 @@ test.describe("Workspace navigation regression", () => {
       ]);
       await expect(firstDeckEntry).toBeVisible({ timeout: 30_000 });
 
-      await switchWorkspaceViaSidebar({
-        page,
+      await selectChatInSidebar(page, {
         serverId,
         workspaceId: secondWorkspace.workspaceId,
+        agentId: secondAgent.id,
       });
       await waitForWorkspaceTabsVisible(page);
       await expect(page).toHaveURL(buildHostWorkspaceRoute(serverId, secondWorkspace.workspaceId), {
         timeout: 30_000,
       });
-      await expectSidebarWorkspaceSelected({
-        page,
-        serverId,
-        workspaceId: secondWorkspace.workspaceId,
-      });
-      await expectSidebarWorkspaceSelected({
-        page,
-        serverId,
-        workspaceId: firstWorkspace.workspaceId,
-        selected: false,
-      });
+      await expect(
+        page.getByTestId(`sidebar-workspace-row-${serverId}:chat:${secondAgent.id}`),
+      ).toHaveAttribute("aria-selected", "true");
+      await expect(
+        page.getByTestId(`sidebar-workspace-row-${serverId}:chat:${firstAgent.id}`),
+      ).toHaveAttribute("aria-selected", "false");
       await expectWorkspaceHeader(page, {
         title: secondWorkspace.workspaceName,
         subtitle: secondWorkspace.projectDisplayName,
@@ -435,10 +419,10 @@ test.describe("Workspace navigation regression", () => {
       await expect(firstDeckEntry).toBeHidden();
       await expectWorkspaceDeckEntryCount(page, 2);
 
-      await switchWorkspaceViaSidebar({
-        page,
+      await selectChatInSidebar(page, {
         serverId,
         workspaceId: firstWorkspace.workspaceId,
+        agentId: firstAgent.id,
       });
       await waitForWorkspaceTabsVisible(page);
       await expect(page).toHaveURL(buildHostWorkspaceRoute(serverId, firstWorkspace.workspaceId), {
@@ -450,16 +434,13 @@ test.describe("Workspace navigation regression", () => {
       await expectWorkspaceDeckEntryCount(page, 2);
 
       await page.reload();
-      await waitForSidebarHydration(page);
       await waitForWorkspaceTabsVisible(page);
       await expect(page).toHaveURL(buildHostWorkspaceRoute(serverId, firstWorkspace.workspaceId), {
         timeout: 30_000,
       });
-      await expectSidebarWorkspaceSelected({
-        page,
-        serverId,
-        workspaceId: firstWorkspace.workspaceId,
-      });
+      await expect(
+        page.getByTestId(`sidebar-workspace-row-${serverId}:chat:${firstAgent.id}`),
+      ).toHaveAttribute("aria-selected", "true");
       await expectWorkspaceHeader(page, {
         title: firstWorkspace.workspaceName,
         subtitle: firstWorkspace.projectDisplayName,

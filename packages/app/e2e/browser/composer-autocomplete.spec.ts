@@ -8,7 +8,7 @@ import {
 import { expectWorkspaceTabVisible, openSessions } from "../support/helpers/archive-tab";
 import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
 import { getServerId } from "../support/helpers/server-id";
-import { switchWorkspaceViaSidebar } from "../support/helpers/workspace-ui";
+import { selectChatInSidebar } from "../support/helpers/sidebar";
 
 const TEST_COMMANDS = [
   {
@@ -389,7 +389,7 @@ test.describe("Composer autocomplete", () => {
       await expectComposerVisible(page, { timeout: 30_000 });
 
       await openAppWideNewWorkspace(page);
-      await switchWorkspaceViaSidebar({ page, serverId, workspaceId: second.workspaceId });
+      await selectChatInSidebar(page, { serverId, ...second });
       await expectComposerVisible(page, { timeout: 30_000 });
       await expectSingleCurrentWorkspaceDeckEntry(page, {
         expectedDeckEntryCount: 2,
@@ -406,7 +406,7 @@ test.describe("Composer autocomplete", () => {
       });
 
       await openSessions(page);
-      await switchWorkspaceViaSidebar({ page, serverId, workspaceId: third.workspaceId });
+      await selectChatInSidebar(page, { serverId, ...third });
       await expectComposerVisible(page, { timeout: 30_000 });
       await expectSingleCurrentWorkspaceDeckEntry(page, {
         expectedDeckEntryCount: sessions.length,
@@ -415,7 +415,7 @@ test.describe("Composer autocomplete", () => {
       });
 
       await openAppWideNewWorkspace(page);
-      await switchWorkspaceViaSidebar({ page, serverId, workspaceId: first.workspaceId });
+      await selectChatInSidebar(page, { serverId, ...first });
       await expectComposerVisible(page, { timeout: 30_000 });
       await expectSingleCurrentWorkspaceDeckEntry(page, {
         expectedDeckEntryCount: sessions.length,
@@ -671,7 +671,12 @@ test.describe("Composer autocomplete", () => {
         });
 
         await page.getByRole("button", { name: "Open menu" }).click();
-        await expect(page.getByTestId("sidebar-sessions")).toBeInViewport({ timeout: 5_000 });
+        // The drawer slides in horizontally; a sliver in the viewport does not
+        // mean it has reached the point where autocomplete is being measured.
+        await expect(page.getByTestId("sidebar-sessions")).toBeInViewport({
+          ratio: 1,
+          timeout: 5_000,
+        });
 
         const popoverBox = await popover.boundingBox();
         expect(popoverBox).not.toBeNull();

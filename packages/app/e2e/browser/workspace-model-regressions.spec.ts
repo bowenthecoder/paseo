@@ -12,6 +12,7 @@ import {
   expectNewWorkspaceProjectSelected,
   openGlobalNewWorkspaceComposer,
   selectWorkspaceIsolation,
+  selectNewWorkspaceProject,
   submitNewWorkspaceEmpty,
   submitNewWorkspacePrompt,
 } from "../support/helpers/new-workspace";
@@ -25,6 +26,7 @@ import {
 } from "../support/helpers/subagents";
 import { expectWorkspaceHeader, waitForSidebarHydration } from "../support/helpers/workspace-ui";
 import { getVisibleWorkspaceAgentPanelIds } from "../support/helpers/workspace-tabs";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 
 type NewWorkspaceDaemonClient = Awaited<ReturnType<typeof connectNewWorkspaceDaemonClient>>;
 type WorkspaceIndicator = "attention" | "done" | "failed" | "loading" | "needs_input" | "running";
@@ -268,8 +270,11 @@ test.describe("Workspace model regressions", () => {
       });
 
       await gotoWorkspace(page, seeded.workspaceId);
-      await waitForSidebarHydration(page);
       await openGlobalNewWorkspaceComposer(page);
+      await selectNewWorkspaceProject(page, {
+        projectKey: seeded.projectKey,
+        projectDisplayName: seeded.projectDisplayName,
+      });
       await expectNewWorkspaceProjectSelected(page, seeded.projectDisplayName);
       await selectWorkspaceIsolation(page, "local");
       await submitNewWorkspacePrompt(page, "Fix login bug");
@@ -279,10 +284,23 @@ test.describe("Workspace model regressions", () => {
         client,
         previousWorkspaceId: seeded.workspaceId,
         projectDisplayName: seeded.projectDisplayName,
+        assertSidebarRow: false,
       });
+      const createdAgentIds = async () => {
+        const agents = await seeded.client.fetchAgents({ scope: "active" });
+        return agents.entries
+          .filter((entry) => entry.agent.workspaceId === createdWorkspace.workspaceId)
+          .map((entry) => entry.agent.id);
+      };
+      await expect.poll(createdAgentIds, { timeout: 30_000 }).toHaveLength(1);
+      const [createdAgentId] = await createdAgentIds();
       const createdRow = page.getByTestId(
-        `sidebar-workspace-row-${serverId}:${createdWorkspace.workspaceId}`,
+        `sidebar-workspace-row-${serverId}:chat:${createdAgentId}`,
       );
+      await expect(createdRow).toHaveAttribute("aria-selected", "true");
+      await expect(
+        page.getByTestId("workspace-chat-pane").getByTestId("agent-chat-scroll"),
+      ).toBeVisible();
 
       await expect
         .poll(() => fetchWorkspaceName(client, createdWorkspace.workspaceId), {
@@ -341,6 +359,7 @@ test.describe("Workspace model regressions", () => {
       );
 
       await gotoWorkspace(page, seeded.workspaceId);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
 
       const firstRowTestId = `sidebar-workspace-row-${serverId}:${seeded.workspaceId}`;
@@ -457,6 +476,7 @@ test.describe("Workspace model regressions", () => {
       expect(parked.status).toBe("permission");
 
       await gotoWorkspace(page, seeded.workspaceId);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
 
       const firstRowTestId = `sidebar-workspace-row-${serverId}:${seeded.workspaceId}`;
@@ -551,6 +571,7 @@ test.describe("Workspace model regressions", () => {
       });
 
       await gotoWorkspace(page, agents.child.workspaceId);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await expectWorkspaceTabVisible(page, agents.child.id);
 

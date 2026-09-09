@@ -1,7 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AggregatedAgent } from "@/hooks/use-aggregated-agents";
 import { EMPTY_CHAT_GROUPS, type SidebarChatGroupState } from "@/stores/sidebar-chat-groups-store";
+import { useSessionStore } from "@/stores/session-store";
+import { createUserMessage } from "@/types/stream";
 import {
+  areManualChatActivitySessionsEqual,
   buildManualChatSections,
   buildManualChatEntries,
   resolveChatGroup,
@@ -158,5 +161,136 @@ describe("manual chat grouping", () => {
     const group = buildManualChatSections([chat("a"), chat("c"), chat("b")], state)[1];
     expect(group.rows.map((row) => row.workspaceId)).toEqual(["b", "a", "c"]);
     expect(group.collapsed).toBe(true);
+  });
+});
+
+describe("manual chat activity", () => {
+  const serverId = "manual-chat-activity";
+  const agentId = "follow-up";
+  const clientMessageId = "follow-up-message";
+  const timestamp = new Date("2026-09-08T20:00:00.000Z");
+  const agent: AggregatedAgent = {
+    id: agentId,
+    serverId,
+    serverLabel: "Local",
+    title: "Follow-up chat",
+    status: "idle",
+    lastActivityAt: timestamp,
+    cwd: "/work/shop",
+    workspaceId: "workspace",
+    provider: "codex",
+    createdAt: timestamp,
+    labels: {},
+    parentAgentId: null,
+  };
+  const workspaces = new Map([
+    [`${serverId}:workspace`, chat("workspace", "/work/shop", serverId)],
+  ]);
+
+  beforeEach(() => useSessionStore.getState().initializeSession(serverId, null));
+  afterEach(() => useSessionStore.getState().clearSession(serverId));
+
+  function beginSubmission(id = agentId) {
+    useSessionStore
+      .getState()
+      .beginAgentMessageSubmission(
+        serverId,
+        id,
+        createUserMessage({ clientMessageId, text: "Keep working", timestamp }),
+      );
+  }
+
+  function statuses(agents = [agent]) {
+    return buildManualChatEntries(agents, workspaces, useSessionStore.getState().sessions).map(
+      (row) => row.statusBucket,
+    );
+  }
+
+  it.each([
+    ["turn", "response", "snapshot"],
+    ["response", "turn", "snapshot"],
+    ["response", "snapshot", "turn"],
+  ])("keeps activity through %s → %s → %s and settles with the turn", (...ordering) => {
+    const store = useSessionStore.getState();
+    const observed = [];
+    expect(statuses()).toEqual(["done"]);
+    beginSubmission();
+    observed.push(statuses());
+    for (const step of ordering) {
+      if (step === "response") {
+        store.acceptAgentMessageSubmission(serverId, agentId, clientMessageId);
+      } else if (step === "turn") {
+        store.applyAgentTurnLiveness(serverId, agentId, {
+          type: "stream_open",
+          turn: { turnId: "turn-2", startedAt: timestamp },
+        });
+      } else {
+        store.applyAgentTurnLiveness(serverId, agentId, {
+          type: "snapshot",
+          activeTurn: { turnId: "turn-2", startedAt: timestamp },
+        });
+      }
+      observed.push(statuses());
+    }
+    store.setAgentStreamState(serverId, agentId, {
+      acknowledgedClientMessageIds: [clientMessageId],
+    });
+    observed.push(statuses());
+    expect(observed).toEqual([["running"], ["running"], ["running"], ["running"], ["running"]]);
+    store.applyAgentTurnLiveness(serverId, agentId, [
+      { type: "stream_close", turnId: "turn-2" },
+      { type: "snapshot", activeTurn: null },
+    ]);
+    expect(statuses()).toEqual(["done"]);
+  });
+
+  it("clears rejected activity without lighting another chat in the workspace", () => {
+    const sibling = { ...agent, id: "sibling" };
+    beginSubmission();
+    expect(statuses([agent, sibling])).toEqual(["running", "done"]);
+    useSessionStore.getState().rejectAgentMessageSubmission(serverId, agentId, clientMessageId);
+    expect(statuses([agent, sibling])).toEqual(["done", "done"]);
+  });
+
+  it("updates the collection with the optimistic row and ignores unrelated stream changes", () => {
+    const notifications: Array<{ status: string; hasOptimisticRow: boolean }> = [];
+    const unsubscribe = useSessionStore.subscribe(
+      (state) => state.sessions,
+      (sessions) => {
+        notifications.push({
+          status: buildManualChatEntries([agent], workspaces, sessions)[0].statusBucket,
+          hasOptimisticRow:
+            sessions[serverId].agentStreamTail.get(agentId)?.[0]?.kind === "user_message",
+        });
+      },
+      { equalityFn: areManualChatActivitySessionsEqual },
+    );
+    try {
+      beginSubmission();
+      useSessionStore.getState().setIsPlayingAudio(serverId, true);
+      useSessionStore.getState().setAgentStreamState(serverId, "other-agent", {
+        tail: [{ kind: "assistant_message", id: "chunk", text: "Streaming", timestamp }],
+      });
+      expect(notifications).toEqual([{ status: "running", hasOptimisticRow: true }]);
+
+      useSessionStore.getState().rejectAgentMessageSubmission(serverId, agentId, clientMessageId);
+      expect(notifications).toEqual([
+        { status: "running", hasOptimisticRow: true },
+        { status: "done", hasOptimisticRow: false },
+      ]);
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it("keeps permission and error indicators above activity and completion attention", () => {
+    const agents: AggregatedAgent[] = [
+      { ...agent, id: "permission", pendingPermissionCount: 1 },
+      { ...agent, id: "failed", status: "error" },
+      { ...agent, id: "error-attention", attentionReason: "error", requiresAttention: true },
+      { ...agent, id: "finished", attentionReason: "finished", requiresAttention: true },
+    ];
+    for (const entry of agents) beginSubmission(entry.id);
+    expect(statuses(agents)).toEqual(["needs_input", "failed", "failed", "running"]);
   });
 });

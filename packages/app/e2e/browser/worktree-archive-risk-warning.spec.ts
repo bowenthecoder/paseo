@@ -5,6 +5,7 @@ import path from "node:path";
 import type { Dialog, Page } from "@playwright/test";
 import { expect, test } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import {
   archiveWorkspaceFromDaemon,
   connectNewWorkspaceDaemonClient,
@@ -118,6 +119,7 @@ test.describe("Workspace archive risk warning for worktree backing", () => {
     await seedRiskyWorktree(client, worktree.workspaceDirectory);
 
     await gotoAppShell(page);
+    await selectSidebarProjectGrouping(page);
     await waitForSidebarHydration(page);
     await waitForWorkspaceInSidebar(page, { serverId, workspaceId: worktree.workspaceId });
 

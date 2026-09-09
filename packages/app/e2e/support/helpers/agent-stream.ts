@@ -45,17 +45,14 @@ export async function expectAgentReadyToInterrupt(page: Page): Promise<void> {
 }
 
 export async function expectVisibleAgentSurfacesIdle(page: Page): Promise<void> {
-  const visibleAgentPanel = page
-    .getByTestId(/^workspace-panel-agent_/)
-    .filter({ visible: true })
-    .first();
-
-  await expect(visibleAgentPanel).toBeVisible({ timeout: 30_000 });
-  const panelId = await visibleAgentPanel.getAttribute("data-testid");
-  const agentId = panelId!.slice("workspace-panel-agent_".length);
-  const row = page.locator(
-    `[data-testid^="sidebar-workspace-row-"][data-testid$=":chat:${agentId}"]`,
-  );
+  // Promoting a draft retains its slot and DOM identity. The selected chat row
+  // identifies the agent even while that slot still has its original draft id.
+  const chat = page.getByTestId("workspace-chat-pane").filter({ visible: true }).first();
+  await expect(chat.getByTestId("agent-chat-scroll")).toBeVisible({ timeout: 30_000 });
+  const row = page
+    .locator('[data-testid^="sidebar-workspace-row-"][data-testid*=":chat:"][aria-selected="true"]')
+    .filter({ visible: true });
+  await expect(row).toHaveCount(1);
   await expect(row).toBeVisible({ timeout: 30_000 });
   await expect(row.getByTestId("sidebar-activity-glow")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /stop agent|canceling agent/i })).toHaveCount(0);

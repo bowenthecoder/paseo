@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { expect, type Page } from "@playwright/test";
 import { metroTest as test } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import {
   createIdleAgent,
   expectSessionRowArchived,
@@ -124,6 +125,7 @@ test.describe("Worktree restore after daemon restart", () => {
 
     await seedBrowser(page);
     await gotoAppShell(page);
+    await selectSidebarProjectGrouping(page);
     await waitForSidebarHydration(page);
     await openSessions(page);
     await expectSessionRowArchived(page, agent.title);

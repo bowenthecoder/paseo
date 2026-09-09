@@ -448,14 +448,53 @@ function recordViewportMismatch(failures, label, actual, expected) {
   );
 }
 
+async function assertBrowserBesideChat({ page, deck, browserId }) {
+  const chatPane = deck.getByTestId("workspace-chat-pane");
+  const sidePanel = deck.getByTestId("workspace-side-panel");
+  const browserClip = sidePanel.getByTestId(`browser-webview-clip-${browserId}`);
+  await browserClip.waitFor({ state: "visible", timeout: timeoutMs });
+  const [chatBounds, sidePanelBounds, browserBounds] = await Promise.all([
+    chatPane.boundingBox(),
+    sidePanel.boundingBox(),
+    browserClip.boundingBox(),
+  ]);
+  assert(chatBounds && sidePanelBounds && browserBounds, "Chat and browser had no visible bounds");
+  assert(
+    chatBounds.width >= 400 && sidePanelBounds.width >= 240 && browserBounds.height > 0,
+    `Chat and browser did not retain usable pane sizes: ${JSON.stringify({ chatBounds, sidePanelBounds, browserBounds })}`,
+  );
+  assert(
+    chatBounds.x + chatBounds.width <= sidePanelBounds.x + 1 &&
+      browserBounds.x >= sidePanelBounds.x &&
+      browserBounds.x + browserBounds.width <= sidePanelBounds.x + sidePanelBounds.width + 1,
+    `Browser did not stay beside the chat in the right panel: ${JSON.stringify({ chatBounds, sidePanelBounds, browserBounds })}`,
+  );
+  const appViewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+  assert(
+    sidePanelBounds.x + sidePanelBounds.width <= appViewport.width + 1 &&
+      browserBounds.y + browserBounds.height <= appViewport.height + 1,
+    `Browser panel extended outside the app: ${JSON.stringify({ sidePanelBounds, browserBounds, appViewport })}`,
+  );
+}
+
 async function runRegression({ page, client, serverId, targetUrl, callerAgentId, artifactDir }) {
   const failures = [];
+  await page.getByTestId("sidebar-command-center-search").click();
+  const commandCenter = page.getByTestId("command-center-panel");
+  await commandCenter.waitFor({ state: "visible", timeout: timeoutMs });
+  await commandCenter.getByTestId("command-center-input").fill("Group by project");
+  await commandCenter.getByText("Group by project", { exact: true }).click();
+  await commandCenter.waitFor({ state: "hidden", timeout: timeoutMs });
+
   const originalWorkspaceId = workspaceIds[0];
   const originalWorkspaceRow = page.getByTestId(
     `sidebar-workspace-row-${serverId}:${originalWorkspaceId}`,
   );
   await originalWorkspaceRow.waitFor({ state: "visible", timeout: timeoutMs });
   await originalWorkspaceRow.click();
+  const originalDeck = page.getByTestId(`workspace-deck-entry-${serverId}:${originalWorkspaceId}`);
+  const callerPanel = originalDeck.getByTestId(`workspace-panel-agent_${callerAgentId}`);
+  await callerPanel.waitFor({ state: "visible", timeout: timeoutMs });
 
   await page.evaluate(() => {
     if (document.getElementById("overlay-root")) return;
@@ -471,8 +510,11 @@ async function runRegression({ page, client, serverId, targetUrl, callerAgentId,
   const browserId = created.browserId;
   assert(typeof browserId === "string", "browser_new_tab returned no browserId");
 
-  const originalDeck = page.getByTestId(`workspace-deck-entry-${serverId}:${originalWorkspaceId}`);
-  await originalDeck.getByTestId(`workspace-tab-browser_${browserId}`).click();
+  const browserTab = originalDeck.getByTestId(`workspace-side-panel-view-browser_${browserId}`);
+  const sidePanel = originalDeck.getByTestId("workspace-side-panel");
+  const browserToggle = originalDeck.getByTestId("workspace-header-browser-toggle");
+  await browserToggle.click();
+  await browserTab.click();
   await page.waitForFunction(
     (id) => {
       const webview = document.querySelector(`[data-paseo-browser-id="${id}"]`);
@@ -483,6 +525,7 @@ async function runRegression({ page, client, serverId, targetUrl, callerAgentId,
   );
   const firstGuest = await readGuest(page, browserId);
   assert(firstGuest, "Original browser guest was not attached to its workspace pane");
+  assert(await callerPanel.isVisible(), "Opening the browser hid the caller chat");
   recordViewportMismatch(
     failures,
     "Responsive viewport follows the visible browser pane",
@@ -579,7 +622,9 @@ async function runRegression({ page, client, serverId, targetUrl, callerAgentId,
   await selectDeviceSize(page, "Responsive");
   const responsiveViewport = await readViewport(client, browserId);
 
-  await originalDeck.getByTestId(`workspace-tab-agent_${callerAgentId}`).click();
+  await sidePanel.getByTestId("workspace-side-panel-close").click();
+  await sidePanel.waitFor({ state: "hidden", timeout: timeoutMs });
+  assert(await callerPanel.isVisible(), "Hiding the browser panel hid the caller chat");
   await page.waitForTimeout(500);
   try {
     await callBrowserToolUntilReady(client, "browser_screenshot", { browserId });
@@ -625,7 +670,8 @@ async function runRegression({ page, client, serverId, targetUrl, callerAgentId,
     }
   }, browserId);
 
-  await originalDeck.getByTestId(`workspace-tab-browser_${browserId}`).click();
+  await browserToggle.click();
+  await browserTab.click();
   await page.waitForFunction(
     ({ id, webContentsId }) => {
       const webview = document.querySelector(`[data-paseo-browser-id="${id}"]`);
@@ -717,7 +763,7 @@ async function runRegression({ page, client, serverId, targetUrl, callerAgentId,
   });
 
   await originalWorkspaceRow.click();
-  await originalDeck.getByTestId(`workspace-tab-browser_${browserId}`).click();
+  await browserTab.click();
   await page.waitForFunction(
     ({ id, webContentsId }) => {
       const webview = document.querySelector(`[data-paseo-browser-id="${id}"]`);
@@ -821,24 +867,14 @@ async function runRegression({ page, client, serverId, targetUrl, callerAgentId,
   await page.screenshot({ path: path.join(artifactDir, "local-page-screenshot-selector.png") });
   await originalDeck.getByRole("button", { name: "Cancel element selector" }).click();
 
-  await originalDeck.getByTestId(`workspace-tab-agent_${callerAgentId}`).click();
-  await page.getByRole("button", { name: "Open command center" }).click();
-  await page.getByTestId("command-center-input").fill("Split pane right");
-  await page.getByText("Split pane right", { exact: true }).click();
-  assert(
-    (await originalDeck.getByTestId("workspace-tabs-row").filter({ visible: true }).count()) === 2,
-    "Split pane command did not produce two visible panes",
-  );
-  await originalDeck.getByTestId(`workspace-tab-browser_${browserId}`).last().click();
-  await originalDeck
-    .getByTestId(`browser-webview-clip-${browserId}`)
-    .waitFor({ state: "visible", timeout: timeoutMs });
+  await callerPanel.waitFor({ state: "visible", timeout: timeoutMs });
+  await browserTab.click();
+  await assertBrowserBesideChat({ page, deck: originalDeck, browserId });
 
-  const splitAnnotateButton = originalDeck.getByRole("button", { name: "Annotate element" });
-  await splitAnnotateButton.click();
+  await annotateButton.click();
   assert(
     await waitForGuestSelector(client, browserId),
-    "Element selector did not start in the split browser pane",
+    "Element selector did not start in the right browser panel beside the chat",
   );
   assert(
     await selectElementAndReadAnnotationPaint({

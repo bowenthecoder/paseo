@@ -80,9 +80,13 @@ test("canceling Browse returns to the Add Project methods", async ({
     multiple: false,
   });
   await expect(browse).toBeVisible();
-  await expect(
-    page
-      .locator('[data-testid^="sidebar-project-row-"]')
-      .filter({ hasText: projectPickerFixture.projectName }),
-  ).toHaveCount(0);
+  const client = await connectSeedClient();
+  try {
+    const { projects } = await client.listProjects();
+    expect(projects.map((project) => project.rootPath)).not.toContain(
+      projectPickerFixture.projectPath,
+    );
+  } finally {
+    await client.close();
+  }
 });

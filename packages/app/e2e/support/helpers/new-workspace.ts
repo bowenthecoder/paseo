@@ -6,6 +6,7 @@ import { daemonWsRoutePattern } from "./daemon-port";
 import { projectEquivalenceViewKey } from "./project-view-key";
 import { expectWorkspaceHeader } from "./workspace-ui";
 import { withProjectOwnership } from "./project-ownership";
+import { selectSidebarProjectGrouping } from "./workspace-management";
 
 type NewWorkspaceDaemonClient = Pick<
   InternalDaemonClient,
@@ -177,6 +178,7 @@ export async function openNewWorkspaceComposer(
   page: Page,
   input: { projectKey: string; projectDisplayName: string },
 ): Promise<void> {
+  await selectSidebarProjectGrouping(page);
   const projectViewKey = projectEquivalenceViewKey(input.projectKey);
   const projectRow = page.getByTestId(`sidebar-project-row-${projectViewKey}`).first();
   await expect(projectRow).toBeVisible({ timeout: 30_000 });
@@ -214,7 +216,7 @@ export async function openMissingProjectNewWorkspaceComposer(
 }
 
 export async function expectNewWorkspaceControlsEnabled(page: Page): Promise<void> {
-  await expect(page.getByRole("button", { name: "Workspace project" })).toBeEnabled({
+  await expect(page.getByRole("button", { name: "Working folder" })).toBeEnabled({
     timeout: 30_000,
   });
   await expect(page.getByRole("textbox", { name: "Message agent..." })).toBeEditable({
@@ -223,9 +225,9 @@ export async function expectNewWorkspaceControlsEnabled(page: Page): Promise<voi
 }
 
 export async function openNewWorkspaceProjectPickerWithShortcut(page: Page): Promise<void> {
-  await page.keyboard.press("Control+P");
+  await page.keyboard.press("ControlOrMeta+P");
 
-  const searchInput = page.getByPlaceholder("Search projects");
+  const searchInput = page.getByPlaceholder("Search folders");
   await expect(searchInput).toBeVisible({ timeout: 30_000 });
   await expect(searchInput).toBeFocused();
 }
@@ -233,17 +235,19 @@ export async function openNewWorkspaceProjectPickerWithShortcut(page: Page): Pro
 export async function expectNewWorkspaceProjectSelected(
   page: Page,
   projectDisplayName: string,
+  options?: { directory: string },
 ): Promise<void> {
-  const projectPicker = page.getByRole("button", { name: "Workspace project" });
+  const projectPicker = page.getByRole("button", { name: "Working folder" });
   await expect(projectPicker).toBeVisible({ timeout: 30_000 });
-  await expect(projectPicker).toContainText(projectDisplayName);
+  const folderLabel = options?.directory.split(/[\\/]/).toReversed().find(Boolean);
+  await expect(projectPicker).toContainText(folderLabel ?? projectDisplayName);
 }
 
 export async function expectNewWorkspaceTriggerLabelsAligned(
   page: Page,
   input: { projectLabel: string; hostLabel: string },
 ): Promise<void> {
-  const projectTrigger = page.getByRole("button", { name: "Workspace project" });
+  const projectTrigger = page.getByRole("button", { name: "Working folder" });
   const hostTrigger = page.getByRole("button", { name: "Host", exact: true });
   const projectLabel = projectTrigger.getByText(input.projectLabel, { exact: true });
   const hostLabel = hostTrigger.getByText(input.hostLabel, { exact: true });
@@ -316,9 +320,14 @@ export async function selectNewWorkspaceProject(
   const projectViewKey = input.projectViewKey ?? projectEquivalenceViewKey(input.projectKey);
   const option = page.getByTestId(`new-workspace-project-picker-option-${projectViewKey}`);
   await expect(option).toBeVisible({ timeout: 30_000 });
+  await expect(option.getByText(input.projectDisplayName, { exact: true })).toBeVisible();
+  const directory = await option
+    .getByText(/^(?:[/\\]|[a-z]:[/\\])/i)
+    .last()
+    .innerText();
   await option.click();
 
-  await expectNewWorkspaceProjectSelected(page, input.projectDisplayName);
+  await expectNewWorkspaceProjectSelected(page, input.projectDisplayName, { directory });
 }
 
 // The isolation trigger renders the active isolation's label ("Local" / "New

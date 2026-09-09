@@ -4,6 +4,7 @@ import { addConnectedHostsAndReload, waitForConnectedHost } from "./hosts";
 import { openProjectSettings } from "./project-settings";
 import { selectSettingsHost } from "./settings";
 import { waitForSidebarHydration } from "./workspace-ui";
+import { selectSidebarProjectGrouping } from "./workspace-management";
 import { buildProjectsSettingsRoute } from "@/utils/host-routes";
 
 const PROJECT_VISIBILITY_TIMEOUT = 30_000;
@@ -22,6 +23,7 @@ function projectGroupWithWorkspace(
 
 export async function openProjectDirectory(page: Page): Promise<void> {
   await gotoAppShell(page);
+  await selectSidebarProjectGrouping(page);
   await waitForSidebarHydration(page);
 }
 
@@ -40,6 +42,7 @@ export async function openProjectDirectoryWithHosts(
       endpoint: `localhost:${host.port}`,
     });
   }
+  await selectSidebarProjectGrouping(page);
   await waitForSidebarHydration(page);
 }
 
@@ -72,8 +75,14 @@ export async function beginWorkspaceFromProject(page: Page, projectName: string)
   await expect(group).toBeVisible({ timeout: PROJECT_VISIBILITY_TIMEOUT });
   await group.hover();
   await group.getByLabel(`Create a new workspace for ${projectName}`).click();
-  await expect(page.getByRole("button", { name: "Workspace project", exact: true })).toContainText(
-    projectName,
+  await expect(page).toHaveURL(/\/new(?:\?.*)?$/, { timeout: PROJECT_VISIBILITY_TIMEOUT });
+  const params = new URL(page.url()).searchParams;
+  expect(params.get("name")).toBe(projectName);
+  const directory = params.get("dir");
+  if (!directory) throw new Error(`New workspace route has no folder for ${projectName}`);
+  const folderLabel = directory.split(/[\\/]/).toReversed().find(Boolean) ?? projectName;
+  await expect(page.getByRole("button", { name: "Working folder", exact: true })).toContainText(
+    folderLabel,
     { timeout: PROJECT_VISIBILITY_TIMEOUT },
   );
 }

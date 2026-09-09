@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import {
   expectNoBranchSwitcherInWorkspaceHeader,
   expectWorkspaceBranch,
@@ -60,6 +61,7 @@ test.describe("Branch switcher", () => {
       expect(workspace.workspaceName).toBe("main");
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await switchWorkspaceViaSidebar({ page, serverId, workspaceId: workspace.workspaceId });
 

@@ -30,7 +30,10 @@ interface CreatedProject {
 
 interface CrossHostProjectScenario {
   contextWorkspaceId: string;
+  contextDirectory: string;
   primarySharedWorkspaceId: string;
+  primarySharedDirectory: string;
+  secondarySharedDirectory: string;
   selectedProjectViewKey: string;
   sharedProjectKey: string;
   secondaryHost: {
@@ -85,7 +88,9 @@ async function openNewWorkspaceFromContextProject(
     workspaceId: scenario.contextWorkspaceId,
   });
   await openGlobalNewWorkspaceComposer(page);
-  await expectNewWorkspaceProjectSelected(page, "Context project");
+  await expectNewWorkspaceProjectSelected(page, "Context project", {
+    directory: scenario.contextDirectory,
+  });
 }
 
 const test = base.extend<{ crossHostProject: CrossHostProjectScenario }>({
@@ -151,7 +156,10 @@ const test = base.extend<{ crossHostProject: CrossHostProjectScenario }>({
 
       await provide({
         contextWorkspaceId: contextProject.workspaceId,
+        contextDirectory: contextRepo.path,
         primarySharedWorkspaceId: primarySharedProject.workspaceId,
+        primarySharedDirectory: primarySharedRepo.path,
+        secondarySharedDirectory: secondarySharedRepo.path,
         selectedProjectViewKey: projectPlacementViewKey(
           getServerId(),
           primarySharedProject.projectId,
@@ -197,7 +205,9 @@ test.describe("New workspace host project preservation", () => {
     });
     await selectNewWorkspaceHost(page, SECONDARY_HOST_LABEL);
 
-    await expectNewWorkspaceProjectSelected(page, SHARED_PROJECT_NAME);
+    await expectNewWorkspaceProjectSelected(page, SHARED_PROJECT_NAME, {
+      directory: crossHostProject.secondarySharedDirectory,
+    });
   });
 
   test("keeps the active workspace project selected when switching hosts", async ({
@@ -214,18 +224,26 @@ test.describe("New workspace host project preservation", () => {
       workspaceId: crossHostProject.primarySharedWorkspaceId,
     });
     await openGlobalNewWorkspaceComposer(page);
-    await expectNewWorkspaceProjectSelected(page, SHARED_PROJECT_NAME);
+    await expectNewWorkspaceProjectSelected(page, SHARED_PROJECT_NAME, {
+      directory: crossHostProject.primarySharedDirectory,
+    });
 
     await selectNewWorkspaceHost(page, SECONDARY_HOST_LABEL);
 
-    await expectNewWorkspaceProjectSelected(page, SHARED_PROJECT_NAME);
+    await expectNewWorkspaceProjectSelected(page, SHARED_PROJECT_NAME, {
+      directory: crossHostProject.secondarySharedDirectory,
+    });
 
     await addConnectedHostsAndReload(page, [crossHostProject.secondaryHost], {
       primaryLabel: PRIMARY_HOST_LABEL,
     });
-    await expectNewWorkspaceProjectSelected(page, SHARED_PROJECT_NAME);
+    await expectNewWorkspaceProjectSelected(page, SHARED_PROJECT_NAME, {
+      directory: crossHostProject.secondarySharedDirectory,
+    });
     await selectNewWorkspaceHost(page, SECONDARY_HOST_LABEL);
 
-    await expectNewWorkspaceProjectSelected(page, SHARED_PROJECT_NAME);
+    await expectNewWorkspaceProjectSelected(page, SHARED_PROJECT_NAME, {
+      directory: crossHostProject.secondarySharedDirectory,
+    });
   });
 });

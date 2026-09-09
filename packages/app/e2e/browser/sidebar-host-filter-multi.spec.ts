@@ -1,6 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import {
   addOfflineHostAndReload,
   expectHostFilterRow,
@@ -27,6 +28,7 @@ test.describe("Sidebar host filter (multi-select)", () => {
       // A second (offline) host is enough to surface the host filter without a second daemon.
       await gotoAppShell(page);
       await addOfflineHostAndReload(page, { serverId: SECONDARY_HOST_ID, label: "Secondary Host" });
+      await selectSidebarProjectGrouping(page);
       await expect(workspaceRow).toBeVisible({ timeout: 30_000 });
 
       await openSidebarHostFilter(page);

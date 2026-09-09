@@ -30,7 +30,11 @@ test.describe("Command center sidebar grouping", () => {
       await gotoAppShell(page);
       const projectList = page.getByTestId("sidebar-project-workspace-list-scroll");
       const statusList = page.getByTestId("sidebar-status-list-scroll");
+      const manualSection = page.getByTestId("sidebar-chat-section-ungrouped");
+      const projectRow = page.getByTestId(`sidebar-project-row-${seeded.projectKey}`);
       await expect(projectList).toBeVisible({ timeout: 30_000 });
+      await expect(manualSection).toBeVisible();
+      await expect(projectRow).toHaveCount(0);
 
       // Query-only: the grouping entry stays out of the default empty-query list.
       const panel = await openCommandCenter(page);
@@ -39,6 +43,12 @@ test.describe("Command center sidebar grouping", () => {
       await page.keyboard.press("Escape");
       await expect(panel).not.toBeVisible({ timeout: 30_000 });
 
+      // The default manual chat list and the optional project list share a
+      // scroll surface. Explicitly choose project grouping before testing the
+      // project/status cycle, and prove that real workspace parents appeared.
+      await runGroupingEntry(page, GROUP_BY_PROJECT, GROUP_BY_STATUS);
+      await expect(projectRow).toBeVisible({ timeout: 30_000 });
+      await expect(manualSection).toHaveCount(0);
       await runGroupingEntry(page, GROUP_BY_STATUS, GROUP_BY_PROJECT);
       await expect(statusList).toBeVisible({ timeout: 30_000 });
       await expect(projectList).toHaveCount(0);
@@ -50,6 +60,7 @@ test.describe("Command center sidebar grouping", () => {
       // Grouping persists, so the run must leave the sidebar back in project mode.
       await runGroupingEntry(page, GROUP_BY_PROJECT, GROUP_BY_STATUS);
       await expect(projectList).toBeVisible({ timeout: 30_000 });
+      await expect(projectRow).toBeVisible();
       await expect(statusList).toHaveCount(0);
     } finally {
       await seeded.cleanup().catch(() => undefined);

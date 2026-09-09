@@ -1,7 +1,13 @@
 import React, { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 import { useAggregatedAgents } from "@/hooks/use-aggregated-agents";
-import { buildManualChatEntries, type ManualChatEntry } from "./manual-chat-groups";
+import {
+  areManualChatActivitySessionsEqual,
+  buildManualChatEntries,
+  type ManualChatEntry,
+} from "./manual-chat-groups";
+import { useSessionStore } from "@/stores/session-store";
 import { useSidebarChatGroupsStore } from "@/stores/sidebar-chat-groups-store";
 import {
   useSidebarWorkspacesList,
@@ -133,13 +139,20 @@ export function SidebarModelProvider({
     return new Map(filtered.map((workspace) => [workspace.workspaceKey, workspace]));
   }, [groupMode, hostFilters, labelFilter, resolvedProjectFilters, workspaceEntriesByKey]);
   const { agents } = useAggregatedAgents({ demand: active !== false && groupMode === "manual" });
+  // One collection subscription watches shared turn/submission indexes. Timeline chunks
+  // do not rebuild the chat list, and individual rows do not subscribe to the hot store.
+  const activitySessions = useStoreWithEqualityFn(
+    useSessionStore,
+    (state) => state.sessions,
+    areManualChatActivitySessionsEqual,
+  );
   const allManualChatEntries = useMemo(
-    () => buildManualChatEntries(agents, workspaceEntriesByKey),
-    [agents, workspaceEntriesByKey],
+    () => buildManualChatEntries(agents, workspaceEntriesByKey, activitySessions),
+    [activitySessions, agents, workspaceEntriesByKey],
   );
   const manualChatEntries = useMemo(
-    () => buildManualChatEntries(agents, filteredWorkspaceEntriesByKey),
-    [agents, filteredWorkspaceEntriesByKey],
+    () => buildManualChatEntries(agents, filteredWorkspaceEntriesByKey, activitySessions),
+    [activitySessions, agents, filteredWorkspaceEntriesByKey],
   );
   const visibleWorkspaceKeys = useMemo(
     () => new Set(filteredWorkspaceEntriesByKey.keys()),

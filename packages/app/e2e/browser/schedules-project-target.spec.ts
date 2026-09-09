@@ -11,7 +11,6 @@ import { projectEquivalenceViewKey } from "../support/helpers/project-view-key";
 import { escapeRegex } from "../support/helpers/regex";
 import { expectNoTruncation } from "../support/helpers/no-truncation";
 import { expectSettled, expectStableHeight } from "../support/helpers/settled";
-import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
 import { buildSchedulesRoute } from "../../src/utils/host-routes";
 
 const MOBILE_SHEET_VIEWPORT = { width: 390, height: 844 };
@@ -159,8 +158,6 @@ test.describe("Schedules project target", () => {
     const workspace = await seedWorkspace({ repoPrefix: "schedule-sheet-dismiss-", git: false });
     cleanupTasks.push(() => workspace.cleanup());
 
-    await gotoAppShell(page);
-    await waitForSidebarHydration(page);
     await page.goto(buildSchedulesRoute());
     await page.setViewportSize(MOBILE_SHEET_VIEWPORT);
     await expect(page.getByTestId("schedules-empty-new")).toBeVisible({ timeout: 30_000 });
@@ -184,7 +181,6 @@ test.describe("Schedules project target", () => {
     cleanupTasks.push(() => deleteScheduleByName(workspace, scheduleName));
 
     await gotoAppShell(page);
-    await waitForSidebarHydration(page);
 
     await page.getByRole("button", { name: "Schedules" }).click();
     await expect(page).toHaveURL(/\/schedules$/);
@@ -285,8 +281,6 @@ test.describe("Schedules project target", () => {
       project: fakeHost,
     });
 
-    await gotoAppShell(page);
-    await waitForSidebarHydration(page);
     await page.goto(buildSchedulesRoute());
     await addFakeScheduleHostAndReload({
       page,
@@ -365,8 +359,6 @@ test.describe("Schedules project target", () => {
     const scheduleName = `Knob schedule ${Date.now()}`;
     cleanupTasks.push(() => deleteScheduleByName(workspace, scheduleName));
 
-    await gotoAppShell(page);
-    await waitForSidebarHydration(page);
     await page.goto(buildSchedulesRoute());
     await expect(page.getByTestId("schedules-empty-new")).toBeVisible({ timeout: 30_000 });
     await page.getByTestId("schedules-empty-new").click();

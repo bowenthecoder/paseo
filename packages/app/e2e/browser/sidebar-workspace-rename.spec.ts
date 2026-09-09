@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import { seedWorkspace } from "../support/helpers/seed-client";
 import { getServerId } from "../support/helpers/server-id";
 
@@ -41,6 +42,7 @@ test.describe("Sidebar workspace rename", () => {
       expect(workspace.workspaceName).toBe("main");
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await expect(page.getByTestId(workspaceRowTestId(workspace.workspaceId))).toBeVisible({
         timeout: 30_000,
       });
