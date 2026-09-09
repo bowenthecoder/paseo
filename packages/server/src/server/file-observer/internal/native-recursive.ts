@@ -262,7 +262,9 @@ class NativeRecursiveBackend implements ObservationBackend {
       await this.reconcileSubtree(directory, generation);
       if (!this.canCommit(generation)) return;
     }
-    for (const directory of this.paths.collapse(changeScopes)) {
+    // A shallow parent scan does not cover its existing child directories.
+    // Only an explicit recursive scope can subsume a named descendant here.
+    for (const directory of new Set(changeScopes)) {
       const alreadyCovered =
         forcedLocalScopes.has(directory) ||
         forcedRecursiveScopes.some((scope) => this.host.isPathInside(scope, directory));
@@ -361,6 +363,9 @@ class NativeRecursiveBackend implements ObservationBackend {
     this.queueDiff(inventory.files, previousFiles);
     this.removeSubtree(directory, false);
     this.mergeInventory(inventory, false);
+    if (inventory.directories.has(directory)) {
+      this.entries.get(dirname(directory))?.directories.add(directory);
+    }
   }
 
   private queueDiff(nextFiles: Set<string>, previousFiles: Set<string>): void {
