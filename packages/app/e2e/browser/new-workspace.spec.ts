@@ -331,7 +331,7 @@ test.describe("New workspace flow", () => {
         agentId: firstChat.id,
       });
       await expectWorkspaceHeader(page, {
-        title: firstWorkspace.workspaceName,
+        title: firstChat.title,
         subtitle: firstWorkspace.projectDisplayName,
       });
 
@@ -344,7 +344,7 @@ test.describe("New workspace flow", () => {
         page.getByTestId(`sidebar-workspace-row-${serverId}:chat:${secondChat.id}`),
       ).toBeVisible();
       await expectWorkspaceHeader(page, {
-        title: secondWorkspace.workspaceName,
+        title: secondChat.title,
         subtitle: secondWorkspace.projectDisplayName,
       });
 
@@ -354,7 +354,7 @@ test.describe("New workspace flow", () => {
         agentId: firstChat.id,
       });
       await expectWorkspaceHeader(page, {
-        title: firstWorkspace.workspaceName,
+        title: firstChat.title,
         subtitle: firstWorkspace.projectDisplayName,
       });
     } finally {
@@ -399,7 +399,7 @@ test.describe("New workspace flow", () => {
         agentId: rootChat.id,
       });
       await expectWorkspaceHeader(page, {
-        title: rootWorkspace.workspaceName,
+        title: rootChat.title,
         subtitle: rootWorkspace.projectDisplayName,
       });
       await expect(
@@ -412,7 +412,7 @@ test.describe("New workspace flow", () => {
         agentId: worktreeChat.id,
       });
       await expectWorkspaceHeader(page, {
-        title: worktreeWorkspace.workspaceName,
+        title: worktreeChat.title,
         subtitle: worktreeWorkspace.projectDisplayName,
       });
       await expect(
@@ -428,7 +428,7 @@ test.describe("New workspace flow", () => {
         agentId: rootChat.id,
       });
       await expectWorkspaceHeader(page, {
-        title: rootWorkspace.workspaceName,
+        title: rootChat.title,
         subtitle: rootWorkspace.projectDisplayName,
       });
       await expect(

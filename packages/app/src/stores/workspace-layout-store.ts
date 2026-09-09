@@ -619,11 +619,14 @@ export function createWorkspaceLayoutStore(
           const openedSidePane =
             findPaneContainingTab(result.layout.root, result.tabId)?.id ===
             EXPLORER_SIDEBAR_PANE_ID;
-          // Opening a supporting view retains the originating chat's keyboard target until
-          // the user interacts with the dock. Background views never take focus.
-          const focusedLayout = openedSidePane
-            ? { ...result.layout, focusedPaneId: placement.layout.focusedPaneId }
-            : result.layout;
+          // Explicit terminal opens need keyboard focus to claim their PTY size.
+          // Other supporting views and background opens retain the originating chat focus.
+          const focusesTerminal =
+            normalizedTarget.kind === "terminal" && input.intent !== "background";
+          const focusedLayout =
+            openedSidePane && !focusesTerminal
+              ? { ...result.layout, focusedPaneId: placement.layout.focusedPaneId }
+              : result.layout;
           // A terminal, tree or browser can only live in the side panel, so an explicit open
           // has to bring the panel out. Background opens stay quiet.
           const landedInSidePanel =

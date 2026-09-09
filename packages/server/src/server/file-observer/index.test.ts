@@ -213,8 +213,11 @@ test("observes a thousand concurrent writes and remains healthy after delete and
   const directories = Array.from({ length: 20 }, (_, index) => join(root, `dir-${index}`));
   await Promise.all(directories.map((directory) => mkdir(directory)));
   const observed = new Map<string, Set<FileChange["type"]>>();
-  const subscription = await subscribeToFileChanges(root, (error, events) => {
+  const delivered: FileChange[] = [];
+  const observer = createObserver();
+  const subscription = await observer.subscribe(root, (error, events) => {
     expect(error).toBeNull();
+    delivered.push(...events);
     for (const event of events) {
       const types = observed.get(event.path) ?? new Set();
       types.add(event.type);
@@ -241,12 +244,32 @@ test("observes a thousand concurrent writes and remains healthy after delete and
     .toEqual([]);
 
   const removedPaths = paths.slice(0, 100);
+  const diagnosticsBeforeDelete = observer.getDiagnostics();
+  const deliveredBeforeDelete = delivered.length;
   await Promise.all(removedPaths.map((path) => rm(path)));
-  await expect
-    .poll(() => removedPaths.filter((path) => !observed.get(path)?.has("delete")), {
-      timeout: 10_000,
-    })
-    .toEqual([]);
+  try {
+    await expect
+      .poll(() => removedPaths.filter((path) => !observed.get(path)?.has("delete")), {
+        timeout: 10_000,
+      })
+      .toEqual([]);
+  } catch (error) {
+    const deliveredAfterDelete = delivered.slice(deliveredBeforeDelete);
+    console.error("File observer delete diagnostics", {
+      beforeDelete: diagnosticsBeforeDelete,
+      afterDelete: observer.getDiagnostics(),
+      missing: removedPaths
+        .filter((path) => !observed.get(path)?.has("delete"))
+        .map((path) => ({
+          path,
+          observedTypes: [...(observed.get(path) ?? [])],
+          typesAfterDelete: deliveredAfterDelete
+            .filter((event) => event.path === path)
+            .map((event) => event.type),
+        })),
+    });
+    throw error;
+  }
 
   for (let index = 0; index < 10; index += 1) {
     const from = directories[index];

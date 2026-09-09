@@ -12,7 +12,10 @@ import { asInternals, createStub } from "./test-utils/class-mocks.js";
 import { createProviderSnapshotManagerStub } from "./test-utils/session-stubs.js";
 import type { WorkspaceAutoName } from "./workspace-auto-name.js";
 import { MAX_PHYSICAL_FRAME_BYTES } from "./websocket/physical-socket.js";
-import { SessionOutboundMessageSchema } from "@getpaseo/protocol/messages";
+import {
+  MutableDaemonConfigSchema,
+  SessionOutboundMessageSchema,
+} from "@getpaseo/protocol/messages";
 import { MAX_TIMELINE_PAGE_BYTES } from "./agent/timeline-page-budget.js";
 
 const wsModuleMock = vi.hoisted(() => {
@@ -83,6 +86,8 @@ function createServer() {
     createStub<DownloadTokenStore>({}),
     "/tmp/paseo-test",
     createStub<DaemonConfigStore>({
+      get: () =>
+        MutableDaemonConfigSchema.parse({ mcp: { injectIntoAgents: false }, providers: {} }),
       onApply: vi.fn(() => () => {}),
       onChange: vi.fn(() => () => {}),
     }),

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Server as HTTPServer } from "http";
 import type pino from "pino";
+import { MutableDaemonConfigSchema } from "@getpaseo/protocol/messages";
 import type { AgentManager } from "./agent/agent-manager.js";
 import type { AgentStorage } from "./agent/agent-storage.js";
 import type { DownloadTokenStore } from "./file-download/token-store.js";
@@ -100,6 +101,7 @@ function createServer(agentManagerOverrides?: Record<string, unknown>) {
     ...agentManagerOverrides,
   };
   const daemonConfigStore = {
+    get: () => MutableDaemonConfigSchema.parse({ mcp: { injectIntoAgents: false }, providers: {} }),
     onApply: vi.fn(() => () => {}),
     onChange: vi.fn(() => () => {}),
   };

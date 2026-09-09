@@ -8,6 +8,7 @@ import type {
 } from "@getpaseo/protocol/browser-automation/rpc-schemas";
 import { BROWSER_AUTOMATION_COMMAND_NAMES } from "@getpaseo/protocol/browser-automation/rpc-schemas";
 import { CLIENT_CAPS } from "@getpaseo/protocol/client-capabilities";
+import { MutableDaemonConfigSchema } from "@getpaseo/protocol/messages";
 import type pino from "pino";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -282,6 +283,12 @@ function createVoiceAssistantWebSocketServer(params: {
     }),
   };
   const daemonConfigStore = {
+    get: () =>
+      MutableDaemonConfigSchema.parse({
+        mcp: { injectIntoAgents: false },
+        browserTools: { enabled: true },
+        providers: {},
+      }),
     onApply: () => () => {},
     onChange: () => () => {},
   };

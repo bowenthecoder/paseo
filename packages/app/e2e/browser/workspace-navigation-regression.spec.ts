@@ -164,7 +164,7 @@ test.describe("Workspace navigation regression", () => {
         { timeout: 60_000 },
       );
       await expectWorkspaceHeader(page, {
-        title: workspace.workspaceName,
+        title: agent.title,
         subtitle: workspace.projectDisplayName,
       });
       await waitForWorkspaceTabsVisible(page);
@@ -183,7 +183,7 @@ test.describe("Workspace navigation regression", () => {
       await daemonGate.waitForBlockedConnection();
       await expectReconnectingToastVisible(page);
       await expectWorkspaceHeader(page, {
-        title: workspace.workspaceName,
+        title: agent.title,
         subtitle: workspace.projectDisplayName,
       });
       await waitForWorkspaceTabsVisible(page);
@@ -197,7 +197,7 @@ test.describe("Workspace navigation regression", () => {
       await expectReconnectingToastGone(page);
       await monitorReconnect;
       await expectWorkspaceHeader(page, {
-        title: workspace.workspaceName,
+        title: agent.title,
         subtitle: workspace.projectDisplayName,
       });
       await waitForWorkspaceTabsVisible(page);
@@ -357,7 +357,7 @@ test.describe("Workspace navigation regression", () => {
         page.getByTestId(`sidebar-workspace-row-${serverId}:chat:${secondAgent.id}`),
       ).toHaveAttribute("aria-selected", "false");
       await expectWorkspaceHeader(page, {
-        title: firstWorkspace.workspaceName,
+        title: firstAgent.title,
         subtitle: firstWorkspace.projectDisplayName,
       });
       await expectWorkspaceTabVisible(page, firstAgent.id);
@@ -384,7 +384,7 @@ test.describe("Workspace navigation regression", () => {
         page.getByTestId(`sidebar-workspace-row-${serverId}:chat:${firstAgent.id}`),
       ).toHaveAttribute("aria-selected", "false");
       await expectWorkspaceHeader(page, {
-        title: secondWorkspace.workspaceName,
+        title: secondAgent.title,
         subtitle: secondWorkspace.projectDisplayName,
       });
       await expectWorkspaceTabVisible(page, secondAgent.id);
@@ -451,7 +451,7 @@ test.describe("Workspace navigation regression", () => {
         page.getByTestId(`sidebar-workspace-row-${serverId}:chat:${firstAgent.id}`),
       ).toHaveAttribute("aria-selected", "true");
       await expectWorkspaceHeader(page, {
-        title: firstWorkspace.workspaceName,
+        title: firstAgent.title,
         subtitle: firstWorkspace.projectDisplayName,
       });
       await expectWorkspaceTabVisible(page, firstAgent.id);

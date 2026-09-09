@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ProviderOverrideSchema } from "@getpaseo/protocol/provider-config";
 import { createTestLogger } from "../../test-utils/test-logger.js";
@@ -110,7 +110,7 @@ describe("native quota credential isolation", () => {
       },
       credentialFileReader: async (file) => {
         files.push(file);
-        return file.endsWith("/.credentials.json")
+        return basename(file) === ".credentials.json"
           ? claudeCredential("synthetic-b")
           : codexCredential("synthetic-b");
       },
