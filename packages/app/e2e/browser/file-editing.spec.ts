@@ -9,8 +9,6 @@ import {
 import { installDaemonWebSocketGate } from "../support/helpers/daemon-websocket-gate";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
 
-const APP_SETTINGS_KEY = "@paseo:app-settings";
-
 const RED_PIXEL = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII=",
   "base64",
@@ -212,13 +210,7 @@ test.describe("CodeMirror workspace file editing", () => {
     }
   });
 
-  test("clicking the editor focuses its pane beside an agent", async ({ page }) => {
-    await page.addInitScript((settingsKey) => {
-      localStorage.setItem(
-        settingsKey,
-        JSON.stringify({ openInSidePane: { explorerFiles: true } }),
-      );
-    }, APP_SETTINGS_KEY);
+  test("clicking the editor keeps the chat beside it", async ({ page }) => {
     const target = "target.ts:42";
     const session = await seedAgentWithFileLink({
       target,

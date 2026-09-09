@@ -4,8 +4,6 @@ import { expect, test, type Page } from "../support/fixtures";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
 import { ensureExplorerSidebar, openFilesPanel } from "../support/helpers/workspace-tabs";
 
-const APP_SETTINGS_KEY = "@paseo:app-settings";
-
 function visibleChatPane(page: Page) {
   return page.getByTestId("workspace-chat-pane").filter({ visible: true });
 }
@@ -54,12 +52,9 @@ async function seedChangedAgent(repoPrefix: string) {
   }
 }
 
-test("composer diff stat reveals Changes, then opens the diff in the configured side pane", async ({
+test("composer diff stat reveals Changes, then opens the diff in the side panel", async ({
   page,
 }) => {
-  await page.addInitScript((settingsKey) => {
-    localStorage.setItem(settingsKey, JSON.stringify({ openInSidePane: { diffs: true } }));
-  }, APP_SETTINGS_KEY);
   const workspace = await seedChangedAgent("composer-diff-stat-side-");
 
   try {
@@ -76,10 +71,7 @@ test("composer diff stat reveals Changes, then opens the diff in the configured 
     await revealComposerChangesInExplorer(page);
     await openComposerDiff(page);
 
-    const sidePane = page
-      .locator('[data-testid^="workspace-pane-"]')
-      .filter({ visible: true })
-      .filter({ has: page.getByTestId("working-diff-panel") });
+    const sidePane = page.getByTestId("workspace-side-panel").filter({ visible: true });
     await expect(sidePane.getByTestId("workspace-panel-working_diff")).toBeVisible({
       timeout: 30_000,
     });
@@ -121,34 +113,6 @@ test("composer diff stat opens the compact explorer instead of a Changes tab", a
       timeout: 30_000,
     });
     await expect(page.getByTestId("workspace-panel-working_diff")).toHaveCount(0);
-  } finally {
-    await workspace.cleanup();
-  }
-});
-
-test("composer diff stat reveals Changes, then opens the diff in the focused pane by default", async ({
-  page,
-}) => {
-  const workspace = await seedChangedAgent("composer-diff-stat-tab-");
-
-  try {
-    await page.setViewportSize({ width: 1400, height: 900 });
-    await openAgentRoute(page, {
-      workspaceId: workspace.workspaceId,
-      agentId: workspace.agentId,
-    });
-
-    await revealComposerChangesInExplorer(page);
-    await openComposerDiff(page);
-
-    const mainPane = visibleChatPane(page);
-    await expect(mainPane.getByTestId("workspace-panel-working_diff")).toBeVisible({
-      timeout: 30_000,
-    });
-    await expect(mainPane.getByTestId("working-diff-panel")).toBeVisible({ timeout: 30_000 });
-    await expect(
-      page.locator('[data-testid^="workspace-pane-"]').filter({ visible: true }),
-    ).toHaveCount(1);
   } finally {
     await workspace.cleanup();
   }
