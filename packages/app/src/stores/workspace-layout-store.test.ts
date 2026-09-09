@@ -902,7 +902,7 @@ describe("workspace-layout-store actions", () => {
     expect(layout.focusedPaneId).toBe("main");
   });
 
-  it("keeps ambient browser opens from taking workspace focus", () => {
+  it("keeps explicitly revealed browsers focused in the supporting dock", () => {
     const workspaceKey = createWorkspaceKey();
     const store = workspaceLayoutStore.getState();
     store.openTab({
@@ -923,7 +923,7 @@ describe("workspace-layout-store actions", () => {
 
     const layout = workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey];
     expect(findPaneContainingTab(layout.root, browserTabId as string)?.id).toBe("explorer");
-    expect(layout.focusedPaneId).toBe("main");
+    expect(layout.focusedPaneId).toBe("explorer");
   });
 
   it("keeps ambient draft opens out of the focused explorer pane", () => {

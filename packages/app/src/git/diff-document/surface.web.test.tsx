@@ -161,6 +161,32 @@ describe("diff surface scrolling", () => {
     expect(view.getByTestId("header-stat-first.ts").textContent).toBe("1201");
     expect(paintedModel().files[0]?.file).toBe(updatedFile);
   });
+
+  it("keeps the next file interactive and materialized after the preceding file grows", async () => {
+    const view = await mountSurface([largeFile("first.ts", 135), largeFile("second.ts")], false);
+    const scroll = view.getByTestId("git-diff-scroll");
+    scrollTo(scroll, 1_200);
+    scrollTo(scroll, 2_400);
+    expect(paintedModel().files[0]!.bottom).toBeGreaterThan(2_400);
+
+    // New lines are after the visible source row, so its scroll anchor stays put.
+    view.rerender(
+      <DiffDocumentWorkspaceCacheProvider>
+        <DiffSurface
+          {...surfaceProps([largeFile("first.ts", 190), largeFile("second.ts")], false)}
+        />
+      </DiffDocumentWorkspaceCacheProvider>,
+    );
+    act(flushFrames);
+    expect(scroll.scrollTop).toBe(2_400);
+    scrollTo(scroll, 3_000);
+
+    const second = paintedModel().files[1]!;
+    expect(second.top).toBeGreaterThan(3_000);
+    expect(second.top).toBeLessThan(3_600);
+    expect(view.container.querySelector('[data-diff-header-path="second.ts"]')).not.toBeNull();
+    expect(hasMeasuredText(paintedModel(), "second.ts")).toBe(true);
+  });
 });
 
 async function mountSurface(
@@ -213,20 +239,20 @@ function hasMeasuredText(model: DiffDocumentModel, path: string): boolean {
   );
 }
 
-function largeFile(path: string): ParsedDiffFile {
+function largeFile(path: string, lineCount = 1_200): ParsedDiffFile {
   return {
     path,
     isNew: true,
     isDeleted: false,
-    additions: 1_200,
+    additions: lineCount,
     deletions: 0,
     hunks: [
       {
         oldStart: 0,
         oldCount: 0,
         newStart: 1,
-        newCount: 1_200,
-        lines: Array.from({ length: 1_200 }, (_, index) => ({
+        newCount: lineCount,
+        lines: Array.from({ length: lineCount }, (_, index) => ({
           type: "add" as const,
           content: `const value${index} = ${index};`,
         })),

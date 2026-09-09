@@ -11,6 +11,9 @@ export interface OverviewSummary {
   searchCount: number;
   otherToolCount: number;
   paseoCallCount: number;
+  failedToolCount: number;
+  canceledToolCount: number;
+  runningToolCount: number;
 }
 
 export interface OverviewToolCallGroup {
@@ -36,11 +39,26 @@ export function buildOverviewGroup(run: ToolCallRun): OverviewToolCallGroup {
   let searchCount = 0;
   let otherToolCount = 0;
   let paseoCallCount = 0;
+  let failedToolCount = 0;
+  let canceledToolCount = 0;
+  let runningToolCount = 0;
 
   for (const call of run.calls) {
     const descriptor = describeToolCall(call);
     const normalizedName = descriptor.name.trim().toLowerCase();
-    isLoading ||= descriptor.status === "running" || descriptor.status === "executing";
+    if (descriptor.status === "running" || descriptor.status === "executing") {
+      isLoading = true;
+      runningToolCount += 1;
+      continue;
+    }
+    if (descriptor.status === "failed") {
+      failedToolCount += 1;
+      continue;
+    }
+    if (descriptor.status === "canceled") {
+      canceledToolCount += 1;
+      continue;
+    }
     if (isPaseoCall(descriptor.name, normalizedName)) {
       paseoCallCount += 1;
     } else if (descriptor.detail.type === "edit" || descriptor.detail.type === "write") {
@@ -63,6 +81,9 @@ export function buildOverviewGroup(run: ToolCallRun): OverviewToolCallGroup {
     searchCount,
     otherToolCount,
     paseoCallCount,
+    failedToolCount,
+    canceledToolCount,
+    runningToolCount,
   };
   return {
     mode: "overview",

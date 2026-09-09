@@ -11,7 +11,7 @@ export function createAgentPaneContext(
   context: PaneContextValue,
   agent: AgentPaneDirectory | null,
 ): PaneContextValue {
-  if (context.host !== "explorer" || !agent) return context;
+  if (!agent) return context;
   const layoutWorkspaceId = context.layoutWorkspaceId ?? context.workspaceId;
   return {
     ...context,

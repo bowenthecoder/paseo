@@ -73,11 +73,19 @@ describe("managed child pane context", () => {
     });
   });
 
-  it("keeps the root conversation's context and callback unchanged", () => {
+  it("anchors a split main chat to its own folder and keeps the layout workspace", () => {
     const parent = createContext({ host: "main" });
-    expect(
-      createAgentPaneContext(parent, { workspaceId: "parent-worktree", cwd: "/srv/parent" }),
-    ).toBe(parent);
+    const chat = createAgentPaneContext(parent, {
+      workspaceId: "other-worktree",
+      cwd: "/srv/other",
+    });
+    chat.openFileInWorkspace({ location: { path: "guide.md" }, disposition: "side" });
+    expect(parent.openFileInWorkspace).toHaveBeenCalledWith({
+      location: { path: "/srv/other/guide.md" },
+      disposition: "side",
+    });
+    expect(chat.workspaceId).toBe("other-worktree");
+    expect(chat.layoutWorkspaceId).toBe("parent-worktree");
     expect(createAgentPaneContext(parent, null)).toBe(parent);
   });
 

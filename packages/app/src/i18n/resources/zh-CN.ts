@@ -1786,6 +1786,18 @@ export const zhCN: TranslationResources = {
     output: "输出",
   },
   toolCallGroup: {
+    runningTools: {
+      one: "{{count}} 个工具正在运行",
+      other: "{{count}} 个工具正在运行",
+    },
+    failedTools: {
+      one: "{{count}} 个工具失败",
+      other: "{{count}} 个工具失败",
+    },
+    canceledTools: {
+      one: "{{count}} 个工具已取消",
+      other: "{{count}} 个工具已取消",
+    },
     editedFiles: {
       one: "编辑了 {{count}} 个文件",
       other: "编辑了 {{count}} 个文件",

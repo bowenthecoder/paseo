@@ -5,14 +5,12 @@ import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-
 import { useSessionStore } from "@/stores/session-store";
 import { providerUsageCopy } from "./copy";
 import type { ProviderUsageListPayload, ProviderUsageView } from "./types";
+import { providerUsageQueryKey } from "./query-cache";
+export { providerUsageQueryKey } from "./query-cache";
 
 export const PROVIDER_USAGE_STALE_TIME_MS = 5 * 60 * 1000;
 
 type ProviderUsageClient = Pick<DaemonClient, "listProviderUsage">;
-
-export function providerUsageQueryKey(serverId: string | null | undefined) {
-  return ["providerUsage", serverId ?? ""] as const;
-}
 
 async function fetchProviderUsage(client: ProviderUsageClient): Promise<ProviderUsageListPayload> {
   return client.listProviderUsage();

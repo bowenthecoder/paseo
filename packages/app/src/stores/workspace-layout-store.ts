@@ -10,6 +10,10 @@ import {
   type WorkspaceLayoutIdSource,
 } from "@/stores/workspace-layout-ids";
 import {
+  addChatPaneToLayout,
+  closeChatPaneInLayout,
+  collectChatPanes,
+  normalizeWorkspaceChatLayout,
   closeTabInLayout,
   collectAllPanes,
   collectAllTabs,
@@ -97,6 +101,8 @@ interface WorkspaceLayoutStore {
   pendingAgentIdsByWorkspace: Record<string, Set<string>>;
   hiddenAgentIdsByWorkspace: Record<string, Set<string>>;
   focusRestorationByWorkspace: Record<string, WorkspaceFocusRestorationState>;
+  addChatPane: (workspaceKey: string) => string | null;
+  closeChatPane: (workspaceKey: string, paneId: string) => void;
   openTab: (input: OpenWorkspaceTabInput) => string | null;
   /** Reveals the side panel without selecting a view. Returns its pane id. */
   showExplorerSidebar: (workspaceKey: string) => string | null;
@@ -248,7 +254,7 @@ const WorkspaceLayoutPersistedStateSchema = z.strictObject({
 });
 
 const LEGACY_EXPLORER_SIDEBAR_REFERENCE_WIDTH = 1440;
-const WORKSPACE_LAYOUT_PERSIST_VERSION = 3;
+const WORKSPACE_LAYOUT_PERSIST_VERSION = 4;
 
 function convertLegacyExplorerSidebarRatios(
   ratiosByWorkspace: Record<string, number>,
@@ -262,9 +268,8 @@ function convertLegacyExplorerSidebarRatios(
 }
 
 /**
- * Every persisted layout is rebuilt as one chat pane plus one side panel. Blobs written by
- * builds that still had tabs and splits carry deeper trees; flattening them here means a
- * downgrade-then-upgrade never renders a pane this app has no chrome for.
+ * Keep supported chat panes through upgrades, and move the old independent explorer chat
+ * into its own grid cell. Older arbitrary trees still retain all conversations and drafts.
  */
 function migrateWorkspaceLayoutPersistedState(
   persistedState: unknown,
@@ -282,7 +287,7 @@ function migrateWorkspaceLayoutPersistedState(
     layoutByWorkspace: Object.fromEntries(
       Object.entries(result.data.layoutByWorkspace).map(([workspaceKey, layout]) => [
         workspaceKey,
-        flattenLayoutToSingleChat(stripEphemeralTabsFromLayout(layout), (target, previousHost) =>
+        normalizeWorkspaceChatLayout(stripEphemeralTabsFromLayout(layout), (target, previousHost) =>
           resolveWorkspaceTargetHost(workspaceKey, target, previousHost),
         ),
       ]),
@@ -354,33 +359,43 @@ function getWorkspaceLayout(
   state: Record<string, WorkspaceLayout>,
   workspaceKey: string,
 ): WorkspaceLayout {
-  return flattenLayoutToSingleChat(
+  return normalizeWorkspaceChatLayout(
     normalizeLayout(state[workspaceKey] ?? createWorkspaceLayoutWithExplorerSidebar()),
     (target, previousHost) => resolveWorkspaceTargetHost(workspaceKey, target, previousHost),
   );
 }
 
-/** Focus belongs to the chat: the side panel is a dock, not somewhere the workspace lives. */
+/** Hidden supporting panels cannot retain keyboard focus. */
 function keepWorkspaceFocusOutOfExplorerSidebar(
   layout: WorkspaceLayout,
   preferredMainPaneId?: string | null,
 ): WorkspaceLayout {
-  if (layout.focusedPaneId !== EXPLORER_SIDEBAR_PANE_ID) {
+  if (
+    layout.focusedPaneId !== EXPLORER_SIDEBAR_PANE_ID ||
+    findPaneById(layout.root, EXPLORER_SIDEBAR_PANE_ID)?.hidden !== true
+  )
     return layout;
-  }
-  const panes = collectAllPanes(layout.root).filter((pane) => pane.id !== EXPLORER_SIDEBAR_PANE_ID);
-  const mainPane =
-    panes.find((pane) => pane.id === preferredMainPaneId) ??
-    panes.find((pane) => pane.id === DEFAULT_PANE_ID) ??
-    panes[0];
-  return { ...layout, focusedPaneId: mainPane?.id ?? null };
+  const sidePane = findPaneById(layout.root, EXPLORER_SIDEBAR_PANE_ID);
+  const parentTabId = sidePane?.focusedTabId
+    ? layout.parentTabIdByTabId?.[sidePane.focusedTabId]
+    : null;
+  const parentPane = parentTabId ? findPaneContainingTab(layout.root, parentTabId) : null;
+  const panes = collectChatPanes(layout.root);
+  return {
+    ...layout,
+    focusedPaneId:
+      panes.find((pane) => pane.id === parentPane?.id)?.id ??
+      panes.find((pane) => pane.id === preferredMainPaneId)?.id ??
+      panes[0]?.id ??
+      null,
+  };
 }
 
 type ExplorerSidebarState = Pick<WorkspaceLayoutStore, "layoutByWorkspace">;
 
 /**
  * The side panel's pane, on screen or not. Every workspace has one — the layout is born
- * with it and flattening puts it back — so this answers before the first tab exists.
+ * with it and normalization puts it back — so this answers before the first tab exists.
  */
 export function selectExplorerSidebarPaneId(
   state: ExplorerSidebarState,
@@ -400,40 +415,87 @@ export function selectIsExplorerSidebarVisible(
   return Boolean(pane && pane.hidden !== true);
 }
 
+interface TabPlacementResult {
+  layout: WorkspaceLayout;
+  placement: WorkspaceTabPlacement;
+}
+
+function getSplitChatPlacement(
+  layout: WorkspaceLayout,
+  savedTab: WorkspaceTab | undefined,
+  savedPane: SplitPane | null,
+): TabPlacementResult | null {
+  if (
+    savedPane &&
+    savedTab?.target.kind === "agent" &&
+    savedTab.target.view === "split" &&
+    savedPane.id !== DEFAULT_PANE_ID &&
+    savedPane.id !== EXPLORER_SIDEBAR_PANE_ID
+  ) {
+    return { layout, placement: { mode: "pane", paneId: savedPane.id } };
+  }
+  const empty = collectChatPanes(layout.root).find(
+    (pane) =>
+      pane.id !== DEFAULT_PANE_ID &&
+      collectAllTabs({ kind: "pane", pane }).every((tab) => tab.target.kind === "new_tab"),
+  );
+  if (empty) return { layout, placement: { mode: "pane", paneId: empty.id } };
+  const added = addChatPaneToLayout(layout);
+  return added ? { layout: added.layout, placement: { mode: "pane", paneId: added.paneId } } : null;
+}
+
 function getOpenTabPlacement(
   state: WorkspaceLayoutStore,
   workspaceKey: string,
   target: WorkspaceTabTarget,
   placement: WorkspaceTabPlacement | undefined,
-): {
-  layout: WorkspaceLayout;
-  placement: WorkspaceTabPlacement;
-} {
+): TabPlacementResult | null {
   const layout = getWorkspaceLayout(state.layoutByWorkspace, workspaceKey);
-  let requestedHost: "main" | "explorer" | undefined;
-  if (placement?.mode === "pane" || placement?.mode === "prefer") {
-    requestedHost = placement.paneId === EXPLORER_SIDEBAR_PANE_ID ? "explorer" : "main";
-  }
-  if (target.kind === "agent") {
-    const savedTab = collectAllTabs(layout.root).find(
-      (tab) => tab.target.kind === "agent" && tab.target.agentId === target.agentId,
-    );
-    requestedHost = undefined;
-    if (savedTab?.target.kind === "agent" && savedTab.target.view === target.view) {
-      requestedHost =
-        findPaneContainingTab(layout.root, savedTab.tabId)?.id === EXPLORER_SIDEBAR_PANE_ID
-          ? "explorer"
-          : "main";
-    }
-  }
-  const host = resolveWorkspaceTargetHost(workspaceKey, target, requestedHost);
+  const savedTab =
+    target.kind === "agent"
+      ? collectAllTabs(layout.root).find(
+          (tab) => tab.target.kind === "agent" && tab.target.agentId === target.agentId,
+        )
+      : undefined;
+  const savedPane = savedTab ? findPaneContainingTab(layout.root, savedTab.tabId) : null;
+  if (target.kind === "agent" && target.view === "split")
+    return getSplitChatPlacement(layout, savedTab, savedPane);
+  const host = resolveWorkspaceTargetHost(
+    workspaceKey,
+    target,
+    savedPane?.id === EXPLORER_SIDEBAR_PANE_ID ? "explorer" : undefined,
+  );
+  if (host === "explorer")
+    return { layout, placement: { mode: "pane", paneId: EXPLORER_SIDEBAR_PANE_ID } };
   return {
     layout,
     placement: {
       mode: "pane",
-      paneId: host === "explorer" ? EXPLORER_SIDEBAR_PANE_ID : DEFAULT_PANE_ID,
+      paneId: resolveMainChatPlacement(layout, placement, savedTab, savedPane),
     },
   };
+}
+
+function resolveMainChatPlacement(
+  layout: WorkspaceLayout,
+  placement: WorkspaceTabPlacement | undefined,
+  savedTab: WorkspaceTab | undefined,
+  savedPane: SplitPane | null,
+): string {
+  const requestedPaneId =
+    placement?.mode === "pane" || placement?.mode === "prefer" ? placement.paneId : null;
+  if (
+    requestedPaneId &&
+    requestedPaneId !== EXPLORER_SIDEBAR_PANE_ID &&
+    findPaneById(layout.root, requestedPaneId)
+  )
+    return requestedPaneId;
+  const focusedChatId =
+    layout.focusedPaneId !== EXPLORER_SIDEBAR_PANE_ID ? layout.focusedPaneId : null;
+  if (savedTab?.target.kind === "agent" && savedTab.target.view === "split")
+    return focusedChatId ?? DEFAULT_PANE_ID;
+  if (savedPane && savedPane.id !== EXPLORER_SIDEBAR_PANE_ID) return savedPane.id;
+  return focusedChatId ?? DEFAULT_PANE_ID;
 }
 
 function returnsFromSupportingViewToChat(layout: WorkspaceLayout, tabId: string): boolean {
@@ -441,7 +503,7 @@ function returnsFromSupportingViewToChat(layout: WorkspaceLayout, tabId: string)
   if (pane?.id !== EXPLORER_SIDEBAR_PANE_ID || pane.focusedTabId !== tabId) return false;
   const parentTabId = layout.parentTabIdByTabId?.[tabId];
   return Boolean(
-    parentTabId && findPaneContainingTab(layout.root, parentTabId)?.id === DEFAULT_PANE_ID,
+    parentTabId && findPaneContainingTab(layout.root, parentTabId)?.id !== EXPLORER_SIDEBAR_PANE_ID,
   );
 }
 
@@ -494,6 +556,27 @@ export function createWorkspaceLayoutStore(
         pendingAgentIdsByWorkspace: {},
         hiddenAgentIdsByWorkspace: {},
         focusRestorationByWorkspace: {},
+        closeChatPane: (workspaceKey, paneId) => {
+          const key = trimNonEmpty(workspaceKey);
+          if (!key) return;
+          const next = closeChatPaneInLayout(
+            getWorkspaceLayout(get().layoutByWorkspace, key),
+            paneId,
+          );
+          if (next)
+            set((state) => ({ layoutByWorkspace: { ...state.layoutByWorkspace, [key]: next } }));
+        },
+        addChatPane: (workspaceKey) => {
+          const key = trimNonEmpty(workspaceKey);
+          if (!key) return null;
+          const added = addChatPaneToLayout(getWorkspaceLayout(get().layoutByWorkspace, key));
+          if (!added) return null;
+          set((state) => ({
+            layoutByWorkspace: { ...state.layoutByWorkspace, [key]: added.layout },
+          }));
+          usePanelStore.getState().exitFocusMode();
+          return added.paneId;
+        },
         openTab: (input) => {
           const normalizedWorkspaceKey = trimNonEmpty(input.workspaceKey);
           const normalizedTarget = normalizeWorkspaceTabTarget(input.target);
@@ -506,6 +589,7 @@ export function createWorkspaceLayoutStore(
             normalizedTarget,
             input.placement,
           );
+          if (!placement) return null;
           let result;
           if (input.intent === "new") {
             result = createTabInLayout({
@@ -532,10 +616,14 @@ export function createWorkspaceLayoutStore(
           if (!result) {
             return null;
           }
-          const focusedLayout = keepWorkspaceFocusOutOfExplorerSidebar(
-            result.layout,
-            placement.layout.focusedPaneId,
-          );
+          const openedSidePane =
+            findPaneContainingTab(result.layout.root, result.tabId)?.id ===
+            EXPLORER_SIDEBAR_PANE_ID;
+          // Opening a supporting view retains the originating chat's keyboard target until
+          // the user interacts with the dock. Background views never take focus.
+          const focusedLayout = openedSidePane
+            ? { ...result.layout, focusedPaneId: placement.layout.focusedPaneId }
+            : result.layout;
           // A terminal, tree or browser can only live in the side panel, so an explicit open
           // has to bring the panel out. Background opens stay quiet.
           const landedInSidePanel =
@@ -641,7 +729,10 @@ export function createWorkspaceLayoutStore(
             return {
               layoutByWorkspace: {
                 ...state.layoutByWorkspace,
-                [normalizedWorkspaceKey]: nextLayout,
+                [normalizedWorkspaceKey]: keepWorkspaceFocusOutOfExplorerSidebar(
+                  nextLayout,
+                  layout.focusedPaneId,
+                ),
               },
             };
           });
@@ -658,7 +749,10 @@ export function createWorkspaceLayoutStore(
             const closingPane = findPaneContainingTab(layout.root, normalizedTabId);
             // Both panes are structural: the chat keeps its shell and the side panel hides
             // rather than being removed, so closing the last tab never leaves nothing to look at.
-            const preserveEmptyPaneId = closingPane?.id ?? null;
+            const preserveEmptyPaneId =
+              closingPane?.id === DEFAULT_PANE_ID || closingPane?.id === EXPLORER_SIDEBAR_PANE_ID
+                ? closingPane.id
+                : null;
             const closedLayout = closeTabInLayout({
               layout,
               tabId: normalizedTabId,
@@ -919,10 +1013,7 @@ export function createWorkspaceLayoutStore(
 
           set((state) => {
             const layout = getWorkspaceLayout(state.layoutByWorkspace, normalizedWorkspaceKey);
-            const explorerSidebarPaneId = EXPLORER_SIDEBAR_PANE_ID;
-            if (normalizedPaneId === explorerSidebarPaneId) {
-              return state;
-            }
+            if (findPaneById(layout.root, normalizedPaneId)?.hidden === true) return state;
             const nextLayout = focusPaneInLayout({
               layout,
               paneId: normalizedPaneId,
@@ -1199,7 +1290,7 @@ export function createWorkspaceLayoutStore(
             result.data.layoutByWorkspace,
           )) {
             layoutByWorkspace[workspaceKey] = restoreEmptyPanesInLayout(
-              flattenLayoutToSingleChat(
+              normalizeWorkspaceChatLayout(
                 stripEphemeralTabsFromLayout(persistedLayout),
                 (target, previousHost) =>
                   resolveWorkspaceTargetHost(workspaceKey, target, previousHost),

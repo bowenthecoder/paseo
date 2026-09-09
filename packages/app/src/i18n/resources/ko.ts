@@ -1816,6 +1816,18 @@ export const ko: TranslationResources = {
     output: "출력",
   },
   toolCallGroup: {
+    runningTools: {
+      one: "도구 {{count}}개 실행 중",
+      other: "도구 {{count}}개 실행 중",
+    },
+    failedTools: {
+      one: "도구 {{count}}개 실패",
+      other: "도구 {{count}}개 실패",
+    },
+    canceledTools: {
+      one: "도구 {{count}}개 취소",
+      other: "도구 {{count}}개 취소",
+    },
     editedFiles: {
       one: "{{count}} 파일을 편집했습니다.",
       other: "{{count}} 파일을 편집했습니다.",

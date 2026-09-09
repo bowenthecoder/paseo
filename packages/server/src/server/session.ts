@@ -682,6 +682,7 @@ export class Session {
   private readonly daemonConfigStore: DaemonConfigStore;
   private readonly pushNotifications: PushNotifications;
   private readonly pluginRuntime: SessionOptions["pluginRuntime"];
+  private readonly providerUsageService: ProviderUsageService;
   private readonly orchestrationSkills: SessionOptions["orchestrationSkills"];
   private unsubscribeAgentEvents: (() => void) | null = null;
   private unsubscribeProjectMutations: (() => void) | null = null;
@@ -815,6 +816,7 @@ export class Session {
     this.projectIcons = new ProjectIconReader(paseoHome);
     this.worktreesRoot = worktreesRoot;
     this.pluginRuntime = pluginRuntime;
+    this.providerUsageService = providerUsageService;
     this.orchestrationSkills = orchestrationSkills;
     this.unsubscribePluginChanges = this.subscribeToPluginChanges(pluginRuntime);
     this.sessionLogger = logger.child({
@@ -2096,6 +2098,21 @@ export class Session {
       return this.pluginRuntime
         .invokePluginRpc(msg.pluginId, msg.method, msg.input)
         .then((output) => {
+          if (
+            msg.pluginId === "subscriptions" &&
+            msg.method === "subscriptions.login-status" &&
+            output !== null &&
+            typeof output === "object" &&
+            "state" in output &&
+            output.state === "done" &&
+            msg.input !== null &&
+            typeof msg.input === "object" &&
+            "sessionId" in msg.input &&
+            typeof msg.input.sessionId === "string" &&
+            msg.input.sessionId.length > 0
+          ) {
+            this.providerUsageService.invalidateForCredentialChange(msg.input.sessionId);
+          }
           this.emit({
             type: "plugin.rpc.invoke.response",
             payload: { requestId: msg.requestId, output },
@@ -3502,7 +3519,7 @@ export class Session {
         throw new Error(`Working directory does not exist or is not a directory: ${requestedCwd}`);
       }
       const trimmedPrompt = initialPrompt?.trim();
-      const { provisionalTitle, explicitTitle } = resolveCreateAgentTitles({
+      const { provisionalTitle } = resolveCreateAgentTitles({
         configTitle: config.title,
         initialPrompt: trimmedPrompt,
       });
@@ -3569,17 +3586,6 @@ export class Session {
           { currentSelection: this.getFocusedAgentSelectionForCwd(resolvedIntent.config.cwd) },
         );
       }
-      this.workspaceAutoName.scheduleForAgent({
-        agentId: snapshot.id,
-        expectedTitle: explicitTitle ? null : provisionalTitle,
-        cwd: resolvedCwd,
-        firstAgentContext,
-        currentSelection: {
-          provider: config.provider,
-          model: config.model,
-          thinkingOptionId: config.thinkingOptionId,
-        },
-      });
       this.createAgentLifecycleDispatch.registerAutoArchiveIfRequested({
         autoArchive,
         agentId: snapshot.id,

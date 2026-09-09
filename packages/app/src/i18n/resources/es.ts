@@ -1852,6 +1852,18 @@ export const es: TranslationResources = {
     output: "Producción",
   },
   toolCallGroup: {
+    runningTools: {
+      one: "{{count}} herramienta en ejecución",
+      other: "{{count}} herramientas en ejecución",
+    },
+    failedTools: {
+      one: "falló {{count}} herramienta",
+      other: "fallaron {{count}} herramientas",
+    },
+    canceledTools: {
+      one: "se canceló {{count}} herramienta",
+      other: "se cancelaron {{count}} herramientas",
+    },
     editedFiles: {
       one: "editó {{count}} archivo",
       other: "editó {{count}} archivos",

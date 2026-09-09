@@ -130,7 +130,7 @@ describe("tool call detail-level projection", () => {
 
     expect(group).toMatchObject({
       isLoading: true,
-      summary: { commandCount: 1 },
+      summary: { commandCount: 0, runningToolCount: 1 },
     });
   });
 
@@ -182,7 +182,7 @@ describe("tool call detail-level projection", () => {
     expect(result.groupsByHostId.get("1")).toMatchObject({
       run: { latest: calls[3], isSealed: false },
       isLoading: true,
-      summary: { commandCount: 4 },
+      summary: { commandCount: 0, runningToolCount: 4 },
     });
   });
 
@@ -233,12 +233,15 @@ describe("tool call detail-level projection", () => {
       run: expect.any(Object),
       isLoading: false,
       summary: {
-        editedFileCount: 1,
+        editedFileCount: 0,
         commandCount: 1,
         readFileCount: 2,
         searchCount: 0,
         otherToolCount: 0,
         paseoCallCount: 0,
+        failedToolCount: 1,
+        canceledToolCount: 0,
+        runningToolCount: 0,
       },
     });
   });
@@ -263,8 +266,33 @@ describe("tool call detail-level projection", () => {
         editedFileCount: 0,
         commandCount: 0,
         readFileCount: 2,
-        searchCount: 1,
+        searchCount: 0,
         otherToolCount: 2,
+        failedToolCount: 1,
+      },
+    });
+  });
+
+  it("keeps failed and canceled activity visible without counting it as successful work", () => {
+    const result = project({
+      level: "overview",
+      head: [
+        toolCall("1", { type: "shell", command: "npm test" }, { status: "failed" }),
+        toolCall("2", { type: "edit", filePath: "/repo/a.ts" }, { status: "canceled" }),
+        toolCall("3", { type: "read", filePath: "/repo/a.ts" }),
+        toolCall("4", { type: "shell", command: "npm run lint" }, { status: "running" }),
+      ],
+      isTurnActive: true,
+    });
+    expect(result.groupsByHostId.get("1")).toMatchObject({
+      isLoading: true,
+      summary: {
+        failedToolCount: 1,
+        canceledToolCount: 1,
+        runningToolCount: 1,
+        editedFileCount: 0,
+        commandCount: 0,
+        readFileCount: 1,
       },
     });
   });

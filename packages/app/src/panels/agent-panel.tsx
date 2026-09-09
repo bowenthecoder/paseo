@@ -390,7 +390,6 @@ function AgentPanel() {
   invariant(target.kind === "agent", "AgentPanel requires agent target");
   const childDirectory = useSessionStore(
     useShallow((state) => {
-      if (context.host !== "explorer") return null;
       const session = state.sessions[serverId];
       const agent =
         session?.agents.get(target.agentId) ?? session?.agentDetails.get(target.agentId);
@@ -1671,7 +1670,10 @@ function ActiveAgentComposer({
       if (attachment.kind !== "review") {
         return;
       }
-      if (paneContext.host === "explorer") {
+      if (
+        paneContext.host === "explorer" ||
+        (paneContext.layoutWorkspaceId && paneContext.layoutWorkspaceId !== workspaceId)
+      ) {
         paneContext.openTab({ kind: "working_diff" });
         return;
       }

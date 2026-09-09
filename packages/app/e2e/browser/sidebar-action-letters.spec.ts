@@ -4,10 +4,15 @@ import { gotoAppShell } from "../support/helpers/app";
 import { seedSidebarChats } from "../support/helpers/sidebar-chats";
 import { getServerId } from "../support/helpers/server-id";
 
-test("context letters act immediately and rename typing stays in the field", async ({ page }) => {
+test("context letters act immediately and rename typing stays in the field", async ({
+  page,
+}, testInfo) => {
   const workspace = await seedSidebarChats(["Letter shortcuts", "Another chat"]);
   const key = `${getServerId()}:chat:${workspace.agents[0].id}`;
   try {
+    // Equal workspace/project labels used to hide the folder line. The chat title
+    // must make it distinct again without renaming the underlying workspace.
+    await workspace.client.renameProject(workspace.projectId, workspace.workspaceName);
     await gotoAppShell(page);
     const row = page.getByTestId(`sidebar-workspace-row-${key}`);
     await row.click();
@@ -37,6 +42,26 @@ test("context letters act immediately and rename typing stays in the field", asy
     await page.getByTestId(`sidebar-workspace-rename-modal-${key}-submit`).click();
     await expect(input).toHaveCount(0);
     await expect(row).toContainText("PARU letters remain text");
+    const header = page.getByTestId("workspace-header-title").filter({ visible: true });
+    const subtitle = page.getByTestId("workspace-header-subtitle").filter({ visible: true });
+    await expect(header).toHaveText("PARU letters remain text");
+    await expect(subtitle).toHaveText(workspace.workspaceName);
+    await page
+      .getByTestId(`sidebar-workspace-row-${getServerId()}:chat:${workspace.agents[1].id}`)
+      .click();
+    await expect(header).toHaveText("Another chat");
+    await row.click();
+    await expect(header).toHaveText("PARU letters remain text");
+    await page.reload();
+    await expect(header).toHaveText("PARU letters remain text");
+    await expect(subtitle).toHaveText(workspace.workspaceName);
+    const workspaces = await workspace.client.fetchWorkspaces();
+    expect(workspaces.entries.find((entry) => entry.id === workspace.workspaceId)).toMatchObject({
+      name: workspace.workspaceName,
+      workspaceDirectory: workspace.workspaceDirectory,
+      projectDisplayName: workspace.workspaceName,
+    });
+    await page.screenshot({ path: testInfo.outputPath("renamed-chat-header.png") });
     await openMenu();
     await page.keyboard.press("p");
     await openMenu();

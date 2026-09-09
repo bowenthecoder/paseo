@@ -10,6 +10,13 @@ import type { ProviderApiFetch } from "./provider.js";
 const PROVIDER_HTTP_TIMEOUT_MS = 15_000;
 
 export const ApiNumberSchema = z.coerce.number().finite();
+// Missing, blank, boolean or malformed billing metrics are unknown, never a reported zero.
+export const ReportedNullableNumberSchema = z
+  .union([z.number(), z.string().trim().min(1)])
+  .transform((value) => Number(value))
+  .pipe(z.number().finite())
+  .nullable()
+  .catch(null);
 export const ApiNullableNumberSchema = z.preprocess(
   (value) => (value == null ? null : value),
   ApiNumberSchema.nullable(),

@@ -825,6 +825,8 @@ export class MockLoadTestAgentSession implements AgentSession {
     const scheduleTurn = () => {
       if (shouldEmitTurnFailure(prompt)) {
         this.scheduleFailedTurn(turn);
+      } else if (promptToText(prompt).trim() === "Emit the overview tool outcome fixture.") {
+        this.scheduleToolOutcomeTurn(turn);
       } else if (steeringReplayShape) {
         this.scheduleSteeringReplayTurn(turn, steeringReplayShape);
       } else if (this.streamingAssistantResponse !== null) {
@@ -1127,6 +1129,44 @@ export class MockLoadTestAgentSession implements AgentSession {
         timeline: [],
         canceled: false,
       });
+    }, 0);
+    turn.timer.unref?.();
+  }
+
+  private scheduleToolOutcomeTurn(turn: ActiveTurn): void {
+    turn.timer = setTimeout(() => {
+      if (this.activeTurn !== turn) return;
+      this.clearTurnTimer(turn);
+      this.emitTurnStarted(turn);
+      const calls: ToolCallTimelineItem[] = [
+        {
+          type: "tool_call",
+          callId: `${turn.turnId}:failed`,
+          name: "bash",
+          status: "failed",
+          detail: {
+            type: "shell",
+            command: "npm test",
+            output: "Fixture command failed",
+            exitCode: 1,
+          },
+          error: "Fixture command failed",
+        },
+        createToolCall({
+          callId: `${turn.turnId}:canceled`,
+          name: "edit",
+          status: "canceled",
+          detail: { type: "edit", filePath: "/tmp/overview-fixture.ts" },
+        }),
+        createToolCall({
+          callId: `${turn.turnId}:read`,
+          name: "read",
+          status: "completed",
+          detail: { type: "read", filePath: "/tmp/overview-fixture.ts" },
+        }),
+      ];
+      for (const item of calls) this.emitTimeline(turn.turnId, item);
+      this.emitSettledAssistantTurn(turn, "Overview outcome fixture complete.");
     }, 0);
     turn.timer.unref?.();
   }

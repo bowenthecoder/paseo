@@ -9,9 +9,10 @@ The installed app and preceding preview remain backed up and unchanged; the fina
 must include the matching app, daemon and subscriptions plugin, with screenshot review before rollout. The verification table below separates the completed app checks from any remaining plugin or
 rollout work.
 
-The [Codex output and automatic-title plan](codex-output-and-auto-title-plan.md) specifies the
-September 9 output/naming follow-up. Implementation is pending and uses this integration's
-existing packaging and rollout gate.
+The [production review](production-review-2026-09-09.md) records the four-view, account usage,
+compact output and accepted-prompt naming additions. The original
+[Codex output and automatic-title plan](codex-output-and-auto-title-plan.md) remains unchanged;
+native provider title writeback/synchronization is still outside the implemented scope.
 
 ## Bowen's requirements and current direction
 
@@ -38,9 +39,10 @@ existing packaging and rollout gate.
   while typing in an input, and archive completion must preserve newer navigation.
 - Keep the primary chat beside documents, Tasks and managed/provider-native children. Restore
   the earlier **Open in (O) → Open in split view (S)** chat action, as Bowen explicitly requested
-  during the final audit. A second chat on the same device opens on the right with its own folder
-  and draft. Fresh splits use balanced widths; saved resize choices take precedence. Repeated opening reuses that view; closing it does not archive the chat. Current view
-  remains available. Generic split-below and cross-device panes are outside this layout; see
+  during the final audit. Up to four chats on the same device have independent views, with a
+  two-by-two layout at four. Each retains its folder, model, draft, output and focus. Repeated
+  opening reuses its view; closing it preserves the conversation. Documents, Tasks and terminals
+  retain a separate supporting dock. Current view remains available. Cross-device panes are outside this layout; see
   [Side panel](./side-panel.md).
 - Generate short meaningful titles, roughly 2–6 words. Preserve manual renames and archived
   conversations against delayed automatic naming.
@@ -110,18 +112,21 @@ or the running production daemons as part of readiness testing.
 The final validation includes new-chat/draft recovery, streamed Markdown/diagrams, image loading
 and zoom, independent chat and sidebar scroll, right-panel resize/return, terminal creation and
 retention, provider effort/context/subscriptions, and subagent output/recovery. Stress checks use
-bounded runs and isolated daemon state. The latest owner clarification restores two distinct chats side by side through the existing right panel. It must pass the same folder, draft, archive and reload checks as other supporting views.
+bounded runs and isolated daemon state. Independent chat views must pass folder, draft, focus,
+archive and reload checks, including real native chat reload in addition to browser refresh.
 
 ## Source being combined
 
-| Input                 | Checkpoint                                                | Meaning                                                                                                                                                                                                                                   |
-| --------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Original app features | `85d2c46` on `bowen/claude-workspaces-subagents-20260908` | Earlier published review source, including feature commit `5164b55`                                                                                                                                                                       |
-| Preview fixes         | `a38a19c80` on `bowen/paseo-preview-fixes-20260908`       | Encoded images, quiet glow, No folder, document/small-window and History fixes                                                                                                                                                            |
-| Held composer queue   | `ec7c8221e`                                               | Merged into the app integration branch at `abbb668d3`                                                                                                                                                                                     |
-| Single-chat layout    | `76ed838`                                                 | Combined with fixes for routing, migration, selection, drafts and test coverage                                                                                                                                                           |
-| Oversized responses   | `b7a94dae4`                                               | Held-session handoff, rebased onto `517f88b27`: byte-budget timeline pages and isolate oversized response failures; merged through reviewed head `4fd71dfb0`, including pagination, aggregate bounds and live-event recovery corrections. |
-| Subscriptions         | `efe9f9c`                                                 | Registration/quota, unknown-value handling, Tool logs and the latest Routines registry from `f1ed0ed`                                                                                                                                     |
+| Input                         | Checkpoint                                                | Meaning                                                                                                                                                                                                                                           |
+| ----------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Original app features         | `85d2c46` on `bowen/claude-workspaces-subagents-20260908` | Earlier published review source, including feature commit `5164b55`                                                                                                                                                                               |
+| Preview fixes                 | `a38a19c80` on `bowen/paseo-preview-fixes-20260908`       | Encoded images, quiet glow, No folder, document/small-window and History fixes                                                                                                                                                                    |
+| Held composer queue           | `ec7c8221e`                                               | Merged into the app integration branch at `abbb668d3`                                                                                                                                                                                             |
+| Single-chat layout            | `76ed838`                                                 | Combined with fixes for routing, migration, selection, drafts and test coverage                                                                                                                                                                   |
+| Oversized responses           | `b7a94dae4`                                               | Held-session handoff, rebased onto `517f88b27`: byte-budget timeline pages and isolate oversized response failures; merged through reviewed head `4fd71dfb0`, including pagination, aggregate bounds and live-event recovery corrections.         |
+| Subscriptions                 | `efe9f9c`                                                 | Registration/quota, unknown-value handling, Tool logs and the latest Routines registry from `f1ed0ed`                                                                                                                                             |
+| Independent production review | Frozen app/plugin patches on `896061bbf` / `efe9f9c`      | Four chat views, account-home isolation and cache invalidation, compact tool outcomes, first accepted-prompt naming and live diff geometry correction. Final integration also corrects delayed alias mapping and custom provider usage selection. |
+| CI recovery                   | `2ee134b86`                                               | Retain descendant file scans, restore parent directory membership after rescans, wait for terminal creation in the browser helper and retain provider-removal diagnostics.                                                                        |
 
 The app integration combines the feature, preview, queue and single-chat inputs. A final worktree audit also found the separate oversized-response daemon fix; it is backed up and merged through the reviewed correction branch. Source worktrees owned by the other tasks
 remain clean and unchanged at the checkpoints above. Review branches:
@@ -161,11 +166,16 @@ highlighting work remains a performance limitation. Evidence is in
 `/tmp/paseo-final-settings-race-browser.log`, `/tmp/paseo-final-fast-scroll-browser.log` and
 `/tmp/paseo-final-completion-many-files-browser.log`.
 
-CI run [34312422542](https://github.com/bowenthecoder/paseo/actions/runs/34312422542) passed all
-non-browser jobs, including 5,115 app tests, Linux/Windows server tests, desktop renderer checks,
-the native browser harness and the Linux packaged smoke. Browser shards 1, 2 and 4 passed;
-shard 3 exposed the schedule picker failure and provider-removal flake fixed above. Final CI must
-run on the committed correction. Exact final source/bundle identities, CI results and packaged
+Checkpoint CI [34315501102](https://github.com/bowenthecoder/paseo/actions/runs/34315501102)
+passed 16 of 18 jobs, including 5,140 app tests, Linux server, both desktop unit matrices,
+the native browser harness and the Linux packaged smoke. Its Windows watcher failure exposed
+two backend defects: a shallow parent scan discarded child reconciliation, and recursive child
+rescans lost their parent inventory membership. Both now have deterministic regressions and
+pass seven focused plus thirteen unchanged filesystem cases. A browser helper could close a
+terminal that had just finished opening; it now waits for readiness and passes all five focused
+terminal cases. Provider removal passed five repeated checks; pre-cleanup diagnostics remain
+enabled for the unresolved first-attempt CI flake. Full CI must run on the combined commit.
+Exact final source/bundle identities, CI results and packaged
 stress results belong in `candidate-manifest.json` and `final-validation.json` in the review folder;
 earlier preview evidence below is retained as history.
 

@@ -6,6 +6,7 @@ import { buildTerminalsQueryKey } from "@/screens/workspace/terminals/state";
 import { daemonConfigQueryKey } from "@/data/daemon-config";
 import { daemonPairingOfferQueryKey } from "@/data/daemon-pairing";
 import { providersSnapshotQueryKey } from "@/data/providers-snapshot";
+import { providerUsageQueryKey, subscriptionUsageQueryKey } from "@/provider-usage/query-cache";
 import {
   checkoutDiffPushRoute,
   invalidateServerDataQueriesAfterReconnect,
@@ -143,6 +144,43 @@ function providerUpdate(generatedAt: string): ProvidersSnapshotUpdateMessage {
 }
 
 describe("server data push router", () => {
+  it("removes previous-account usage when provider configuration changes, preserving other hosts", () => {
+    const queryClient = new QueryClient();
+    const fake = createFakeClient();
+    const serverId = "account-host";
+    const config = { ...daemonConfig, providers: { codex: { env: { CODEX_HOME: "/profile-a" } } } };
+    queryClient.setQueryData(daemonConfigQueryKey(serverId), config);
+    for (const key of [providerUsageQueryKey, subscriptionUsageQueryKey]) {
+      queryClient.setQueryData(key(serverId), { account: "A", used: 90 });
+      queryClient.setQueryData(key("other-host"), { account: "other", used: 30 });
+    }
+    const unmount = mountServerDataPushRouter({ client: fake.client, queryClient, serverId });
+    fake.emit({
+      type: "status",
+      payload: {
+        status: "daemon_config_changed",
+        config: { ...config, appendSystemPrompt: "Unrelated setting" },
+      },
+    });
+    expect(queryClient.getQueryData(subscriptionUsageQueryKey(serverId))).toEqual({
+      account: "A",
+      used: 90,
+    });
+    fake.emit({
+      type: "status",
+      payload: {
+        status: "daemon_config_changed",
+        config: { ...config, providers: { codex: { env: { CODEX_HOME: "/profile-b" } } } },
+      },
+    });
+    for (const key of [providerUsageQueryKey, subscriptionUsageQueryKey]) {
+      expect(queryClient.getQueryData(key(serverId))).toBeUndefined();
+      expect(queryClient.getQueryData(key("other-host"))).toEqual({ account: "other", used: 30 });
+    }
+    unmount();
+    queryClient.clear();
+  });
+
   it("routes provider snapshot and daemon config payloads until detached", async () => {
     const queryClient = new QueryClient();
     const fake = createFakeClient();

@@ -19,6 +19,8 @@ import {
   type FileTransferFrame,
 } from "@getpaseo/protocol/binary-frames/index";
 import { Session } from "./session.js";
+import { ProviderUsageService } from "../services/quota-fetcher/service.js";
+import { createStub } from "./test-utils/class-mocks.js";
 import { OWNER_PERMISSIONS, type DaemonPermission } from "./authorization/index.js";
 import { DownloadTokenStore } from "./file-download/token-store.js";
 import { StructuredAgentFallbackError } from "./agent/agent-response-loop.js";
@@ -323,6 +325,7 @@ interface SessionForTestOptions {
   targetedMessages?: Array<{ source: object; message: SessionOutboundMessage }>;
   binaryMessages?: Uint8Array[];
   pluginRuntime?: SessionOptions["pluginRuntime"];
+  providerUsageService?: SessionOptions["providerUsageService"];
   orchestrationSkills?: SessionOptions["orchestrationSkills"];
   workspaceLabelService?: WorkspaceLabelService;
 }
@@ -412,6 +415,7 @@ function createSessionForTest(options: SessionForTestOptions = {}): Session {
       onChange: vi.fn(() => () => {}),
     }),
     pluginRuntime: options.pluginRuntime,
+    providerUsageService: options.providerUsageService,
     orchestrationSkills: options.orchestrationSkills,
     stt: options.stt ?? null,
     tts: null,
@@ -469,6 +473,57 @@ test("routes host-scoped agent skills requests through the daemon owner", async 
     type: "agent.skills.save_selection.response",
     payload: { requestId: "save-skills", ...status, confirmationRequired: null },
   });
+});
+
+test("completed subscription logins invalidate native usage once across client sessions", async () => {
+  let usedPct = 92;
+  const fetchUsage = vi.fn(async () => ({
+    providerId: "codex",
+    displayName: "Codex",
+    status: "available" as const,
+    planLabel: null,
+    windows: [{ id: "session", label: "Session", usedPct }],
+  }));
+  const providerUsageService = new ProviderUsageService({
+    logger: pino({ level: "silent" }),
+    fetchers: [{ providerId: "codex", displayName: "Codex", fetchUsage }],
+  });
+  let output: unknown = { state: "waiting" };
+  const pluginRuntime = createStub<NonNullable<SessionOptions["pluginRuntime"]>>({
+    subscribe: () => () => {},
+    invokePluginRpc: async () => output,
+  });
+  const first = createSessionForTest({ pluginRuntime, providerUsageService });
+  const second = createSessionForTest({ pluginRuntime, providerUsageService });
+  const invoke = (session: Session, pluginId: string, method: string, input: unknown) =>
+    session.handleMessage({
+      type: "plugin.rpc.invoke.request",
+      requestId: "synthetic-request",
+      pluginId,
+      method,
+      input,
+    });
+  expect((await providerUsageService.listUsage()).providers[0].windows[0].usedPct).toBe(92);
+  usedPct = 12;
+  for (const state of ["waiting", "failed", "cancelled"]) {
+    output = { state };
+    await invoke(first, "subscriptions", "subscriptions.login-status", { sessionId: "login-1" });
+  }
+  output = { state: "done" };
+  await invoke(first, "unrelated", "subscriptions.login-status", { sessionId: "login-1" });
+  await invoke(first, "subscriptions", "subscriptions.list", { sessionId: "login-1" });
+  await invoke(first, "subscriptions", "subscriptions.login-status", {});
+  expect((await providerUsageService.listUsage()).providers[0].windows[0].usedPct).toBe(92);
+  expect(fetchUsage).toHaveBeenCalledTimes(1);
+  await invoke(first, "subscriptions", "subscriptions.login-status", { sessionId: "login-1" });
+  expect((await providerUsageService.listUsage()).providers[0].windows[0].usedPct).toBe(12);
+  usedPct = 37;
+  await invoke(second, "subscriptions", "subscriptions.login-status", { sessionId: "login-1" });
+  expect((await providerUsageService.listUsage()).providers[0].windows[0].usedPct).toBe(12);
+  expect(fetchUsage).toHaveBeenCalledTimes(2);
+  await invoke(second, "subscriptions", "subscriptions.login-status", { sessionId: "login-2" });
+  expect((await providerUsageService.listUsage()).providers[0].windows[0].usedPct).toBe(37);
+  expect(fetchUsage).toHaveBeenCalledTimes(3);
 });
 
 test("routes plugin requests and releases its owned catalog subscription on cleanup", async () => {

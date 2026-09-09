@@ -1838,6 +1838,18 @@ export const ptBR: TranslationResources = {
     output: "Saída",
   },
   toolCallGroup: {
+    runningTools: {
+      one: "{{count}} ferramenta em execução",
+      other: "{{count}} ferramentas em execução",
+    },
+    failedTools: {
+      one: "{{count}} ferramenta falhou",
+      other: "{{count}} ferramentas falharam",
+    },
+    canceledTools: {
+      one: "{{count}} ferramenta cancelada",
+      other: "{{count}} ferramentas canceladas",
+    },
     editedFiles: {
       one: "editou {{count}} arquivo",
       other: "editou {{count}} arquivos",

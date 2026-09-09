@@ -32,7 +32,22 @@ export function retainDiffInteractionWindow(
     current.paths.length === files.length &&
     current.paths.every((path, index) => path === files[index]?.path)
   ) {
-    return current;
+    // A live edit can move these same files outside the saved bucket. Keep that
+    // bucket only while it still materializes and renders the current file set.
+    const retainedFiles =
+      top === current.top
+        ? files
+        : resolveVisibleFileSections({
+            files: input.files,
+            scrollTop: current.top,
+            viewportHeight: input.viewportHeight,
+            overscan: input.viewportHeight * 2,
+          }).files;
+    if (
+      retainedFiles.length === files.length &&
+      retainedFiles.every((file, index) => file.path === files[index]?.path)
+    )
+      return current;
   }
   return { top, paths: files.map((file) => file.path) };
 }

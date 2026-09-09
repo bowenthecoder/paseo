@@ -346,6 +346,7 @@ class HeldReloadCloseClient extends TestAgentClient {
     _handle: AgentPersistenceHandle,
     config?: Partial<AgentSessionConfig>,
   ): Promise<AgentSession> {
+    this.resumeOverrides.push(config);
     const recordReplacementClosed = () => {
       this.replacementSessionClosed = true;
     };
@@ -1580,6 +1581,174 @@ test("does not persist an initializing session after shutdown closes it", async 
       record: { lastStatus: "closed" },
     });
   } finally {
+    rmSync(workdir, { recursive: true, force: true });
+  }
+});
+
+test("timeline loading waits for the reload swap and keeps the replacement session usable", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-reload-loader-race-"));
+  const storage = new AgentStorage(join(workdir, "agents"), logger);
+  const client = new HeldReloadCloseClient();
+  const manager = new AgentManager({ clients: { codex: client }, registry: storage, logger });
+  const pending: Promise<unknown>[] = [];
+
+  try {
+    const original = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+      workspaceId: undefined,
+    });
+    await manager.appendTimelineItem(original.id, {
+      type: "assistant_message",
+      text: "Before reload",
+    });
+    const oldEpoch = manager.fetchTimeline(original.id).epoch;
+    const reloading = manager.reloadAgentSession(original.id, undefined, {
+      rehydrateFromDisk: true,
+    });
+    pending.push(reloading);
+    await client.waitForCloseToStart();
+    expect(manager.getAgent(original.id)).toBeNull();
+
+    const loading = ensureAgentLoaded(original.id, {
+      agentManager: manager,
+      agentStorage: storage,
+      logger,
+    });
+    pending.push(loading);
+    let loaded = false;
+    void loading.then(
+      () => {
+        loaded = true;
+        return undefined;
+      },
+      () => undefined,
+    );
+    // Let the real storage-backed loader run while the previous provider close is held.
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const loadedBeforeClose = loaded;
+    client.finishClosing();
+    const results = await Promise.allSettled([reloading, loading]);
+
+    expect(loadedBeforeClose).toBe(false);
+    expect(results.map((result) => result.status)).toEqual(["fulfilled", "fulfilled"]);
+    expect(client.resumeOverrides).toHaveLength(1);
+    expect(manager.fetchTimeline(original.id).epoch).not.toBe(oldEpoch);
+    await manager.runAgent(original.id, "After reload");
+    await manager.appendTimelineItem(original.id, {
+      type: "assistant_message",
+      text: "Replacement timeline",
+    });
+    expect(manager.getTimeline(original.id)).toContainEqual(
+      expect.objectContaining({
+        type: "assistant_message",
+        text: "Replacement timeline",
+      }),
+    );
+  } finally {
+    client.finishClosing();
+    await Promise.allSettled(pending);
+    await Promise.all(manager.listAgents().map((agent) => manager.closeAgent(agent.id)));
+    await manager.flush();
+    await storage.flush();
+    rmSync(workdir, { recursive: true, force: true });
+  }
+});
+
+test("timeline loading rechecks the replacement after reload starts between its close barriers", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-reload-second-barrier-"));
+  const storage = new AgentStorage(join(workdir, "agents"), logger);
+  const client = new HeldReloadCloseClient();
+  const manager = new AgentManager({ clients: { codex: client }, registry: storage, logger });
+  const firstBarrierPassed = deferred<void>();
+  const releaseFirstBarrier = deferred<void>();
+  const secondBarrierStarted = deferred<void>();
+  const pending: Promise<unknown>[] = [];
+  let barrierCount = 0;
+  // Pause the caller after a real barrier completes, without replacing any
+  // manager, storage or provider operation with a mocked result.
+  const loaderManager = {
+    createAgent: manager.createAgent.bind(manager),
+    getAgent: manager.getAgent.bind(manager),
+    getRegisteredProviderIds: manager.getRegisteredProviderIds.bind(manager),
+    hydrateTimelineFromProvider: manager.hydrateTimelineFromProvider.bind(manager),
+    resumeAgentFromPersistence: manager.resumeAgentFromPersistence.bind(manager),
+    waitForAgentClose: async (agentId: string) => {
+      const barrier = ++barrierCount;
+      if (barrier === 2) secondBarrierStarted.resolve();
+      await manager.waitForAgentClose(agentId);
+      if (barrier === 1) {
+        firstBarrierPassed.resolve();
+        await releaseFirstBarrier.promise;
+      }
+    },
+  };
+
+  try {
+    const original = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+      workspaceId: undefined,
+    });
+    const loading = ensureAgentLoaded(original.id, {
+      agentManager: loaderManager,
+      agentStorage: storage,
+      logger,
+    });
+    pending.push(loading);
+    await firstBarrierPassed.promise;
+    const reloading = manager.reloadAgentSession(original.id, undefined, {
+      rehydrateFromDisk: true,
+    });
+    pending.push(reloading);
+    await client.waitForCloseToStart();
+    releaseFirstBarrier.resolve();
+    await secondBarrierStarted.promise;
+    const results = Promise.allSettled([loading, reloading]);
+    client.finishClosing();
+
+    expect((await results).map((result) => result.status)).toEqual(["fulfilled", "fulfilled"]);
+    expect(client.resumeOverrides).toHaveLength(1);
+    await manager.runAgent(original.id, "After the second barrier");
+  } finally {
+    releaseFirstBarrier.resolve();
+    client.finishClosing();
+    await Promise.allSettled(pending);
+    await Promise.all(manager.listAgents().map((agent) => manager.closeAgent(agent.id)));
+    await manager.flush();
+    await storage.flush();
+    rmSync(workdir, { recursive: true, force: true });
+  }
+});
+
+test("concurrent reloads queue config overrides across the session swap", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-concurrent-reload-"));
+  const storage = new AgentStorage(join(workdir, "agents"), logger);
+  const client = new HeldReloadCloseClient();
+  const manager = new AgentManager({ clients: { codex: client }, registry: storage, logger });
+  const pending: Promise<unknown>[] = [];
+
+  try {
+    const original = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+      workspaceId: undefined,
+    });
+    const first = manager.reloadAgentSession(original.id, { model: "gpt-5.4-mini" });
+    pending.push(first);
+    await client.waitForCloseToStart();
+    const second = manager.reloadAgentSession(original.id, { model: "gpt-5.4" });
+    pending.push(second);
+    const results = Promise.allSettled([first, second]);
+    client.finishClosing();
+
+    expect((await results).map((result) => result.status)).toEqual(["fulfilled", "fulfilled"]);
+    expect(client.resumeOverrides.map((config) => config?.model)).toEqual([
+      "gpt-5.4-mini",
+      "gpt-5.4",
+    ]);
+    expect(manager.getAgent(original.id)?.config.model).toBe("gpt-5.4");
+    await manager.runAgent(original.id, "After both reloads");
+  } finally {
+    client.finishClosing();
+    await Promise.allSettled(pending);
+    await Promise.all(manager.listAgents().map((agent) => manager.closeAgent(agent.id)));
+    await manager.flush();
+    await storage.flush();
     rmSync(workdir, { recursive: true, force: true });
   }
 });
@@ -10193,11 +10362,10 @@ test("generated chat titles replace provisional titles and preserve a manual ren
     registry: storage,
     logger,
   });
-  const snapshot = await manager.createAgent(
-    { provider: "codex", cwd: workdir, title: "Investigate the order sync problem" },
-    undefined,
-    { workspaceId: undefined },
-  );
+  const snapshot = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+    workspaceId: undefined,
+    initialTitle: "Investigate the order sync problem",
+  });
   await manager.setGeneratedTitle(
     snapshot.id,
     "Investigate the order sync problem",
@@ -10207,4 +10375,160 @@ test("generated chat titles replace provisional titles and preserve a manual ren
   await manager.setTitle(snapshot.id, "My release checklist");
   await manager.setGeneratedTitle(snapshot.id, "Fix order sync", "Short generated title");
   expect((await storage.get(snapshot.id))?.title).toBe("My release checklist");
+});
+
+test("generated title never overwrites a manual rename away and back to the provisional text", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-manual-title-race-"));
+  const storage = new AgentStorage(join(workdir, "agents"), logger);
+  const manager = new AgentManager({
+    clients: { codex: new TestAgentClient() },
+    registry: storage,
+    logger,
+  });
+  try {
+    const snapshot = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+      workspaceId: undefined,
+      initialTitle: "Fix order sync",
+    });
+    await manager.setTitle(snapshot.id, "Fix order sync");
+    await manager.setGeneratedTitle(snapshot.id, "Fix order sync", "Unexpected same-text title");
+    expect((await storage.get(snapshot.id))?.title).toBe("Fix order sync");
+    await manager.setTitle(snapshot.id, "My checklist");
+    await manager.setTitle(snapshot.id, "Fix order sync");
+    await manager.setGeneratedTitle(snapshot.id, "Fix order sync", "Unexpected late title");
+    expect((await storage.get(snapshot.id))?.title).toBe("Fix order sync");
+    await manager.reloadAgentSession(snapshot.id);
+    await manager.setGeneratedTitle(snapshot.id, "Fix order sync", "Unexpected resumed title");
+    expect((await storage.get(snapshot.id))?.title).toBe("Fix order sync");
+  } finally {
+    await Promise.all(manager.listAgents().map((agent) => manager.closeAgent(agent.id)));
+    rmSync(workdir, { recursive: true, force: true });
+  }
+});
+
+test("first accepted prompt names an empty-created chat once without delaying its turn", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-first-title-"));
+  const storage = new AgentStorage(join(workdir, "agents"), logger);
+  const manager = new AgentManager({
+    clients: { codex: new TestAgentClient() },
+    registry: storage,
+    logger,
+  });
+  const generationStarted = deferred<{
+    agentId: string;
+    expectedTitle: string;
+    prompt: string;
+  }>();
+  const finishGeneration = deferred<void>();
+  const generationFinished = deferred<void>();
+  const calls: string[] = [];
+  manager.setAgentTitleGenerationCallback(async (input) => {
+    calls.push(input.prompt);
+    generationStarted.resolve(input);
+    await finishGeneration.promise;
+    await manager.setGeneratedTitle(input.agentId, input.expectedTitle, "Fix order sync");
+    generationFinished.resolve();
+  });
+  try {
+    const snapshot = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+      workspaceId: undefined,
+    });
+    expect((await storage.get(snapshot.id))?.title).toBeNull();
+    await manager.runAgent(snapshot.id, "Please investigate the order synchronization failure");
+    expect(await generationStarted.promise).toMatchObject({
+      agentId: snapshot.id,
+      expectedTitle: "investigate the order synchronization failure",
+      prompt: "Please investigate the order synchronization failure",
+    });
+    expect((await storage.get(snapshot.id))?.title).toBe(
+      "investigate the order synchronization failure",
+    );
+    await manager.runAgent(snapshot.id, "Follow up while the title is pending");
+    finishGeneration.resolve();
+    await generationFinished.promise;
+    await manager.reloadAgentSession(snapshot.id);
+    await manager.runAgent(snapshot.id, "Follow up after reload");
+    expect(calls).toEqual(["Please investigate the order synchronization failure"]);
+    expect((await storage.get(snapshot.id))?.title).toBe("Fix order sync");
+  } finally {
+    finishGeneration.resolve();
+    await Promise.all(manager.listAgents().map((agent) => manager.closeAgent(agent.id)));
+    rmSync(workdir, { recursive: true, force: true });
+  }
+});
+
+test("title scheduling ignores injected and rename prompts and preserves explicit and legacy names", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-title-eligibility-"));
+  const storage = new AgentStorage(join(workdir, "agents"), logger);
+  const manager = new AgentManager({
+    clients: { codex: new TestAgentClient() },
+    registry: storage,
+    logger,
+  });
+  const calls: string[] = [];
+  const generation = deferred<void>();
+  manager.setAgentTitleGenerationCallback((input) => {
+    calls.push(input.prompt);
+    generation.resolve();
+  });
+  try {
+    const empty = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+      workspaceId: undefined,
+    });
+    await manager.runAgent(empty.id, formatSystemNotificationPrompt("Background setup"));
+    await manager.runAgent(empty.id, "/rename Temporary name");
+    expect((await storage.get(empty.id))?.title).toBeNull();
+    const manual = await manager.createAgent(
+      { provider: "codex", cwd: workdir, title: "My manual title" },
+      undefined,
+      { workspaceId: undefined },
+    );
+    await manager.runAgent(manual.id, "Do not replace manual names");
+    const legacy = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+      workspaceId: undefined,
+    });
+    const legacyRecord = (await storage.get(legacy.id))!;
+    await storage.upsert({ ...legacyRecord, title: "Existing legacy name" });
+    await manager.runAgent(legacy.id, "Do not reclassify old names");
+    await manager.runAgent(empty.id, "Fix the first real task");
+    await generation.promise;
+    expect(calls).toEqual(["Fix the first real task"]);
+    expect((await storage.get(manual.id))?.title).toBe("My manual title");
+    expect((await storage.get(legacy.id))?.title).toBe("Existing legacy name");
+  } finally {
+    await Promise.all(manager.listAgents().map((agent) => manager.closeAgent(agent.id)));
+    rmSync(workdir, { recursive: true, force: true });
+  }
+});
+
+test("title generation failure leaves the accepted turn usable and does not restart on reload", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-title-failure-"));
+  const storage = new AgentStorage(join(workdir, "agents"), logger);
+  const manager = new AgentManager({
+    clients: { codex: new TestAgentClient() },
+    registry: storage,
+    logger,
+  });
+  const attempted = deferred<void>();
+  const calls: string[] = [];
+  manager.setAgentTitleGenerationCallback((input) => {
+    calls.push(input.prompt);
+    attempted.resolve();
+    throw new Error("Metadata generator unavailable");
+  });
+  try {
+    const snapshot = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+      workspaceId: undefined,
+    });
+    await manager.runAgent(snapshot.id, "Fix order sync");
+    await attempted.promise;
+    await manager.reloadAgentSession(snapshot.id);
+    await manager.runAgent(snapshot.id, "Continue the task");
+    expect(calls).toEqual(["Fix order sync"]);
+    expect((await storage.get(snapshot.id))?.title).toBe("Fix order sync");
+    expect(manager.getAgent(snapshot.id)?.lifecycle).toBe("idle");
+  } finally {
+    await Promise.all(manager.listAgents().map((agent) => manager.closeAgent(agent.id)));
+    rmSync(workdir, { recursive: true, force: true });
+  }
 });

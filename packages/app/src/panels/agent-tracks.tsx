@@ -46,7 +46,7 @@ export const AgentTracks = memo(function AgentTracks({
   onArchiveFinished: () => void;
   hasPluginComposerPills: boolean;
 }): ReactElement | null {
-  const { host, openTab } = usePaneContext();
+  const { host, openTab, layoutWorkspaceId } = usePaneContext();
   const hasWorkspaceDiffStat = useWorkspaceHasDiffStat(serverId, workspaceId);
   const isCompact = useIsCompactFormFactor();
   const workspaceKey = buildWorkspaceTabPersistenceKey({ serverId, workspaceId });
@@ -71,7 +71,7 @@ export const AgentTracks = memo(function AgentTracks({
     [openTab],
   );
   const handleOpenChanges = useCallback(() => {
-    if (host === "explorer") {
+    if (host === "explorer" || (layoutWorkspaceId && layoutWorkspaceId !== workspaceId)) {
       openTab({ kind: "working_diff" });
       return;
     }
@@ -83,7 +83,7 @@ export const AgentTracks = memo(function AgentTracks({
       workspaceKey,
       checkout: { serverId, cwd, isGit: true },
     });
-  }, [cwd, host, isCompact, openTab, serverId, workspaceKey]);
+  }, [cwd, host, isCompact, layoutWorkspaceId, openTab, serverId, workspaceId, workspaceKey]);
 
   if (
     !hasWorkspaceDiffStat &&

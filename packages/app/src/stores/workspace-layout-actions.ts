@@ -224,7 +224,7 @@ function createPaneNode(input: {
   tabs?: WorkspaceTab[];
   focusedTabId?: string | null;
   hidden?: boolean;
-}): SplitNodeInternal {
+}): Extract<SplitNodeInternal, { kind: "pane" }> {
   const normalizedTabs = normalizeWorkspaceTabs(input.tabs ?? []);
   const tabIds = normalizedTabs.map((tab) => tab.tabId);
   const focusedTabId = tabIds.includes(input.focusedTabId ?? "")
@@ -1031,6 +1031,169 @@ export function flattenLayoutToSingleChat(
   });
 }
 
+/** Stable pane IDs keep saved chat placement independent of the supporting dock. */
+export const CHAT_PANE_IDS = [DEFAULT_PANE_ID, "chat-2", "chat-3", "chat-4"] as const;
+
+export function collectChatPanes(root: SplitNode): SplitPane[] {
+  return collectAllPanes(root).filter((pane) => pane.id !== EXPLORER_SIDEBAR_PANE_ID);
+}
+
+function createChatGridRoot(
+  chatPanes: SplitPaneInternal[],
+  sidePane: SplitPaneInternal,
+): SplitNodeInternal {
+  const nodes = chatPanes.map((pane): SplitNodeInternal => ({ kind: "pane", pane }));
+  const row = (children: SplitNodeInternal[], id: string) =>
+    createGroupNode({
+      id,
+      direction: "horizontal",
+      children,
+      sizes: children.map(() => 1 / children.length),
+    });
+  let chats = nodes[0]!;
+  if (nodes.length === 2) chats = row(nodes, "workspace-chats-top");
+  if (nodes.length > 2)
+    chats = createGroupNode({
+      id: "workspace-chats",
+      direction: "vertical",
+      children: [
+        row(nodes.slice(0, 2), "workspace-chats-top"),
+        row(nodes.slice(2), "workspace-chats-bottom"),
+      ],
+      sizes: [0.5, 0.5],
+    });
+
+  return createGroupNode({
+    id: DEFAULT_LAYOUT_GROUP_ID,
+    direction: "horizontal",
+    children: [chats, { kind: "pane", pane: sidePane }],
+    sizes: [0.78, 0.22],
+  });
+}
+
+function distributeChatTabs(
+  panes: SplitPaneInternal[],
+  resolveTargetHost: WorkspaceTargetHostResolver,
+) {
+  const buckets = new Map<string, WorkspaceTab[]>([[DEFAULT_PANE_ID, []]]);
+  for (const pane of panes) {
+    if (pane.id !== DEFAULT_PANE_ID && CHAT_PANE_IDS.some((id) => id === pane.id))
+      buckets.set(pane.id, []);
+  }
+  const sideTabs: WorkspaceTab[] = [];
+  for (const pane of panes) {
+    for (const tab of pane.tabs) {
+      const split = tab.target.kind === "agent" && tab.target.view === "split";
+      const previousHost = pane.id === EXPLORER_SIDEBAR_PANE_ID ? "explorer" : "main";
+      const host = split ? "main" : resolveTargetHost(tab.target, previousHost);
+      if (host === "explorer") {
+        sideTabs.push(tab);
+        continue;
+      }
+      let paneId = buckets.has(pane.id) ? pane.id : DEFAULT_PANE_ID;
+      // The previous two-view layout placed independent chat splits in explorer.
+      if (split && pane.id === EXPLORER_SIDEBAR_PANE_ID) {
+        paneId = CHAT_PANE_IDS.find((id) => !buckets.has(id)) ?? DEFAULT_PANE_ID;
+        if (!buckets.has(paneId)) buckets.set(paneId, []);
+      }
+      buckets.get(paneId)!.push(tab);
+    }
+  }
+  return { buckets, sideTabs };
+}
+
+/** Normalize old layouts without collapsing the four supported chat views or losing drafts. */
+export function normalizeWorkspaceChatLayout(
+  layout: WorkspaceLayout,
+  resolveTargetHost: WorkspaceTargetHostResolver = resolveDefaultTargetHost,
+): WorkspaceLayout {
+  const normalized = normalizeLayout(layout);
+  const panes = collectPanesIncludingHidden(asInternalNode(normalized.root));
+  const sourceSide = panes.find((pane) => pane.id === EXPLORER_SIDEBAR_PANE_ID);
+  const { buckets, sideTabs } = distributeChatTabs(panes, resolveTargetHost);
+  const chatPanes = [...buckets].map(([id, tabs]) => {
+    const previous = panes.find((pane) => pane.id === id);
+    const node = createPaneNode({
+      id,
+      tabs: tabs.length ? tabs : [createNewWorkspaceTab()],
+      focusedTabId: previous?.focusedTabId ?? null,
+    });
+    return node.pane;
+  });
+  const movedSelectedSplit =
+    sourceSide?.tabs.some(
+      (tab) =>
+        tab.tabId === sourceSide.focusedTabId &&
+        tab.target.kind === "agent" &&
+        tab.target.view === "split",
+    ) ?? false;
+  const sidePane = createPaneNode({
+    id: EXPLORER_SIDEBAR_PANE_ID,
+    tabs: sideTabs.length ? sideTabs : createDefaultExplorerSidebarTabs(),
+    focusedTabId: sourceSide?.focusedTabId ?? null,
+    hidden: sourceSide
+      ? sourceSide.hidden === true ||
+        movedSelectedSplit ||
+        !sideTabs.some((tab) => tab.target.kind !== "new_tab")
+      : true,
+  }).pane;
+  let focusedPaneId: string | null =
+    chatPanes.find((pane) => pane.id === normalized.focusedPaneId)?.id ?? DEFAULT_PANE_ID;
+  if (normalized.focusedPaneId === EXPLORER_SIDEBAR_PANE_ID && !sidePane.hidden)
+    focusedPaneId = EXPLORER_SIDEBAR_PANE_ID;
+  if (normalized.focusedPaneId === null) focusedPaneId = null;
+  return withNormalizedParentTabMap({
+    root: createChatGridRoot(chatPanes, sidePane),
+    focusedPaneId,
+    parentTabIdByTabId: normalized.parentTabIdByTabId,
+  });
+}
+
+export function addChatPaneToLayout(
+  layout: WorkspaceLayout,
+): { layout: WorkspaceLayout; paneId: string } | null {
+  const paneId = CHAT_PANE_IDS.find((id) => !findPaneById(layout.root, id));
+  if (!paneId) return null;
+  const chatPanes = collectChatPanes(layout.root) as SplitPaneInternal[];
+  const sidePane = findPaneById(layout.root, EXPLORER_SIDEBAR_PANE_ID) as SplitPaneInternal | null;
+  if (!sidePane) return null;
+  const pane = createPaneNode({ id: paneId, tabs: [createNewWorkspaceTab()] }).pane;
+  return {
+    paneId,
+    layout: {
+      ...layout,
+      root: createChatGridRoot([...chatPanes, pane], sidePane),
+      focusedPaneId: paneId,
+    },
+  };
+}
+
+/** Closing a grid cell keeps its conversations and draft state available without archiving. */
+export function closeChatPaneInLayout(
+  layout: WorkspaceLayout,
+  paneId: string,
+): WorkspaceLayout | null {
+  const panes = collectChatPanes(layout.root) as SplitPaneInternal[];
+  const closing = panes.find((pane) => pane.id === paneId);
+  const remaining = panes.filter((pane) => pane.id !== paneId);
+  const side = findPaneById(layout.root, EXPLORER_SIDEBAR_PANE_ID) as SplitPaneInternal | null;
+  if (!closing || !side || remaining.length === 0) return null;
+  const primary = remaining[0]!;
+  const preservedTabs = closing.tabs.filter((tab) => tab.target.kind !== "new_tab");
+  remaining[0] = createPaneNode({
+    id: DEFAULT_PANE_ID,
+    tabs: [...preservedTabs, ...primary.tabs],
+    focusedTabId: primary.focusedTabId,
+  }).pane;
+  let focusedPaneId = layout.focusedPaneId;
+  if (focusedPaneId === paneId || focusedPaneId === primary.id) focusedPaneId = DEFAULT_PANE_ID;
+  return withNormalizedParentTabMap({
+    ...layout,
+    root: createChatGridRoot(remaining, side),
+    focusedPaneId,
+  });
+}
+
 export function removeTabFromTree(root: SplitNode, tabId: string): SplitNode {
   return detachTabFromTree(asInternalNode(root), {
     tabId,
@@ -1760,7 +1923,10 @@ function openEntityTabWithoutFocusing(input: {
       layout: input.layout,
       target: input.target,
       now: Date.now(),
-      placement: AMBIENT_PLACEMENT,
+      placement: {
+        mode: "pane",
+        paneId: input.target.kind === "agent" ? DEFAULT_PANE_ID : EXPLORER_SIDEBAR_PANE_ID,
+      },
       createTabId: () => buildDeterministicWorkspaceTabId(input.target),
       focus: false,
     })?.layout ?? input.layout
