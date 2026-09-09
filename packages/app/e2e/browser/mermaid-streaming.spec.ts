@@ -1,8 +1,9 @@
-import { test } from "../support/fixtures";
+import { expect, test } from "../support/fixtures";
 import {
   expectCompletedDiagram,
   expectDiagramRemainsRenderedWhileStreaming,
   expectDiagramWithLabels,
+  expectStoredDiagramSource,
   reloadConversation,
   requestDiagram,
   waitForDiagramTurnToComplete,
@@ -50,17 +51,34 @@ test("keeps a Mermaid diagram rendered while its message streams, completes, and
       await requestDiagram(agent);
     });
 
-    await test.step("The diagram renders and stays rendered while tokens arrive", async () => {
-      await expectDiagramWithLabels(page, ["Start", "Middle"]);
-      await expectDiagramRemainsRenderedWhileStreaming(page);
-    });
+    const runtime =
+      await test.step("The diagram renders and stays rendered while tokens arrive", async () => {
+        await expectDiagramWithLabels(page, ["Start", "Middle"]);
+        const iframe = await page
+          .getByRole("img", { name: "Diagram" })
+          .last()
+          .locator("iframe")
+          .elementHandle();
+        if (!iframe) throw new Error("The rendered diagram has no iframe runtime");
+        await expectDiagramRemainsRenderedWhileStreaming(page);
+        expect(await iframe.evaluate((element) => element.isConnected)).toBe(true);
+        return iframe;
+      });
 
     await test.step("The completed diagram shows the final streamed content", async () => {
       await waitForDiagramTurnToComplete(agent);
       await expectCompletedDiagram(page, ["Start", "Done", "Release"]);
+      expect(
+        await page
+          .getByRole("img", { name: "Diagram" })
+          .last()
+          .locator("iframe")
+          .evaluate((current, original) => current === original, runtime),
+      ).toBe(true);
     });
 
     await test.step("The completed diagram remains rendered after reload", async () => {
+      await expectStoredDiagramSource(agent, STREAMED_MERMAID);
       await reloadConversation(page);
       await expectCompletedDiagram(page, ["Start", "Done", "Release"]);
     });

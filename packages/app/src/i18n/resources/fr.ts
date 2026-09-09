@@ -1767,6 +1767,8 @@ export const fr: TranslationResources = {
     backdrop: "Toile de fond du menu",
   },
   subagents: {
+    loadFailed: "Impossible de charger cette tâche.",
+    connectToLoad: "Connectez-vous à cet hôte pour charger la tâche.",
     tasksTitle: "Tâches",
     empty: "Aucun sous-agent à afficher.",
     pillLabelWorkingOne: "1 tâche en cours",

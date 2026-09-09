@@ -1697,6 +1697,8 @@ export const zhCN: TranslationResources = {
     backdrop: "菜单背景",
   },
   subagents: {
+    loadFailed: "无法加载此任务。",
+    connectToLoad: "请连接到此主机以加载任务。",
     tasksTitle: "任务",
     empty: "没有可显示的子代理。",
     pillLabelWorkingOne: "1 个任务运行中",

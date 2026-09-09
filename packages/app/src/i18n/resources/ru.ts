@@ -1747,6 +1747,8 @@ export const ru: TranslationResources = {
     backdrop: "Фон меню",
   },
   subagents: {
+    loadFailed: "Не удалось загрузить эту задачу.",
+    connectToLoad: "Подключитесь к этому хосту, чтобы загрузить задачу.",
     tasksTitle: "Задачи",
     empty: "Нет субагентов для отображения.",
     pillLabelWorkingOne: "1 задача выполняется",

@@ -14,6 +14,7 @@ import { openSubagentsTrack } from "../support/helpers/subagents";
 async function installNativeTask(page: Page, parentAgentId: string, provider: string) {
   let clientSocket: WebSocketRoute | undefined;
   let archiveRequests = 0;
+  let nextTimelineError: string | null = null;
   let descriptor: ProviderSubagentDescriptorPayload = {
     id: `${provider}-native-child`,
     parentAgentId,
@@ -53,6 +54,8 @@ async function installNativeTask(page: Page, parentAgentId: string, provider: st
         return;
       }
       if (message.type === "agent.provider_subagents.timeline.get.request") {
+        const error = nextTimelineError;
+        nextTimelineError = null;
         send({
           type: "agent.provider_subagents.timeline.get.response",
           payload: {
@@ -68,14 +71,19 @@ async function installNativeTask(page: Page, parentAgentId: string, provider: st
             window: { minSeq: 1, maxSeq: 1, nextSeq: 2 },
             hasOlder: false,
             hasNewer: false,
-            rows: [
-              {
-                seq: 1,
-                timestamp: descriptor.updatedAt,
-                item: { type: "assistant_message", text: `${provider.toUpperCase()}_CHILD_OUTPUT` },
-              },
-            ],
-            error: null,
+            rows: error
+              ? []
+              : [
+                  {
+                    seq: 1,
+                    timestamp: descriptor.updatedAt,
+                    item: {
+                      type: "assistant_message",
+                      text: `${provider.toUpperCase()}_CHILD_OUTPUT`,
+                    },
+                  },
+                ],
+            error,
           },
         });
         return;
@@ -86,6 +94,9 @@ async function installNativeTask(page: Page, parentAgentId: string, provider: st
   return {
     childId: descriptor.id,
     archiveRequests: () => archiveRequests,
+    failNextTimeline(message: string) {
+      nextTimelineError = message;
+    },
     update(patch: Partial<ProviderSubagentDescriptorPayload>) {
       descriptor = { ...descriptor, ...patch, updatedAt: new Date().toISOString() };
       send({
@@ -95,6 +106,36 @@ async function installNativeTask(page: Page, parentAgentId: string, provider: st
     },
   };
 }
+
+test("subagent history retries a failed request without losing the parent draft", async ({
+  page,
+}) => {
+  const parent = await seedMockAgentWorkspace({
+    repoPrefix: "subagent-history-retry-",
+    title: "Review marketplace orders",
+  });
+  try {
+    const task = await installNativeTask(page, parent.agentId, "codex");
+    await openAgentRoute(page, parent);
+    await fillComposerDraft(page, "Keep the parent draft while reviewing a task");
+    await openSubagentsTrack(page);
+    task.update({ status: "completed", subtitle: "Explore · High · 2.8k tokens" });
+    task.failNextTimeline("Temporary history failure");
+    await page.getByTestId(`subagents-track-row-${task.childId}`).click();
+    const child = page.getByTestId("provider-subagent-panel");
+    const retry = child.getByRole("button", { name: "Retry", exact: true });
+    await expect(retry).toBeVisible();
+    await expect(child).not.toContainText("CODEX_CHILD_OUTPUT");
+    await expectComposerDraft(page, "Keep the parent draft while reviewing a task");
+    await retry.click();
+    await expect(child).toContainText("CODEX_CHILD_OUTPUT");
+    await expect(retry).toBeHidden();
+    await expect(child).toContainText("2.8k tokens");
+    await expectComposerDraft(page, "Keep the parent draft while reviewing a task");
+  } finally {
+    await parent.cleanup();
+  }
+});
 
 for (const provider of ["codex", "claude", "grok"]) {
   test(`${provider} task sidebar tracks live usage, opens output, and preserves the parent`, async ({

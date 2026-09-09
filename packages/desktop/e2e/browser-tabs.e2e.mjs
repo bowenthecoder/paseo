@@ -380,7 +380,7 @@ async function clickGuestElement(page, client, browserId, selector) {
   );
 }
 
-async function selectDeviceSize(page, label) {
+async function selectDeviceSize(page, browserId, label) {
   await page.locator('[aria-label="Device size"]').click();
   const item = page.getByText(label, { exact: true });
   await item.waitFor({ state: "visible", timeout: timeoutMs });
@@ -400,7 +400,13 @@ async function selectDeviceSize(page, label) {
   await page.locator('[aria-label="Device size"]').click();
   await item.waitFor({ state: "visible", timeout: timeoutMs });
   await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2);
-  await page.keyboard.press("Escape");
+  // Selecting a preset dismisses its menu. Another Escape would close the
+  // browser's side panel and leave only its parked resident guest behind.
+  await item.waitFor({ state: "hidden", timeout: timeoutMs });
+  await page.getByTestId(`browser-webview-clip-${browserId}`).waitFor({
+    state: "visible",
+    timeout: timeoutMs,
+  });
   return !openPixels.equals(closedPixels);
 }
 
@@ -548,7 +554,7 @@ async function runRegression({ page, client, serverId, targetUrl, callerAgentId,
   );
   assert(focusedGuest === true, "Electron did not focus the registered browser guest");
 
-  const deviceSizeMenuPainted = await selectDeviceSize(page, "iPhone SE · 375×667");
+  const deviceSizeMenuPainted = await selectDeviceSize(page, browserId, "iPhone SE · 375×667");
   assert(deviceSizeMenuPainted, "Device size menu did not paint above the browser surface");
   recordViewportMismatch(
     failures,
@@ -619,7 +625,7 @@ async function runRegression({ page, client, serverId, targetUrl, callerAgentId,
   }
   await callBrowserTool(client, "browser_resize", { browserId, ...requestedViewport });
 
-  await selectDeviceSize(page, "Responsive");
+  await selectDeviceSize(page, browserId, "Responsive");
   const responsiveViewport = await readViewport(client, browserId);
 
   await sidePanel.getByTestId("workspace-side-panel-close").click();

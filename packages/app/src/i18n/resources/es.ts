@@ -1763,6 +1763,8 @@ export const es: TranslationResources = {
     backdrop: "Fondo del menú",
   },
   subagents: {
+    loadFailed: "No se pudo cargar esta tarea.",
+    connectToLoad: "Conéctate a este equipo para cargar la tarea.",
     tasksTitle: "Tareas",
     empty: "No hay subagentes que mostrar.",
     pillLabelWorkingOne: "1 tarea en ejecución",

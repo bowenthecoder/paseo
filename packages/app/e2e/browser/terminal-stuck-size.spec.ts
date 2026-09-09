@@ -56,11 +56,8 @@ async function readRenderedTerminalSize(page: Page): Promise<RenderedTerminalSiz
 }
 
 async function createTerminalViaMenu(page: Page): Promise<void> {
-  await page
-    .getByTestId("workspace-header-terminal-toggle")
-    .filter({ visible: true })
-    .first()
-    .click();
+  await page.getByTestId("workspace-header-menu-trigger").filter({ visible: true }).first().click();
+  await page.getByTestId("workspace-header-new-terminal").click();
 }
 
 async function listTerminalIds(harness: TerminalE2EHarness): Promise<string[]> {
@@ -168,8 +165,11 @@ test.describe("terminal PTY size claim under lost window focus", () => {
 
     // __paseoTerminal points at the most recently mounted xterm — the new terminal.
     const rendered = requireTerminalSize(await readRenderedTerminalSize(page));
-    // Sanity: the pane really rendered at a desktop size, not the PTY default.
-    expect(rendered.cols).toBeGreaterThan(80);
+    // The terminal now lives in a narrower side dock. Its measured dimensions
+    // must still differ from the spawn size for this to exercise a PTY resize.
+    expect(rendered.rows).toBeGreaterThan(0);
+    expect(rendered.cols).toBeGreaterThan(0);
+    expect(rendered).not.toEqual({ rows: 24, cols: 80 });
 
     // The PTY itself must agree. Ask it via the daemon, never via the page: focusing or
     // typing in the pane triggers the focus-claim path and would mask the bug.

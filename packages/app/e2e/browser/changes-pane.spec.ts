@@ -8,7 +8,11 @@ import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
 import { getServerId } from "../support/helpers/server-id";
 import { connectSeedClient } from "../support/helpers/seed-client";
 import { createTempGitRepo } from "../support/helpers/workspace";
-import { openChangesPanel, waitForWorkspaceTabsVisible } from "../support/helpers/workspace-tabs";
+import {
+  openChangesPanel,
+  openChangesTreePanel,
+  waitForWorkspaceTabsVisible,
+} from "../support/helpers/workspace-tabs";
 
 interface DirtyWorkspace {
   id: string;
@@ -266,16 +270,19 @@ test("Changes opens the populated committed comparison for a clean checkout", as
   const workspace = await createWorkspaceWithCommittedDiff();
 
   await openWorkspaceChangesSurface(page, workspace, 90_000);
+  await openChangesTreePanel(page);
 
   const panel = page.getByTestId("working-diff-panel").filter({ visible: true });
   const tree = page.getByTestId("changes-tree-panel").filter({ visible: true });
   await expect(tree.getByTestId("changes-diff-status-trigger")).toContainText("Committed");
+  await tree.getByTestId("diff-tree-file-0-toggle").click();
   await expect(panel.getByTestId("diff-file-0")).toHaveAccessibleName("committed-only.ts, +1, -0");
 });
 
 test("Changes expires a manual comparison when checkout dirtiness changes", async ({ page }) => {
   const workspace = await createWorkspaceWithMountedTabDiff();
   await openWorkspaceChanges(page, workspace);
+  await openChangesTreePanel(page);
 
   const tree = page.getByTestId("changes-tree-panel").filter({ visible: true });
   const mode = tree.getByTestId("changes-diff-status-trigger");
@@ -300,14 +307,17 @@ test("Changes expires a manual comparison when checkout dirtiness changes", asyn
 test("an empty Changes comparison links to the populated comparison", async ({ page }) => {
   const workspace = await createWorkspaceWithCommittedDiff();
   await openWorkspaceChangesSurface(page, workspace);
+  await openChangesTreePanel(page);
 
   const panel = page.getByTestId("working-diff-panel").filter({ visible: true });
   const tree = page.getByTestId("changes-tree-panel").filter({ visible: true });
   const mode = tree.getByTestId("changes-diff-status-trigger");
   await mode.click();
   await page.getByTestId("changes-diff-mode-committed").click();
+  await tree.getByTestId("diff-tree-file-0-toggle").click();
   await expect(panel.getByTestId("diff-file-0")).toHaveAccessibleName("committed-only.ts, +1, -0");
 
+  await openChangesTreePanel(page);
   await mode.click();
   await page.getByTestId("changes-diff-mode-uncommitted").click();
 
@@ -316,7 +326,39 @@ test("an empty Changes comparison links to the populated comparison", async ({ p
   await expect(seeCommitted).toBeVisible();
   await seeCommitted.click();
   await expect(mode).toContainText("Committed");
+  await tree.getByTestId("diff-tree-file-0-toggle").click();
   await expect(panel.getByTestId("diff-file-0")).toHaveAccessibleName("committed-only.ts, +1, -0");
+});
+
+test("opening a changed file preserves the selected comparison on a dirty branch", async ({
+  page,
+}) => {
+  const workspace = await createWorkspaceWithCommittedDiff();
+  await writeFile(path.join(workspace.repoPath, "tracked.ts"), "export const tracked = 2;\n");
+  await openWorkspaceChangesSurface(page, workspace);
+
+  const panel = page.getByTestId("working-diff-panel").filter({ visible: true });
+  const tree = page.getByTestId("changes-tree-panel").filter({ visible: true });
+  const mode = tree.getByTestId("changes-diff-status-trigger");
+  await expect(diffHeaderForPath(panel, "tracked.ts")).toHaveAccessibleName("tracked.ts, +1, -1");
+
+  await openChangesTreePanel(page);
+  await mode.click();
+  await page.getByTestId("changes-diff-mode-committed").click();
+  await expect(mode).toContainText("Committed");
+  await tree.getByTestId("diff-tree-file-0-toggle").click();
+  await expect(diffHeaderForPath(panel, "committed-only.ts")).toHaveAccessibleName(
+    "committed-only.ts, +1, -0",
+  );
+  await expect(diffHeaderForPath(panel, "tracked.ts")).toHaveCount(0);
+
+  await openChangesTreePanel(page);
+  await mode.click();
+  await page.getByTestId("changes-diff-mode-uncommitted").click();
+  await expect(mode).toContainText("Uncommitted");
+  await tree.getByTestId("diff-tree-file-0-toggle").click();
+  await expect(diffHeaderForPath(panel, "tracked.ts")).toHaveAccessibleName("tracked.ts, +1, -1");
+  await expect(diffHeaderForPath(panel, "committed-only.ts")).toHaveCount(0);
 });
 
 test("changes file actions open below the right-click without a reserved kebab", async ({
@@ -497,6 +539,7 @@ test("changes context menus duplicate files and folders", async ({ page }) => {
     .poll(() => readFileIfPresent(path.join(workspace.repoPath, "src/use-mounted-tab-set copy.ts")))
     .toBe(AFTER);
 
+  await openChangesTreePanel(page);
   await changesTree(page).getByTestId("diff-folder-src-toggle").click({ button: "right" });
   await page.getByTestId("diff-folder-src-duplicate").click();
   await expect
@@ -511,6 +554,7 @@ test("changes tree aligns every file status after its diff stat", async ({ page 
   });
   await useUnwrappedDiffLines(page);
   await openWorkspaceChanges(page, workspace);
+  await openChangesTreePanel(page);
   const tree = changesTree(page);
   const modifiedRow = tree.getByTestId("diff-tree-file-0");
   const deletedRow = tree.getByTestId("diff-tree-file-1");
@@ -535,6 +579,7 @@ test("the scrolling diff lists files in changes tree order", async ({ page }) =>
   });
   await useUnwrappedDiffLines(page);
   await openWorkspaceChanges(page, workspace);
+  await openChangesTreePanel(page);
 
   const tree = changesTree(page);
   const treeNames = tree.locator('[data-testid^="diff-tree-file-"][data-testid$="-name"]');
@@ -549,8 +594,9 @@ test("the scrolling diff lists files in changes tree order", async ({ page }) =>
   // descendants of a collapsed folder, which would make the tree a subsequence
   // of the diff rather than a match, and mask a real ordering difference.
   await expect(treeNames).toHaveCount(expected.length);
-  await expect(diffHeaders).toHaveCount(expected.length);
   await expect(treeNames).toHaveText(expected);
+  await tree.getByTestId("diff-tree-file-0-toggle").click();
+  await expect(diffHeaders).toHaveCount(expected.length);
   const expectedHeaderNames = [
     "src/zz-folder/nested/changed.ts, +1, -1",
     "src/zz-folder/root.ts, +1, -1",
@@ -566,17 +612,21 @@ test("changes context menu recursively collapses descendant folders", async ({ p
   const workspace = await createWorkspaceWithMountedTabDiff({ includeNestedFolders: true });
   await useUnwrappedDiffLines(page);
   await openWorkspaceChanges(page, workspace);
+  await openChangesTreePanel(page);
 
   const tree = changesTree(page);
   await expect(tree.getByTestId("diff-folder-src/zz-folder")).toBeVisible();
   await expect(tree.getByTestId("diff-folder-src/zz-folder/nested")).toBeVisible();
   const rootRow = tree.getByTestId("diff-folder-src-toggle");
   const rootLabel = tree.getByTestId("diff-folder-src-toggle").getByText("src", { exact: true });
+  // The header-menu click can leave the pointer over this row after the tree opens.
+  await page.mouse.move(0, 0);
   await expect(rootRow).toHaveCSS("opacity", "1");
   await expect(rootLabel).toHaveCSS("opacity", "0.76");
   await rootRow.hover();
   await expect(rootLabel).toHaveCSS("opacity", "1");
   await page.mouse.move(0, 0);
+  await expect(rootLabel).toHaveCSS("opacity", "0.76");
   const nestedLabel = tree
     .getByTestId("diff-folder-src/zz-folder-toggle")
     .getByText("zz-folder", { exact: true });
@@ -610,6 +660,7 @@ test("changes context menus expose folder revert and restore a file after confir
   const workspace = await createWorkspaceWithMountedTabDiff();
   await useUnwrappedDiffLines(page);
   await openWorkspaceChanges(page, workspace);
+  await openChangesTreePanel(page);
 
   const tree = changesTree(page);
   await tree.getByTestId("diff-folder-src-toggle").click({ button: "right" });
@@ -675,7 +726,7 @@ test("discarding a staged rename restores its source path", async ({ page }) => 
   await page.getByTestId(`${rowTestId}-revert`).click();
   await confirmation;
 
-  await expect(page.getByText("zz-renamed.ts", { exact: true })).toHaveCount(0, {
+  await expect(renamedHeader).toHaveCount(0, {
     timeout: 30_000,
   });
   await expect
@@ -705,7 +756,7 @@ test("discarding an untracked file removes it from the working tree", async ({ p
   await page.getByTestId(`${rowTestId}-revert`).click();
   await confirmation;
 
-  await expect(page.getByText("zz-untracked.txt", { exact: true })).toHaveCount(0, {
+  await expect(untrackedHeader).toHaveCount(0, {
     timeout: 30_000,
   });
   await expect(
@@ -885,7 +936,7 @@ test("canvas diff stays sharp while its workspace pane is resized", async ({ pag
 
   await page.mouse.move(handleBounds.x + handleBounds.width / 2, handleBounds.y + 120);
   await page.mouse.down();
-  await page.mouse.move(handleBounds.x + 120, handleBounds.y + 120);
+  await page.mouse.move(handleBounds.x - 120, handleBounds.y + 120);
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
 
   const duringDrag = await Promise.all([

@@ -276,10 +276,12 @@ test.describe("Half-screen desktop layout", () => {
 
       const sidebarScroll = page.getByTestId("sidebar-project-workspace-list-scroll");
       const scrollTop = await sidebarScroll.evaluate((element) => {
-        element.scrollTop = 160;
+        // Denser rows can leave less than 160px of overflow at this viewport.
+        // Use a real nonzero position within the rendered list's scroll range.
+        element.scrollTop = Math.min(160, element.scrollHeight - element.clientHeight);
         return element.scrollTop;
       });
-      expect(scrollTop).toBe(160);
+      expect(scrollTop).toBeGreaterThan(0);
 
       await page.getByTestId("menu-button").click();
       await expect(page.getByTestId("sidebar-global-new-workspace")).not.toBeVisible();

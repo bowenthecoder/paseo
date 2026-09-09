@@ -68,9 +68,9 @@ export function useWorkingDiff({
   });
   const setDiffModeOverride = useSetDiffModeOverride();
   const selectDiffMode = useCallback(
-    (nextMode: "uncommitted" | "base") => {
+    (nextMode: "uncommitted" | "base", targetModeScope = modeScope) => {
       setDiffModeOverride({
-        scopeKey: modeScopeKey,
+        scopeKey: `${reviewDraftScopeKey}:surface=${encodeURIComponent(targetModeScope)}`,
         override: {
           serverId,
           cwd,
@@ -79,7 +79,7 @@ export function useWorkingDiff({
         },
       });
     },
-    [cwd, hasUncommittedChanges, modeScopeKey, serverId, setDiffModeOverride],
+    [cwd, hasUncommittedChanges, modeScope, reviewDraftScopeKey, serverId, setDiffModeOverride],
   );
   const selectUncommitted = useCallback(() => selectDiffMode("uncommitted"), [selectDiffMode]);
   const selectBase = useCallback(() => selectDiffMode("base"), [selectDiffMode]);
@@ -128,6 +128,7 @@ export function useWorkingDiff({
     baseRef,
     currentBranchName,
     diffMode,
+    selectDiffMode,
     selectUncommitted,
     selectBase,
     files,

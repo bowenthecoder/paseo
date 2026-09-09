@@ -192,6 +192,7 @@ interface ChangesSurfaceProps {
   onOpenFile?: (path: string) => void;
   onOpenToSide?: (path: string) => void;
   onSelectDiffFile?: (path: string) => void;
+  selectedFileModeScope?: string;
   onAddToChat?: (path: string) => void;
   state?: ChangesState;
   onStateChange?: (state: ChangesState) => void;
@@ -1566,6 +1567,7 @@ export function ChangesSurface({
   onOpenFile,
   onOpenToSide,
   onSelectDiffFile,
+  selectedFileModeScope,
   onAddToChat,
   state: changesState,
   onStateChange,
@@ -1659,6 +1661,7 @@ export function ChangesSurface({
     baseRef,
     currentBranchName,
     diffMode,
+    selectDiffMode,
     selectUncommitted: handleSelectUncommitted,
     selectBase: handleSelectBase,
     files,
@@ -1801,6 +1804,9 @@ export function ChangesSurface({
   const handleSelectTreeFile = useCallback(
     (path: string) => {
       if (presentation === "tree" && onSelectDiffFile) {
+        if (selectedFileModeScope) {
+          selectDiffMode(diffMode, selectedFileModeScope);
+        }
         onSelectDiffFile(path);
         return;
       }
@@ -1809,7 +1815,7 @@ export function ChangesSurface({
         revision: Math.max(Date.now(), (current?.revision ?? 0) + 1),
       }));
     },
-    [onSelectDiffFile, presentation],
+    [diffMode, onSelectDiffFile, presentation, selectDiffMode, selectedFileModeScope],
   );
   const workingMode = useMemo(
     () => ({

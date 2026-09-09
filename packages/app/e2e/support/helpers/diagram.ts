@@ -43,6 +43,22 @@ export async function expectCompletedDiagram(page: Page, labels: readonly string
   await expectDiagramWithLabels(page, labels);
 }
 
+export async function expectStoredDiagramSource(
+  agent: MockAgentWorkspace,
+  source: string,
+): Promise<void> {
+  const timeline = await agent.client.fetchAgentTimeline(agent.agentId, {
+    direction: "tail",
+    projection: "projected",
+    limit: 0,
+  });
+  expect(timeline.error).toBeNull();
+  const assistantSources = timeline.entries.flatMap(({ item }) =>
+    item.type === "assistant_message" ? [item.text] : [],
+  );
+  expect(assistantSources).toEqual([source]);
+}
+
 export async function reloadConversation(page: Page): Promise<void> {
   await page.reload({ waitUntil: "domcontentloaded" });
 }

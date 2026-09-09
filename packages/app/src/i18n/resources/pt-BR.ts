@@ -1749,6 +1749,8 @@ export const ptBR: TranslationResources = {
     backdrop: "Fundo do menu",
   },
   subagents: {
+    loadFailed: "Não foi possível carregar esta tarefa.",
+    connectToLoad: "Conecte-se a este host para carregar a tarefa.",
     tasksTitle: "Tarefas",
     empty: "Nenhum subagente para mostrar.",
     pillLabelWorkingOne: "1 tarefa em execução",

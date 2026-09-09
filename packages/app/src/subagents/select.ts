@@ -8,6 +8,8 @@ import type { ProviderSubagentDescriptorPayload } from "@getpaseo/protocol/messa
 import { i18n } from "@/i18n/i18next";
 import { formatTokenCount } from "@/components/context-window-meter.utils";
 import { reportedSubagentContextTokens } from "./usage";
+import { useHostRuntimeIsConnected } from "@/runtime/host-runtime";
+import { useRetainedPanelActive } from "@/components/retained-panel";
 
 export interface PaseoSubagentRow {
   kind: "paseo";
@@ -143,13 +145,15 @@ export function useSubagentsForParent(params: SelectSubagentsParams): SubagentRo
     equal,
   );
   const client = useSessionStore((state) => state.sessions[params.serverId]?.client ?? null);
+  const isConnected = useHostRuntimeIsConnected(params.serverId);
+  const isActive = useRetainedPanelActive();
 
   useEffect(() => {
-    if (!client || !supported) return;
+    if (!client || !supported || !isConnected || !isActive) return;
     void refreshProviderSubagents(client, params.serverId, params.parentAgentId).catch(
       () => undefined,
     );
-  }, [client, params.parentAgentId, params.serverId, supported]);
+  }, [client, isActive, isConnected, params.parentAgentId, params.serverId, supported]);
 
   return useMemo(() => {
     if (providerRows.length === 0) return paseoRows;

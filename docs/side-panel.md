@@ -46,8 +46,10 @@ menu and the panel toggle. New chat reuses an available draft instead of accumul
 drafts. The desktop Drafts menu recovers saved drafts, including multiple drafts from older
 layouts. Selecting one returns to the chat and preserves its text, attachments and held queue.
 
-`Cmd/Ctrl+E` toggles the panel. `Cmd/Ctrl+Shift+T` toggles its terminal. Escape closes the panel
-when focus is outside the composer and terminal; those controls retain their own Escape behavior.
+`Cmd/Ctrl+E` toggles the panel. `Cmd/Ctrl+Shift+T`, New terminal in the workspace menu and the
+command center create a new shell; the header terminal button toggles the existing terminal dock.
+Focus mode retains an explicit Exit focus mode control. Escape closes the panel when focus is
+outside the composer and terminal; those controls retain their own Escape behavior.
 
 ## Documents and device files
 

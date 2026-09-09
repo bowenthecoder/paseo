@@ -1,5 +1,6 @@
 import type { KeyboardShortcutPayload, MessageInputKeyboardActionKind } from "@/keyboard/actions";
 import type { KeyboardActionDefinition } from "@/keyboard/keyboard-action-dispatcher";
+import type { KeyboardShortcutInput } from "@/keyboard/keyboard-shortcuts";
 import { buildSettingsRoute, parseHostWorkspaceRouteFromPathname } from "@/utils/host-routes";
 import {
   getRelativeSidebarShortcutTarget,
@@ -36,6 +37,31 @@ export type ShortcutAction =
   | { kind: "shortcuts-dialog-toggle"; nextOpen: boolean };
 
 const NONE: ShortcutAction = { kind: "none" };
+
+export function dispatchKeyboardShortcutAction(
+  action: KeyboardActionDefinition,
+  dispatcher: { dispatch: (action: KeyboardActionDefinition) => boolean },
+  event: Pick<KeyboardShortcutInput, "key" | "altKey" | "ctrlKey" | "metaKey" | "shiftKey"> | null,
+): boolean {
+  if (dispatcher.dispatch(action)) {
+    return true;
+  }
+
+  // Escape closes a supporting view first, then retains its original interrupt
+  // behavior when no view handled it. Rebound close commands do not interrupt.
+  if (
+    action.id === "workspace.sidePanel.close" &&
+    event?.key === "Escape" &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.shiftKey
+  ) {
+    return dispatcher.dispatch({ id: "agent.interrupt", scope: "global" });
+  }
+
+  return false;
+}
 
 // Action ids whose routing is a no-payload pass-through to the dispatcher.
 const PASSTHROUGH_DISPATCH: Record<string, KeyboardActionDefinition> = {
@@ -149,7 +175,7 @@ export function routeKeyboardShortcut(
   const passthrough = PASSTHROUGH_DISPATCH[input.action];
   if (passthrough) {
     if (
-      input.action === "agent.interrupt" &&
+      (input.action === "agent.interrupt" || input.action === "workspace.sidePanel.close") &&
       ctx.pathname.startsWith("/settings") &&
       !ctx.isMobile
     ) {

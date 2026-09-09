@@ -13,7 +13,11 @@ import {
 const SERVER_ID = "timeline-replica-host";
 const AGENT_ID = "agent-1";
 
-function item(id: string, text: string, seq: number): StreamItem {
+function item(
+  id: string,
+  text: string,
+  seq: number,
+): Extract<StreamItem, { kind: "assistant_message" }> {
   return {
     kind: "assistant_message",
     id,
@@ -114,6 +118,75 @@ describe("viewed timeline persistence", () => {
       .toEqual({ status: "painted", items: cachedTimeline().items });
     owner.dispose();
   });
+
+  it.each([true, false])(
+    "reconciles a resumed projected message with its painted cached prefix (identified=%s)",
+    async (identified) => {
+      useSessionStore.getState().initializeSession(SERVER_ID, null);
+      const prefix = "```mermaid\nflowchart LR\n  Start -->";
+      const completed = `${prefix} Done\n\`\`\``;
+      const messageId = identified ? "diagram" : undefined;
+      const cached: CachedTimeline = {
+        agentId: AGENT_ID,
+        items: [{ ...item("diagram", prefix, 4), messageId }],
+        range: { epoch: "epoch-1", startSeq: 1, endSeq: 4 },
+        hasOlder: false,
+      };
+      const commits: CachedTimeline[] = [];
+      const owner = createOwner({
+        readTimeline: async () => cached,
+        commitTimeline: (_serverId, _agentId, timeline) => commits.push(timeline),
+      });
+      try {
+        owner.replaceVisibleAgentIds("test", [AGENT_ID]);
+        await expect
+          .poll(() =>
+            selectAgentTimelineState(useSessionStore.getState().sessions[SERVER_ID], AGENT_ID),
+          )
+          .toEqual({ status: "painted", items: cached.items });
+
+        owner.applyTimelineResponse({
+          requestId: "resume-page",
+          agentId: AGENT_ID,
+          agent: null,
+          direction: "after",
+          projection: "projected",
+          reset: false,
+          epoch: "epoch-1",
+          window: { minSeq: 1, maxSeq: 8, nextSeq: 9 },
+          startCursor: { epoch: "epoch-1", seq: 1 },
+          endCursor: { epoch: "epoch-1", seq: 8 },
+          entries: [
+            {
+              provider: "codex",
+              item: { type: "assistant_message", text: completed, messageId },
+              timestamp: "2026-08-26T10:00:01.000Z",
+              seqStart: 1,
+              seqEnd: 8,
+              sourceSeqRanges: [{ startSeq: 1, endSeq: 8 }],
+              collapsed: ["assistant_merge"],
+            },
+          ],
+          error: null,
+          hasNewer: false,
+          hasOlder: false,
+          staleCursor: false,
+          gap: false,
+        });
+
+        expect(
+          selectAgentTimelineState(useSessionStore.getState().sessions[SERVER_ID], AGENT_ID),
+        ).toMatchObject({
+          status: "synced",
+          items: [{ id: "diagram", kind: "assistant_message", text: completed }],
+          range: { epoch: "epoch-1", startSeq: 1, endSeq: 8 },
+        });
+        expect(commits.at(-1)?.items).toMatchObject([{ text: completed }]);
+      } finally {
+        owner.dispose();
+      }
+    },
+  );
 
   it("does not let a late cache read overwrite newer network state", async () => {
     useSessionStore.getState().initializeSession(SERVER_ID, null);

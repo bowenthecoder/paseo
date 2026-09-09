@@ -17,6 +17,9 @@ import {
   useProviderSubagentStore,
 } from "@/subagents/provider-store";
 import { useTranslation } from "react-i18next";
+import { Button } from "@/components/ui/button";
+import { useRetainedPanelActive } from "@/components/retained-panel";
+import { useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import type { PendingPermission } from "@/types/shared";
 import type { StreamItem } from "@/types/stream";
 import { deriveSidebarStateBucket } from "@/utils/sidebar-agent-state";
@@ -67,6 +70,37 @@ function useProviderSubagentDescriptor(
   };
 }
 
+function ProviderTaskLoadError({
+  failed,
+  supported,
+  isConnected,
+  onRetry,
+}: {
+  failed: boolean;
+  supported: boolean;
+  isConnected: boolean;
+  onRetry(): void;
+}) {
+  const { t } = useTranslation();
+  if (!failed && (!supported || isConnected)) return null;
+  return (
+    <View style={styles.loadError} testID="provider-subagent-load-error">
+      <Text style={styles.loadErrorText} accessibilityLiveRegion="polite">
+        {isConnected ? t("subagents.loadFailed") : t("subagents.connectToLoad")}
+      </Text>
+      <Button
+        size="sm"
+        variant="secondary"
+        disabled={!isConnected}
+        onPress={onRetry}
+        testID="provider-subagent-load-retry"
+      >
+        {t("common.actions.retry")}
+      </Button>
+    </View>
+  );
+}
+
 function ProviderSubagentPanel() {
   const { t } = useTranslation();
   const paneContext = usePaneContext();
@@ -88,28 +122,47 @@ function ProviderSubagentPanel() {
   );
   const client = useSessionStore((state) => state.sessions[serverId]?.client ?? null);
   const serverInfo = useSessionStore((state) => state.sessions[serverId]?.serverInfo ?? null);
+  const isConnected = useHostRuntimeIsConnected(serverId);
+  const isActive = useRetainedPanelActive();
   // COMPAT(providerSubagents): added in v0.2.11, remove after 2027-01-12.
   const supported = serverInfo?.features?.providerSubagents === true;
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [failedLoadKey, setFailedLoadKey] = useState<string | null>(null);
+  const [retryGeneration, setRetryGeneration] = useState(0);
+  const retryLoad = useCallback(() => setRetryGeneration((generation) => generation + 1), []);
 
   useEffect(() => {
-    if (!client || !supported) return;
-    void refreshProviderSubagents(client, serverId, target.parentAgentId).catch(() => undefined);
-  }, [client, serverId, supported, target.parentAgentId]);
-
-  useEffect(() => {
-    if (!client || !supported) return;
-    void client
-      .fetchProviderSubagentTimeline(target.parentAgentId, target.subagentId, {
-        direction: "tail",
-        limit: TIMELINE_FETCH_PAGE_SIZE,
-      })
-      .then((payload) => {
-        useProviderSubagentStore.getState().replaceTimeline(serverId, payload);
-        return undefined;
-      })
-      .catch(() => undefined);
-  }, [client, serverId, supported, target.parentAgentId, target.subagentId]);
+    if (!client || !supported || !isConnected || !isActive) return;
+    let disposed = false;
+    setFailedLoadKey(null);
+    void Promise.all([
+      refreshProviderSubagents(client, serverId, target.parentAgentId),
+      client
+        .fetchProviderSubagentTimeline(target.parentAgentId, target.subagentId, {
+          direction: "tail",
+          limit: TIMELINE_FETCH_PAGE_SIZE,
+        })
+        .then((payload) => {
+          if (!disposed) useProviderSubagentStore.getState().replaceTimeline(serverId, payload);
+          return undefined;
+        }),
+    ]).catch(() => {
+      if (!disposed) setFailedLoadKey(key);
+    });
+    return () => {
+      disposed = true;
+    };
+  }, [
+    client,
+    isActive,
+    isConnected,
+    key,
+    retryGeneration,
+    serverId,
+    supported,
+    target.parentAgentId,
+    target.subagentId,
+  ]);
 
   const loadOlder = useCallback((): boolean => {
     if (!client || !supported || isLoadingOlder || !timeline?.hasOlder || !timeline.epoch) {
@@ -190,6 +243,12 @@ function ProviderSubagentPanel() {
 
   return (
     <View style={styles.container} testID="provider-subagent-panel">
+      <ProviderTaskLoadError
+        failed={failedLoadKey === key}
+        supported={supported}
+        isConnected={isConnected}
+        onRetry={retryLoad}
+      />
       {subtitle ? (
         <View style={styles.subtitleHeader}>
           <Text
@@ -209,7 +268,7 @@ function ProviderSubagentPanel() {
         streamHead={timeline?.head ?? EMPTY_STREAM_ITEMS}
         turnPresentation={turnPresentation}
         pendingPermissions={EMPTY_PERMISSIONS}
-        isAuthoritativeHistoryReady
+        isAuthoritativeHistoryReady={timeline !== null}
         onOpenWorkspaceFile={fileContext.openFileInWorkspace}
         readOnly
         historyPagination={historyPagination}
@@ -220,6 +279,13 @@ function ProviderSubagentPanel() {
 
 const styles = StyleSheet.create((theme) => ({
   container: { flex: 1, minHeight: 0 },
+  loadError: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+    padding: theme.spacing[3],
+  },
+  loadErrorText: { flex: 1, color: theme.colors.foregroundMuted, fontSize: theme.fontSize.sm },
   subtitleHeader: {
     paddingHorizontal: theme.spacing[3],
     paddingVertical: theme.spacing[1],

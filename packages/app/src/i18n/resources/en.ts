@@ -1728,6 +1728,8 @@ export const en = {
     backdrop: "Menu backdrop",
   },
   subagents: {
+    loadFailed: "Could not load this task.",
+    connectToLoad: "Connect to this host to load the task.",
     tasksTitle: "Tasks",
     empty: "No subagents to show.",
     pillLabelWorkingOne: "1 running task",

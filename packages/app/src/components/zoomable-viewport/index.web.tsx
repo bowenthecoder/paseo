@@ -283,6 +283,7 @@ export function ZoomableViewport({
     <View
       onPointerEnter={handlePointerEnter}
       onPointerLeave={handlePointerLeave}
+      onPointerMove={handlePointerEnter}
       style={[styles.root, style]}
       testID={testID}
     >

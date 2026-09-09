@@ -48,11 +48,20 @@ async function openAddProjectFlowSurface(
   page: Page,
   expectedPage: "host" | "method",
 ): Promise<void> {
-  // The manual-chat footer creates groups. Folder registration remains a
-  // separate command, including its host-first flow when several hosts exist.
-  const commands = await openCommandCenter(page);
-  await commands.getByTestId("command-center-input").fill("Add project");
-  await commands.getByText("Add project", { exact: true }).click();
+  const addProjectButton = page
+    .getByTestId("sidebar-add-project")
+    .and(page.getByRole("button", { name: "Add project", exact: true }));
+  if (await addProjectButton.isVisible()) {
+    // The empty project view has no list header/search trigger. Its footer opens
+    // this flow directly, including on compact layouts without global shortcuts.
+    await addProjectButton.click();
+  } else {
+    // The manual-chat footer creates groups. Register folders through the public
+    // command instead, preserving its host-first flow when several hosts exist.
+    const commands = await openCommandCenter(page);
+    await commands.getByTestId("command-center-input").fill("Add project");
+    await commands.getByText("Add project", { exact: true }).click();
+  }
   await expect(addProjectFlow(page)).toBeVisible({ timeout: 30_000 });
   await expectAddProjectPage(page, expectedPage);
 }

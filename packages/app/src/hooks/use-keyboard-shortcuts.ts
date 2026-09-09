@@ -21,6 +21,7 @@ import {
 } from "@/desktop/browser/shortcuts";
 import type { KeyboardFocusScope, KeyboardShortcutPayload } from "@/keyboard/actions";
 import {
+  dispatchKeyboardShortcutAction,
   routeKeyboardShortcut,
   type ShortcutAction,
   type ShortcutCallbackName,
@@ -170,7 +171,7 @@ export function useKeyboardShortcuts({
         case "none":
           return false;
         case "dispatch":
-          return keyboardActionDispatcher.dispatch(action.action);
+          return dispatchKeyboardShortcutAction(action.action, keyboardActionDispatcher, event);
         case "navigate-workspace":
           keyboardWorkspaceSelectionRef.current = {
             serverId: action.serverId,

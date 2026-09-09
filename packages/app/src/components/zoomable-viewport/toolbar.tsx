@@ -85,14 +85,16 @@ function ViewportToolbarButton({
   const isCompact = useIsCompactFormFactor();
   const iconSize = iconButtonChromeGlyphSize("small", isCompact);
   const buttonStyle = React.useCallback(
-    ({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) =>
+    ({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
       iconButtonChromeStyle({
         size: "small",
         compact: isCompact,
         state: { hovered, pressed },
         disabled,
-        style: visible ? styles.button : styles.buttonHidden,
+        style: styles.button,
       }),
+      !visible && styles.buttonHidden,
+    ],
     [disabled, isCompact, visible],
   );
   return (

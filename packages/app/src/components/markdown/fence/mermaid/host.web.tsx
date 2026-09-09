@@ -65,13 +65,17 @@ function MermaidIframeRuntime({
     sendRequest(driverRef.current?.update(request) ?? null);
   }, [request, sendRequest]);
 
+  const handleRuntimeReady = useCallback(() => {
+    sendRequest(driverRef.current?.ready() ?? null);
+  }, [sendRequest]);
+
   useEffect(() => {
     function receiveMessage(event: MessageEvent): void {
       if (event.source !== iframeRef.current?.contentWindow) return;
       const message = parseMermaidRuntimeMessage(event.data);
       if (!message) return;
       if (message.type === "bridgeReady") {
-        sendRequest(driverRef.current?.ready() ?? null);
+        handleRuntimeReady();
         return;
       }
       if (message.type === "renderError") {
@@ -84,7 +88,7 @@ function MermaidIframeRuntime({
     }
     window.addEventListener("message", receiveMessage);
     return () => window.removeEventListener("message", receiveMessage);
-  }, [onRenderFailed, onRendered, sendRequest]);
+  }, [handleRuntimeReady, onRenderFailed, onRendered, sendRequest]);
 
   return (
     <iframe
@@ -93,6 +97,9 @@ function MermaidIframeRuntime({
       aria-hidden
       sandbox="allow-scripts"
       srcDoc={mermaidRuntimeHtml}
+      // Cached srcdoc can announce readiness before the message effect subscribes.
+      // Its bundled runtime script also finishes before this load event fires.
+      onLoad={handleRuntimeReady}
       tabIndex={-1}
       style={iframeStyle}
     />

@@ -3,8 +3,13 @@ import { buildHostAgentDetailRoute } from "@/utils/host-routes";
 import { installDaemonWebSocketGate } from "./daemon-websocket-gate";
 import { seedWorkspace, type SeededWorkspace } from "./seed-client";
 import { getServerId } from "./server-id";
-import { waitForWorkspaceTabsVisible } from "./workspace-tabs";
+import {
+  expectOnlyWorkspaceAgentPanelVisible,
+  waitForWorkspaceTabsVisible,
+} from "./workspace-tabs";
 import { expectReconnectingToastGone, expectReconnectingToastVisible } from "./workspace-ui";
+import { selectSidebarProjectGrouping } from "./workspace-management";
+import { openCommandCenter } from "./command-center";
 
 interface SeededDirectoryAgent {
   id: string;
@@ -33,10 +38,6 @@ async function createRunningMockAgent(
   return { id: agent.id, title };
 }
 
-async function openCommandCenter(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Open command center" }).click();
-}
-
 export class DirectoryBootstrapScenario {
   private readonly workspaces: SeededWorkspace[] = [];
   private disconnectedWorkspace: SeededWorkspace | null = null;
@@ -57,7 +58,8 @@ export class DirectoryBootstrapScenario {
       (url) => url.pathname.includes("/workspace/") && !url.searchParams.has("open"),
     );
     await waitForWorkspaceTabsVisible(page);
-    await expect(page.getByRole("button", { name: agent.title, exact: true })).toBeVisible();
+    await selectSidebarProjectGrouping(page);
+    await expectOnlyWorkspaceAgentPanelVisible(page, agent.id);
     return scenario;
   }
 
@@ -75,11 +77,12 @@ export class DirectoryBootstrapScenario {
     const workspace = await this.seedWorkspace("directory-bootstrap-background-");
     const agent = await createRunningMockAgent(workspace, "Background directory agent");
 
-    const workspaceLink = this.page.getByText(workspace.projectDisplayName, { exact: true });
+    const workspaceLink = this.page.getByTestId(`sidebar-project-row-${workspace.projectKey}`);
     await expect(workspaceLink).toHaveCount(1);
     await expect(workspaceLink).toBeVisible();
-    await openCommandCenter(this.page);
-    const agentLink = this.page.getByText(agent.title, { exact: true });
+    await expect(workspaceLink).toContainText(workspace.projectDisplayName);
+    const commands = await openCommandCenter(this.page);
+    const agentLink = commands.getByText(agent.title, { exact: true });
     await expect(agentLink).toHaveCount(1);
     await expect(agentLink).toBeVisible();
     await this.page.keyboard.press("Escape");
@@ -96,7 +99,7 @@ export class DirectoryBootstrapScenario {
       "Reconnected directory agent",
     );
     await expect(
-      this.page.getByText(this.disconnectedWorkspace.projectDisplayName, { exact: true }),
+      this.page.getByTestId(`sidebar-project-row-${this.disconnectedWorkspace.projectKey}`),
     ).toHaveCount(0);
     await expect(this.page.getByText(this.disconnectedAgent.title, { exact: true })).toHaveCount(0);
 
@@ -108,11 +111,12 @@ export class DirectoryBootstrapScenario {
   async expectVisibleReconciliationAndNavigateAgent(): Promise<void> {
     const workspace = this.requireDisconnectedWorkspace();
     const agent = this.requireDisconnectedAgent();
-    const workspaceLink = this.page.getByText(workspace.projectDisplayName, { exact: true });
+    const workspaceLink = this.page.getByTestId(`sidebar-project-row-${workspace.projectKey}`);
     await expect(workspaceLink).toHaveCount(1);
     await expect(workspaceLink).toBeVisible();
-    await openCommandCenter(this.page);
-    const agentLink = this.page.getByText(agent.title, { exact: true });
+    await expect(workspaceLink).toContainText(workspace.projectDisplayName);
+    const commands = await openCommandCenter(this.page);
+    const agentLink = commands.getByText(agent.title, { exact: true });
     await expect(agentLink).toHaveCount(1);
     await expect(agentLink).toBeVisible();
     await agentLink.click();
@@ -121,10 +125,10 @@ export class DirectoryBootstrapScenario {
         `/workspace/${workspace.workspaceId}/agent/${agent.id}|/workspace/${workspace.workspaceId}`,
       ),
     );
-    await expect(this.page.getByRole("button", { name: agent.title, exact: true })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    await expectOnlyWorkspaceAgentPanelVisible(this.page, agent.id);
+    await expect(
+      this.page.getByTestId(`sidebar-workspace-row-${getServerId()}:${workspace.workspaceId}`),
+    ).toHaveAttribute("aria-selected", "true");
     const pings = this.gate.getClientRequestCount("ping");
     await expect
       .poll(() => this.gate.getClientRequestCount("ping"), { timeout: 30_000 })

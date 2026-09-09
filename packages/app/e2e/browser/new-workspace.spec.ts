@@ -509,7 +509,9 @@ test.describe("New workspace flow", () => {
       const chat = activeWorkspaceDeckEntry.getByTestId("workspace-chat-pane");
       await expect(chat.getByTestId("agent-chat-scroll")).toHaveCount(1, { timeout: 30_000 });
       await expect(chat.getByTestId("agent-chat-scroll")).toBeVisible();
-      await expect(chat.getByText("Hello from e2e", { exact: true })).toBeVisible();
+      await expect(
+        chat.getByTestId("user-message").getByText("Hello from e2e", { exact: true }),
+      ).toBeVisible();
 
       const composer = page.getByRole("textbox", { name: "Message agent..." });
       await expect(composer).toBeVisible({ timeout: 30_000 });
@@ -585,12 +587,21 @@ test.describe("New workspace flow", () => {
       const draftTabs = activeWorkspaceDeckEntry.locator('[data-testid^="workspace-panel-draft_"]');
       await expect(draftTabs).toHaveCount(1, { timeout: 30_000 });
       const chat = activeWorkspaceDeckEntry.getByTestId("workspace-chat-pane");
-      await expect(chat.getByTestId("agent-chat-scroll")).toHaveCount(0);
+      const userMessage = chat.getByTestId("user-message").filter({ hasText: "Hello from e2e" });
+      // The optimistic draft already renders its prompt before agent_created
+      // arrives. Its pending state distinguishes that preview from an accepted turn.
+      await expect(chat.getByTestId("agent-chat-scroll")).toHaveCount(1);
+      await expect(chat.getByTestId("agent-chat-scroll")).toBeVisible();
+      await expect(userMessage).toHaveCount(1);
+      await expect(userMessage.getByText("Hello from e2e", { exact: true })).toBeVisible();
+      await expect(userMessage).toHaveAttribute("aria-busy", "true");
 
       agentCreatedDelay.release();
       await expect(chat.getByTestId("agent-chat-scroll")).toHaveCount(1, { timeout: 30_000 });
       await expect(chat.getByTestId("agent-chat-scroll")).toBeVisible();
-      await expect(chat.getByText("Hello from e2e", { exact: true })).toBeVisible();
+      await expect(userMessage).toHaveCount(1);
+      await expect(userMessage.getByText("Hello from e2e", { exact: true })).toBeVisible();
+      await expect(userMessage).toHaveAttribute("aria-busy", "false");
       await expect(draftTabs).toHaveCount(1);
       await expect(chat.getByRole("textbox", { name: "Message agent..." })).toBeEditable();
     } finally {

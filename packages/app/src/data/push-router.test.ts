@@ -247,6 +247,66 @@ describe("server data push router", () => {
     unmount();
   });
 
+  it("keeps a visible diff subscribed when a retained tree shares its query", () => {
+    const queryClient = new QueryClient();
+    const fake = createFakeClient();
+    const serverId = "server-1";
+    const cwd = "/repo";
+    const compare = { mode: "uncommitted" as const, ignoreWhitespace: false };
+    const queryKey = checkoutDiffQueryKey(serverId, cwd, compare.mode, undefined, false);
+    const subscriptionId = `checkoutDiff:${JSON.stringify(queryKey)}`;
+    const options = (enabled: boolean) =>
+      ({
+        queryKey,
+        queryFn: skipToken,
+        enabled,
+        gcTime: Infinity,
+        staleTime: Infinity,
+        meta: checkoutDiffPushRoute({ enabled, serverId, subscriptionId, cwd, compare }),
+      }) as const;
+    const diff = new QueryObserver(queryClient, options(true));
+    const unsubscribeDiff = diff.subscribe(() => undefined);
+    const unmount = mountServerDataPushRouter({ client: fake.client, queryClient, serverId });
+    const tree = new QueryObserver(queryClient, options(false));
+    const unsubscribeTree = tree.subscribe(() => undefined);
+
+    try {
+      expect(fake.subscribeCheckoutDiffCalls).toEqual([{ cwd, compare, subscriptionId }]);
+      expect(fake.unsubscribeCheckoutDiffCalls).toEqual([]);
+
+      fake.emit({
+        type: "checkout_diff_update",
+        payload: { subscriptionId, cwd, files: [], error: null },
+      });
+      expect(diff.getCurrentResult().data).toEqual({
+        cwd,
+        files: [],
+        error: null,
+        requestId: `subscription:${subscriptionId}`,
+      });
+
+      // Hiding the last active view releases the subscription even while both
+      // views remain mounted. Revealing the tree starts it again exactly once.
+      diff.setOptions(options(false));
+      expect(fake.unsubscribeCheckoutDiffCalls).toEqual([subscriptionId]);
+      tree.setOptions(options(true));
+      expect(fake.subscribeCheckoutDiffCalls).toEqual([
+        { cwd, compare, subscriptionId },
+        { cwd, compare, subscriptionId },
+      ]);
+      diff.setOptions(options(false));
+      expect(fake.unsubscribeCheckoutDiffCalls).toEqual([subscriptionId]);
+
+      unsubscribeTree();
+      expect(fake.unsubscribeCheckoutDiffCalls).toEqual([subscriptionId, subscriptionId]);
+    } finally {
+      unsubscribeTree();
+      unsubscribeDiff();
+      unmount();
+      queryClient.clear();
+    }
+  });
+
   it("does not retry failed subscriptions on unrelated cache events", async () => {
     const queryClient = new QueryClient();
     const fake = createFakeClient({ rejectCheckoutDiffSubscribe: true });
