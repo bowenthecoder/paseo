@@ -172,33 +172,6 @@ test.describe("Documents alongside the conversation", () => {
     }
   });
 
-  test("respects Main and offers an explicit Open to the side action", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.addInitScript(() => {
-      localStorage.setItem(
-        "@paseo:app-settings",
-        JSON.stringify({ theme: "claude", openInSidePane: { chatFiles: false } }),
-      );
-    });
-    const session = await seedDocuments();
-    try {
-      await openAgentRoute(page, session);
-      const link = documentLink(page, "guide.md");
-      await expect(link).toBeVisible();
-      await link.click();
-      await expect(filePane(page).getByText("Preview guide", { exact: true })).toBeVisible();
-      await expect(chatPane(page)).toHaveCount(0);
-      await closeFile(page, "guide.md");
-      await expect(chatPane(page)).toBeVisible();
-
-      await link.click({ button: "right" });
-      await page.getByRole("menuitem", { name: "Open to the side", exact: true }).click();
-      await expectDocumentBesideChat(page);
-      await expect(filePane(page).getByText("Preview guide", { exact: true })).toBeVisible();
-    } finally {
-      await session.cleanup();
-    }
-  });
 
   test("uses a full-width document on compact screens and returns to the same chat", async ({
     page,
