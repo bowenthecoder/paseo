@@ -5,6 +5,8 @@ import { hostname as getHostname } from "node:os";
 import { randomUUID } from "node:crypto";
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import type { AgentManager, AgentMetricsSnapshot } from "./agent/agent-manager.js";
+import { shrinkTimelineEntry } from "./agent/timeline-entry-budget.js";
+import { MAX_TIMELINE_PAGE_BYTES } from "./agent/timeline-page-budget.js";
 import type { AgentStorage } from "./agent/agent-storage.js";
 import type { DownloadTokenStore } from "./file-download/token-store.js";
 import type { TerminalManager } from "../terminal/terminal-manager.js";
@@ -103,7 +105,9 @@ import type { WorkspaceLabelService } from "./workspace-labels/index.js";
 import {
   APPLICATION_SOCKET_LEASE_CHECK_INTERVAL_MS,
   ApplicationSocketLease,
+  MAX_PHYSICAL_FRAME_BYTES,
   MAX_PHYSICAL_SOCKET_BUFFERED_BYTES,
+  isOversizedPhysicalFrame,
   outboundFrameByteLength,
   physicalSocketHasCapacity,
   sendBoundedPhysicalFrame,
@@ -403,6 +407,50 @@ function areServerCapabilitiesEqual(
   next: ServerCapabilities | undefined,
 ): boolean {
   return JSON.stringify(current ?? null) === JSON.stringify(next ?? null);
+}
+
+function getMessageCorrelation(sessionMessage: SessionOutboundMessage | null): {
+  requestId: string | null;
+  agentId: string | null;
+} {
+  const record = sessionMessage as { payload?: unknown; requestId?: unknown } | null;
+  const payload =
+    record && typeof record.payload === "object" && record.payload
+      ? (record.payload as { requestId?: unknown; agentId?: unknown })
+      : null;
+  let requestId: string | null = null;
+  if (typeof payload?.requestId === "string") {
+    requestId = payload.requestId;
+  } else if (typeof record?.requestId === "string") {
+    requestId = record.requestId;
+  }
+  return { requestId, agentId: typeof payload?.agentId === "string" ? payload.agentId : null };
+}
+
+function createOversizedTimelineRecovery(
+  message: Extract<SessionOutboundMessage, { type: "agent_stream" }>,
+): WSOutboundMessage | null {
+  const { event } = message.payload;
+  if (event.type !== "timeline") return null;
+  try {
+    const boundedEvent = shrinkTimelineEntry(event, MAX_TIMELINE_PAGE_BYTES);
+    return {
+      type: "session",
+      message: { ...message, payload: { ...message.payload, event: boundedEvent } },
+    };
+  } catch {
+    // Without this signal a dropped final live row has no later sequence gap
+    // to trigger catch-up. History can return a bounded error if immutable
+    // identity metadata itself is too large to deliver.
+    if (!message.payload.epoch) return null;
+    return {
+      type: "session",
+      message: {
+        type: "agent.timeline.replacement",
+        payload: { agentId: message.payload.agentId, epoch: message.payload.epoch },
+      },
+    };
+  }
 }
 
 function bufferFromWsData(data: Buffer | ArrayBuffer | Buffer[] | string): Buffer {
@@ -1124,9 +1172,75 @@ export class VoiceAssistantWebSocketServer {
     }
 
     const payloadBytes = outboundFrameByteLength(payload);
+    if (isOversizedPhysicalFrame(payloadBytes)) {
+      this.rejectOversizedOutboundMessage(writableSockets, message, payloadBytes);
+      return;
+    }
     for (const ws of writableSockets) {
       this.sendFrameToClient(ws, payload, payloadBytes, () => {
         this.runtimeMetrics.recordOutboundMessage(message, ws.bufferedAmount);
+      });
+    }
+  }
+
+  // A single message that can never fit the socket bound is a daemon-side bug in
+  // whatever produced it, not a client that stopped draining. Closing the socket
+  // for it makes the client reconnect, resend the same request, and loop forever
+  // with "Transport closed (code 1006)" - so drop just this frame, say what it
+  // was, and answer a request with rpc_error so the caller fails fast instead.
+  private rejectOversizedOutboundMessage(
+    sockets: WebSocketLike[],
+    message: WSOutboundMessage,
+    payloadBytes: number,
+  ): void {
+    const sessionMessage = message.type === "session" ? message.message : null;
+    const { requestId, agentId } = getMessageCorrelation(sessionMessage);
+    this.incrementRuntimeCounter("oversizedFrameDropped");
+    this.logger.warn(
+      {
+        messageType: message.type,
+        sessionMessageType: sessionMessage?.type ?? null,
+        requestId: requestId?.slice(0, 128) ?? null,
+        agentId: agentId?.slice(0, 128) ?? null,
+        frameBytes: payloadBytes,
+        maxFrameBytes: MAX_PHYSICAL_FRAME_BYTES,
+      },
+      "ws_frame_oversized_dropped",
+    );
+    let recovery: WSOutboundMessage;
+    if (sessionMessage?.type === "agent_stream") {
+      const timelineRecovery = createOversizedTimelineRecovery(sessionMessage);
+      if (!timelineRecovery) return;
+      recovery = timelineRecovery;
+    } else {
+      if (!sessionMessage || requestId === null) return;
+      recovery = {
+        type: "session",
+        message: {
+          type: "rpc_error",
+          payload: {
+            requestId,
+            requestType: sessionMessage.type,
+            error: `Response too large to deliver (${payloadBytes} bytes; limit ${MAX_PHYSICAL_FRAME_BYTES})`,
+            code: "response_too_large",
+          },
+        },
+      };
+    }
+    // Do not re-enter the dispatcher: the correlation id itself can exceed the
+    // bound. Keep it intact when it fits; never invent a different request id.
+    const recoveryPayload = JSON.stringify(recovery);
+    const recoveryBytes = outboundFrameByteLength(recoveryPayload);
+    if (isOversizedPhysicalFrame(recoveryBytes)) {
+      this.logger.warn(
+        { frameBytes: recoveryBytes, maxFrameBytes: MAX_PHYSICAL_FRAME_BYTES },
+        "ws_oversized_recovery_unavailable",
+      );
+      return;
+    }
+    for (const ws of sockets) {
+      this.sendFrameToClient(ws, recoveryPayload, recoveryBytes, () => {
+        this.runtimeMetrics.recordOutboundMessage(recovery, ws.bufferedAmount);
       });
     }
   }
@@ -1143,6 +1257,7 @@ export class VoiceAssistantWebSocketServer {
         socket: ws,
         frame,
         onHighWater: () => this.closeAtOutboundHighWater(ws),
+        onOversized: (frameBytes) => this.dropOversizedFrame(frameBytes),
       });
       if (!sent) {
         throw new Error("Physical WebSocket is not open");
@@ -1166,11 +1281,20 @@ export class VoiceAssistantWebSocketServer {
         frame,
         frameBytes,
         onHighWater: () => this.closeAtOutboundHighWater(ws),
+        onOversized: (bytes) => this.dropOversizedFrame(bytes),
       });
       if (sent) recordSent();
     } catch (err) {
       this.logger.warn({ err }, "ws_send_failed");
     }
+  }
+
+  private dropOversizedFrame(frameBytes: number): void {
+    this.incrementRuntimeCounter("oversizedFrameDropped");
+    this.logger.warn(
+      { frameBytes, maxFrameBytes: MAX_PHYSICAL_FRAME_BYTES },
+      "ws_frame_oversized_dropped",
+    );
   }
 
   private ensureOutboundCapacity(ws: WebSocketLike, frameBytes: number): boolean {

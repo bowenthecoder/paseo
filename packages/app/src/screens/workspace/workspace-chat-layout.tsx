@@ -107,6 +107,11 @@ export function WorkspaceChatLayout({
   const [shellWidth, setShellWidth] = useState(0);
   const [previewWidth, setPreviewWidth] = useState<number | null>(null);
   const requestedWidth = previewWidth ?? storedSidePanelWidth;
+  // Keep the split width while its chat opens a document or another supporting view.
+  // A user's saved resize always takes precedence over this first-open default.
+  const balanceChats = uiTabs.some(
+    (tab) => tab.target.kind === "agent" && tab.target.view === "split",
+  );
   const minimumBodyWidth = resolveWorkspaceContentMinimum(
     chatPane ? { kind: "pane", pane: chatPane } : undefined,
   );
@@ -115,6 +120,7 @@ export function WorkspaceChatLayout({
     requestedWidth,
     containerWidth: shellWidth,
     minimumBodyWidth,
+    balanceChats,
   });
   const sidePanelSizes = useMemo(
     () =>
@@ -122,8 +128,9 @@ export function WorkspaceChatLayout({
         requestedWidth,
         containerWidth: shellWidth,
         minimumBodyWidth,
+        balanceChats,
       }),
-    [minimumBodyWidth, requestedWidth, shellWidth],
+    [balanceChats, minimumBodyWidth, requestedWidth, shellWidth],
   );
   const sidePanelStyle = useMemo(
     () => [styles.sidePanelDock, { width: sidePanelWidth }],

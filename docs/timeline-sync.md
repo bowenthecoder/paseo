@@ -32,9 +32,14 @@ Heartbeat is used for notification routing. It must not be used as a correctness
 
 ## Gap recovery is paged but complete
 
-Large unbounded timeline responses can exceed relay frame limits, so catch-up uses bounded pages. Bounded does not mean partial.
+Large unbounded timeline responses can exceed relay frame limits, so catch-up uses bounded pages. Every projected item remains reachable through pagination. When one item's display content cannot fit a page, the daemon sends a visibly marked excerpt while preserving its identity and sequence metadata; the provider transcript remains unchanged.
 
 Page limits are projected-item targets. A tool call lifecycle is one projected item even if it spans many source sequence numbers, and assistant/reasoning chunks are merged before counting. The response carries `seqStart`, `seqEnd`, `sourceSeqRanges`, and `collapsed` so clients can advance sequence cursors without rendering delta rows.
+
+Byte limits can split a projected window too. Forward recovery follows the next uncovered source
+sequence, while backward history follows display anchors. A completed tool can retain an old display
+position while covering a new source row; using its full `seqEnd` as a backward cut, or its old
+`seqStart` as a forward cut, can repeat the same page forever.
 
 When live delivery detects a sequence gap, the app fetches `direction: "after"`. If the daemon
 responds with `hasNewer: true`, the app immediately fetches the next page from `endCursor`. Gap

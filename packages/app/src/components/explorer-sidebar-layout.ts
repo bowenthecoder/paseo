@@ -6,8 +6,13 @@ export function resolveExplorerSidebarWidth(input: {
   requestedWidth?: number;
   containerWidth: number;
   minimumBodyWidth?: number;
+  balanceChats?: boolean;
 }): number {
-  const requestedWidth = input.requestedWidth ?? DEFAULT_EXPLORER_SIDEBAR_WIDTH;
+  const requestedWidth =
+    input.requestedWidth ??
+    (input.balanceChats && input.containerWidth > 0
+      ? input.containerWidth / 2
+      : DEFAULT_EXPLORER_SIDEBAR_WIDTH);
   const maximumVisibleWidth =
     input.containerWidth > 0
       ? Math.max(
@@ -22,6 +27,7 @@ export function resolveExplorerSidebarDockSizes(input: {
   requestedWidth?: number;
   containerWidth: number;
   minimumBodyWidth?: number;
+  balanceChats?: boolean;
 }): number[] {
   if (input.containerWidth <= 0) {
     return [1, 0];

@@ -16,6 +16,7 @@ import { DirectorySyncService } from "./directory-sync/index.js";
 import { createProviderSnapshotManagerStub } from "./test-utils/session-stubs.js";
 import type { AgentTimelineRow } from "./agent/agent-manager.js";
 import { InMemoryAgentTimelineStore } from "./agent/agent-timeline-store.js";
+import { MAX_TIMELINE_PAGE_BYTES, measureJsonBytes } from "./agent/timeline-page-budget.js";
 import type { AgentTimelineFetchOptions } from "./agent/agent-timeline-store-types.js";
 import { handleCreatePaseoWorktreeRequest } from "./worktree-session.js";
 import { createPersistedProjectRecord } from "./workspace-registry.js";
@@ -420,6 +421,34 @@ describe("wire compatibility", () => {
     expect(currentParsed.payload.entries[0]?.collapsed).toContain("reasoning_merge");
   });
 
+  test("trims a timeline page that would not fit one socket frame and keeps paging cursors honest", async () => {
+    const bigText = "x".repeat(5 * 1024 * 1024);
+    const rows: AgentTimelineRow[] = [1, 2, 3].map((seq) => ({
+      seq,
+      timestamp: `2026-05-02T00:00:0${seq}.000Z`,
+      item: { type: "user_message", text: bigText },
+    }));
+
+    const response = await emitTimelineResponse({
+      rows,
+      request: { direction: "tail", limit: 0 },
+    });
+
+    expect(response.payload.error).toBeNull();
+    expect(response.payload.entries.map((entry) => entry.seqStart)).toEqual([3]);
+    expect(response.payload.hasOlder).toBe(true);
+    expect(response.payload.startCursor).toEqual({ epoch: response.payload.epoch, seq: 3 });
+    expect(response.payload.endCursor).toEqual({ epoch: response.payload.epoch, seq: 3 });
+    expect(Buffer.byteLength(JSON.stringify(response))).toBeLessThan(8 * 1024 * 1024);
+
+    const older = await emitTimelineResponse({
+      rows,
+      request: { direction: "before", cursor: { epoch: response.payload.epoch, seq: 3 }, limit: 0 },
+    });
+    expect(older.payload.entries.map((entry) => entry.seqStart)).toEqual([2]);
+    expect(older.payload.hasOlder).toBe(true);
+  });
+
   test("carries canonical turn IDs to new clients while legacy schemas ignore them", async () => {
     const response = await emitTimelineResponse({
       rows: [
@@ -444,6 +473,118 @@ describe("wire compatibility", () => {
     expect(LegacyFetchAgentTimelineResponseMessageSchema.parse(response).payload.entries).toEqual(
       expect.arrayContaining([expect.not.objectContaining({ turnId: expect.anything() })]),
     );
+  });
+
+  test.each(["after", "before"] as const)(
+    "byte-limited %s pages finish interleaved lifecycle history without losing rows or wire metadata",
+    async (direction) => {
+      const text = "x".repeat(5 * 1024 * 1024);
+      const toolRow = (seq: number, status: "running" | "completed"): AgentTimelineRow => ({
+        seq,
+        timestamp: new Date(seq).toISOString(),
+        turnId: "turn-1",
+        item: {
+          type: "tool_call",
+          callId: "tool-1",
+          name: "fetch",
+          status,
+          error: null,
+          detail: { type: "unknown", input: null, output: text },
+        },
+      });
+      const rows: AgentTimelineRow[] = [
+        toolRow(1, "running"),
+        ...[2, 3, 4].map(
+          (seq): AgentTimelineRow => ({
+            seq,
+            timestamp: new Date(seq).toISOString(),
+            turnId: "turn-1",
+            item: { type: "user_message", text },
+          }),
+        ),
+        toolRow(5, "completed"),
+      ];
+      let cursor = direction === "after" ? 0 : 6;
+      let finished = false;
+      const received = new Set<number>();
+      for (let index = 0; index < 6; index += 1) {
+        const response = await emitTimelineResponse({
+          rows,
+          request: { direction, cursor: { epoch: "epoch-1", seq: cursor }, limit: 0 },
+        });
+        expect(response.payload.error).toBeNull();
+        expect(response.payload.entries).toHaveLength(1);
+        expect(measureJsonBytes(response.payload.entries)).toBeLessThanOrEqual(
+          MAX_TIMELINE_PAGE_BYTES,
+        );
+        expect(FetchAgentTimelineResponseMessageSchema.safeParse(response).success).toBe(true);
+        expect(LegacyFetchAgentTimelineResponseMessageSchema.safeParse(response).success).toBe(
+          true,
+        );
+        const entry = response.payload.entries[0]!;
+        received.add(entry.seqStart);
+        expect(entry.turnId).toBe("turn-1");
+        if (entry.item.type === "tool_call") {
+          expect(entry).toMatchObject({
+            seqStart: 1,
+            seqEnd: 5,
+            sourceSeqRanges: [
+              { startSeq: 1, endSeq: 1 },
+              { startSeq: 5, endSeq: 5 },
+            ],
+            item: { callId: "tool-1", status: "completed" },
+          });
+        }
+        const next =
+          direction === "after" ? response.payload.endCursor : response.payload.startCursor;
+        expect(next?.epoch).toBe("epoch-1");
+        if (direction === "after") expect(next!.seq).toBeGreaterThan(cursor);
+        else expect(next!.seq).toBeLessThan(cursor);
+        cursor = next!.seq;
+        if (!(direction === "after" ? response.payload.hasNewer : response.payload.hasOlder)) {
+          finished = true;
+          break;
+        }
+      }
+      expect(finished).toBe(true);
+      expect([...received].sort()).toEqual([1, 2, 3, 4]);
+    },
+  );
+
+  test("an aggregate oversized item is a marked wire-compatible excerpt with intact cursors", async () => {
+    const response = await emitTimelineResponse({
+      rows: [
+        {
+          seq: 1,
+          timestamp: "2026-09-09T00:00:00.000Z",
+          turnId: "turn-1",
+          item: {
+            type: "tool_call",
+            callId: "tool-1",
+            name: "fetch",
+            status: "completed",
+            error: null,
+            detail: { type: "unknown", input: null, output: Array(12).fill("x".repeat(800_000)) },
+          },
+        },
+      ],
+      request: { direction: "tail", limit: 0 },
+    });
+    expect(response.payload.error).toBeNull();
+    expect(measureJsonBytes(response)).toBeLessThan(MAX_TIMELINE_PAGE_BYTES);
+    expect(FetchAgentTimelineResponseMessageSchema.safeParse(response).success).toBe(true);
+    expect(LegacyFetchAgentTimelineResponseMessageSchema.safeParse(response).success).toBe(true);
+    expect(response.payload).toMatchObject({
+      startCursor: { epoch: "epoch-1", seq: 1 },
+      endCursor: { epoch: "epoch-1", seq: 1 },
+      hasOlder: false,
+      hasNewer: false,
+    });
+    expect(response.payload.entries[0]).toMatchObject({
+      turnId: "turn-1",
+      item: { callId: "tool-1", status: "completed" },
+    });
+    expect(JSON.stringify(response.payload.entries)).toContain("[truncated by daemon:");
   });
 
   test("legacy worktree request shape normalizes to the same internal input as the new shape", async () => {
