@@ -29,6 +29,7 @@ import {
   waitForWorkspaceTabsVisible,
 } from "../support/helpers/workspace-tabs";
 import { getServerId } from "../support/helpers/server-id";
+import { selectChatInSidebar } from "../support/helpers/sidebar";
 import { buildHostWorkspaceRoute } from "@/utils/host-routes";
 import { WORKSPACE_DECK_MAX_MOUNTED_WORKSPACES } from "@/screens/workspace/workspace-deck-retention";
 import { delayBrowserAgentCreatedStatus } from "../support/helpers/new-workspace";
@@ -36,10 +37,13 @@ import { installDaemonWebSocketGate } from "../support/helpers/daemon-websocket-
 import { gotoAppShell, openSettings, selectModel } from "../support/helpers/app";
 import { observeTimelineSubscriptions } from "../support/helpers/timeline-delivery";
 import {
-  expectResumeOverflowFallsBackToOneTail,
+  expectEvictedTimelineRefetchesOneTail,
   rememberTimelineRequestCounts,
 } from "../support/helpers/timeline-resume";
-import { workspaceDeckEntryLocator } from "../support/helpers/workspace-ui";
+import {
+  expectWorkspaceDeckEntryCount,
+  workspaceDeckEntryLocator,
+} from "../support/helpers/workspace-ui";
 import { expectInFlightForkAvailable } from "../support/helpers/assistant-fork";
 import {
   scrollTimelineToNewestLoadedEdge,
@@ -424,6 +428,11 @@ async function expectInterruptedTurnOrderAfterReconnect(
   }
 }
 
+// Mirrors VIEWED_TIMELINE_HOT_AGENT_LIMIT in src/timeline/viewed-timeline-sync.ts, which cannot be
+// imported here without pulling the app module graph into the Playwright runner. See
+// docs/timeline-sync.md: the visible chat plus the most recently viewed hidden chats stay subscribed.
+const VIEWED_TIMELINE_HOT_AGENT_LIMIT = 5;
+
 async function expectHiddenStreamingSubmissionOrderAfterWorkspaceEviction(
   page: Page,
   testInfo: { workerIndex: number },
@@ -444,11 +453,15 @@ async function expectHiddenStreamingSubmissionOrderAfterWorkspaceEviction(
     ),
   );
   const prompt = "Keep this hidden image prompt before its streaming output.";
-  const targetDeckEntry = workspaceDeckEntryLocator(page, getServerId(), target.workspaceId);
+  const serverId = getServerId();
+  const targetDeckEntry = workspaceDeckEntryLocator(page, serverId, target.workspaceId);
+  const finalEvictionAgent = evictionAgents[WORKSPACE_DECK_MAX_MOUNTED_WORKSPACES - 1]!;
 
   try {
     await openAgentRoute(page, target);
     await expectComposerVisible(page);
+    await expect(targetDeckEntry).toBeVisible();
+    await expectWorkspaceDeckEntryCount(page, 1);
     await subscriptions.waitForSubscribedAgents([target.agentId]);
 
     const userMessageCount = gate.getAgentStreamItemCount("user_message");
@@ -456,30 +469,44 @@ async function expectHiddenStreamingSubmissionOrderAfterWorkspaceEviction(
     const promptRow = await submitMessageWithImage(page, prompt);
     await gate.waitForAgentStreamItem("user_message", userMessageCount + 1);
 
-    for (const evictionAgent of evictionAgents) {
-      await openAgentRoute(page, evictionAgent);
+    // Stay in the same document so these switches fill the retained workspace deck.
+    for (const [index, evictionAgent] of evictionAgents.slice(0, -1).entries()) {
+      await selectChatInSidebar(page, { serverId, ...evictionAgent });
       await expectComposerVisible(page);
+      await expectWorkspaceDeckEntryCount(page, index + 2);
+      await expect(targetDeckEntry).toHaveCount(1);
+      await expect(targetDeckEntry).toBeHidden();
     }
+    await selectChatInSidebar(page, { serverId, ...finalEvictionAgent });
+    await expectComposerVisible(page);
+    await expectWorkspaceDeckEntryCount(page, WORKSPACE_DECK_MAX_MOUNTED_WORKSPACES);
     await expect(targetDeckEntry).toHaveCount(0);
-    await subscriptions.waitForSubscribedAgents([
-      evictionAgents[WORKSPACE_DECK_MAX_MOUNTED_WORKSPACES - 1]!.agentId,
-    ]);
+    // The selective subscription keeps the visible chat plus the most recently viewed hidden
+    // chats, up to the hot limit. The evicted target must leave that set before its stream resumes.
+    await subscriptions.waitForSubscribedAgents(
+      evictionAgents.slice(-VIEWED_TIMELINE_HOT_AGENT_LIMIT).map((agent) => agent.agentId),
+    );
     gate.setAgentStreamSuppressed(false);
 
     await target.client.waitForFinish(target.agentId, 30_000);
     const requestsBeforeReturn = rememberTimelineRequestCounts(gate);
     await expect(
-      page.getByTestId(`sidebar-workspace-row-${getServerId()}:chat:${target.agentId}`),
+      page.getByTestId(`sidebar-workspace-row-${serverId}:chat:${target.agentId}`),
     ).toBeVisible();
-    await openAgentRoute(page, target);
+    await selectChatInSidebar(page, { serverId, ...target });
     await expectComposerVisible(page);
-    await subscriptions.waitForSubscribedAgents([target.agentId]);
+    await expect(targetDeckEntry).toBeVisible();
+    await expectWorkspaceDeckEntryCount(page, WORKSPACE_DECK_MAX_MOUNTED_WORKSPACES);
+    await subscriptions.waitForSubscribedAgents([
+      target.agentId,
+      ...evictionAgents.slice(-(VIEWED_TIMELINE_HOT_AGENT_LIMIT - 1)).map((agent) => agent.agentId),
+    ]);
 
     const response = page.getByText("(end of synthetic stream)", { exact: true }).last();
     await expect(promptRow).toBeVisible();
     await expect(response).toBeVisible();
     await expectRenderedBefore(promptRow, response);
-    expectResumeOverflowFallsBackToOneTail(gate, requestsBeforeReturn);
+    expectEvictedTimelineRefetchesOneTail(gate, requestsBeforeReturn);
   } finally {
     gate.setAgentStreamSuppressed(false);
     gate.restore();

@@ -1,4 +1,4 @@
-import { type Dirent, type FSWatcher, watch } from "node:fs";
+import { type Dirent, watch } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import type { BackendDiagnostics, ObservationBackend, ObservationHost } from "./contracts.js";
@@ -25,15 +25,31 @@ interface Inventory {
   files: Set<string>;
 }
 
+interface NativeRecursiveWatcher {
+  close(): void;
+  on(event: "error", listener: (error: Error) => void): void;
+}
+
+export interface WatchNativeRecursiveRoot {
+  (
+    root: string,
+    listener: (eventType: "change" | "rename", filename: string | null) => void,
+  ): NativeRecursiveWatcher;
+}
+
+const watchNativeRecursiveRoot: WatchNativeRecursiveRoot = (root, listener) =>
+  watch(root, { recursive: true }, listener);
+
 export function createNativeRecursiveBackend(
   host: ObservationHost,
   paths: ObserverPaths,
+  watchRoot: WatchNativeRecursiveRoot = watchNativeRecursiveRoot,
 ): ObservationBackend {
-  return new NativeRecursiveBackend(host, paths);
+  return new NativeRecursiveBackend(host, paths, watchRoot);
 }
 
 class NativeRecursiveBackend implements ObservationBackend {
-  private watcher: FSWatcher | null = null;
+  private watcher: NativeRecursiveWatcher | null = null;
   private files = new Set<string>();
   private directories = new Set<string>();
   private entries = new Map<string, DirectoryEntry>();
@@ -62,6 +78,7 @@ class NativeRecursiveBackend implements ObservationBackend {
   constructor(
     private readonly host: ObservationHost,
     private readonly paths: ObserverPaths,
+    private readonly watchNativeRoot: WatchNativeRecursiveRoot,
   ) {}
 
   async start(): Promise<void> {
@@ -114,13 +131,14 @@ class NativeRecursiveBackend implements ObservationBackend {
   }
 
   private watchRoot(): void {
-    const watcher = watch(this.host.root, { recursive: true }, (eventType, filename) => {
+    const watcher = this.watchNativeRoot(this.host.root, (eventType, filename) => {
       if (!this.host.isActive()) return;
       this.host.metrics.nativeEventCount += 1;
       if (!filename) {
         this.host.metrics.nativePathlessEventCount += 1;
         this.host.queueEvent("update", this.host.root);
-        this.requestAudit(this.host.root);
+        // Without a filename the changed subtree is unknown, including known siblings.
+        this.requestAudit(this.host.root, true);
         return;
       }
       const path = resolve(this.host.root, filename.toString());

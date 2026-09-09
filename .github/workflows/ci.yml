@@ -364,12 +364,14 @@ jobs:
 
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4
-        if: failure()
+        # Keep first-attempt diagnostics when a retry makes the shard pass.
+        if: ${{ !cancelled() }}
         with:
           name: playwright-results-${{ env.PLAYWRIGHT_ARTIFACT }}
           path: |
             packages/app/test-results/
             packages/app/playwright-report/
+          if-no-files-found: ignore
           retention-days: 7
 
   playwright-2:

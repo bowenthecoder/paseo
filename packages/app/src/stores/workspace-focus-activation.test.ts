@@ -31,6 +31,11 @@ beforeEach(() => {
 
 describe("explicit supporting view activation in focus mode", () => {
   it.each(SUPPORTING_TARGETS)("reveals $kind and leaves focus mode", (target) => {
+    const parentTabId = store.getState().openTab({
+      workspaceKey: WORKSPACE_KEY,
+      target: { kind: "agent", agentId: "parent" },
+      intent: "reveal",
+    });
     const tabId = store
       .getState()
       .openTab({ workspaceKey: WORKSPACE_KEY, target, intent: "reveal" });
@@ -41,7 +46,9 @@ describe("explicit supporting view activation in focus mode", () => {
     expect(side).not.toBeNull();
     expect(side?.hidden).not.toBe(true);
     expect(side?.focusedTabId).toBe(tabId);
-    expect(layout.focusedPaneId).toBe("main");
+    expect(parentTabId).not.toBeNull();
+    expect(findPaneById(layout.root, "main")?.focusedTabId).toBe(parentTabId);
+    expect(layout.focusedPaneId).toBe(target.kind === "terminal" ? "explorer" : "main");
     expect(usePanelStore.getState().desktop.focusModeEnabled).toBe(false);
   });
 

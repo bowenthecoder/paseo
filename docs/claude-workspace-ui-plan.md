@@ -189,6 +189,30 @@ These corrections require the next combined CI run, including the native Windows
 Custom alias hydration, relink sign-in races, configuration-preserving toggles and initial account
 lookup Refresh recovery are also included in the final account supplements.
 
+The matched final native-provider browser sweep passes all 13 cases with app runtime
+`d9984a43f` and subscriptions `a6b3122`. It includes Claude/Codex/Grok subagents,
+four concurrent provider chats, model/effort/context/usage, actual tool output and
+Tool logs persistence. The strengthened custom-alias case verifies the account-2
+tooltip, preserves the full settings of both account-2 providers across off/on, and
+completes another actual reply after re-enabling. Existing built-in and conventional
+provider settings are preserved too; default settings apply only to new registrations.
+Evidence: `/tmp/paseo-final-complete-real-provider.log` and its matching results folder.
+
+The next CI run exposed two app fixture issues around explicit terminal focus. The
+terminal case now expects the supporting dock to receive keyboard focus while its
+parent chat stays selected. The Tasks case keeps its original main-focus assertion;
+clearing shared mock storage and awaiting hydration prevents an earlier terminal
+case from overwriting its initial layout. Both complete test files pass (25 cases).
+
+The hidden-submission eviction browser case, which failed its first CI attempt, now stays in one
+document: sidebar selection fills the retained workspace deck until the target chat is evicted.
+Its subscription oracle follows the documented hot set (the visible chat plus the four most
+recently viewed hidden chats), so the evicted chat is proven unsubscribed before its stream
+resumes. Returning to it issues one authoritative tail fetch and no resume attempt, because a
+timeline outside the hot set keeps no trusted cursor. The case passes repeatedly in about 19
+seconds instead of over a minute. The code-typography settings case waits for the font family
+commit to reach storage before editing the size field. All 64 cases in both files pass.
+
 Exact final source/bundle identities, CI results and packaged
 stress results belong in `candidate-manifest.json` and `final-validation.json` in the review folder;
 earlier preview evidence below is retained as history.

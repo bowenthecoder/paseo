@@ -1648,12 +1648,27 @@ async function changeCodeTypographyFromSettings(
   await page.getByTestId("sidebar-settings").click();
   await expect(page).toHaveURL(new RegExp(`${buildSettingsSectionRoute("general")}|/settings$`));
   await page.getByRole("button", { name: "Appearance" }).click();
-  await page.getByLabel("Code font family").fill(typography.fontFamily);
-  await page.getByLabel("Code font family").press("Enter");
-  await page.getByLabel("Code font size").fill(String(typography.fontSize));
-  await page.getByLabel("Code font size").press("Enter");
-  await expect(page.getByLabel("Code font family")).toHaveValue(typography.fontFamily);
-  await expect(page.getByLabel("Code font size")).toHaveValue(String(typography.fontSize));
+  const familyInput = page.getByLabel("Code font family");
+  const sizeInput = page.getByLabel("Code font size");
+  await familyInput.fill(typography.fontFamily);
+  await familyInput.press("Enter");
+  // Enter schedules a blur; finish this commit before editing another appearance field.
+  await expect(familyInput).not.toBeFocused();
+  await expect
+    .poll(() =>
+      page.evaluate((settingsKey) => {
+        const raw = localStorage.getItem(settingsKey);
+        if (!raw) return null;
+        return (JSON.parse(raw) as { monoFontFamily?: string }).monoFontFamily ?? null;
+      }, APP_SETTINGS_KEY),
+    )
+    .toBe(typography.fontFamily);
+  await sizeInput.fill(String(typography.fontSize));
+  await expect(sizeInput).toHaveValue(String(typography.fontSize));
+  await sizeInput.press("Enter");
+  await expect(sizeInput).not.toBeFocused();
+  await expect(familyInput).toHaveValue(typography.fontFamily);
+  await expect(sizeInput).toHaveValue(String(typography.fontSize));
   await expectStoredCodeFontSize(page, typography.fontSize);
 }
 

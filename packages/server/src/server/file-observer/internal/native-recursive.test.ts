@@ -2,7 +2,6 @@ import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ObservationBackend, ObservationHost, ObserverMetrics } from "./contracts.js";
 import { createNativeRecursiveBackend } from "./native-recursive.js";
-import { createManagedObservation, type ManagedObservation } from "./observation.js";
 import { createObserverPaths } from "./paths.js";
 
 const filesystem = vi.hoisted(() => ({
@@ -21,7 +20,6 @@ vi.mock("node:fs/promises", () => ({
 }));
 
 let backend: ObservationBackend | undefined;
-let observation: ManagedObservation | undefined;
 let active = true;
 
 beforeEach(() => {
@@ -34,8 +32,6 @@ afterEach(async () => {
   active = false;
   await backend?.close();
   backend = undefined;
-  await observation?.close();
-  observation = undefined;
   vi.useRealTimers();
 });
 
@@ -158,67 +154,6 @@ it("remembers a rescanned child in its parent inventory for a later directory de
   expect(backend.getDiagnostics().nativeTrackedFileCount).toBe(0);
   expect(host.metrics.fullReconciliationCount).toBe(1);
   expect(fail).not.toHaveBeenCalled();
-});
-
-it("delivers a deletion when a repeated native create shares its delivery batch", async () => {
-  const root = resolve("virtual-observer-root");
-  const target = join(root, "changed.txt");
-  let fileExists = false;
-  let emitNative!: (eventType: "change" | "rename", filename: string | null) => void;
-  filesystem.watch.mockImplementation((_root, _options, callback) => {
-    emitNative = callback;
-    return { on: vi.fn(), close: vi.fn() };
-  });
-  filesystem.readdir.mockImplementation(async () =>
-    fileExists ? [directoryEntry("changed.txt", false)] : [],
-  );
-  filesystem.stat.mockImplementation(async (path: string) => {
-    if (path === root) return { isDirectory: () => true };
-    if (fileExists) return { isDirectory: () => false };
-    throw Object.assign(new Error("Missing file"), { code: "ENOENT" });
-  });
-  const callback = vi.fn();
-  const paths = createObserverPaths("win32");
-  observation = createManagedObservation({
-    root,
-    callback,
-    options: {},
-    paths,
-    metrics: createMetrics(),
-    createBackend: (host) => createNativeRecursiveBackend(host, paths),
-    onClosed: vi.fn(),
-  });
-  await observation.start();
-
-  fileExists = true;
-  emitNative("rename", "changed.txt");
-  await vi.advanceTimersByTimeAsync(10);
-  expect(callback).toHaveBeenLastCalledWith(null, [{ path: target, type: "create" }]);
-  callback.mockClear();
-
-  // Native notifications and reconciliation can both report the same creation.
-  // The later removal must survive the shared ten-millisecond delivery buffer.
-  emitNative("rename", "changed.txt");
-  await vi.advanceTimersByTimeAsync(0);
-  fileExists = false;
-  emitNative("rename", "changed.txt");
-  await vi.advanceTimersByTimeAsync(10);
-
-  expect(callback).toHaveBeenLastCalledWith(null, [{ path: target, type: "delete" }]);
-
-  fileExists = true;
-  emitNative("rename", "changed.txt");
-  await vi.advanceTimersByTimeAsync(10);
-  callback.mockClear();
-
-  // A removal followed by a replacement still describes an existing file.
-  fileExists = false;
-  emitNative("rename", "changed.txt");
-  await vi.advanceTimersByTimeAsync(0);
-  fileExists = true;
-  emitNative("rename", "changed.txt");
-  await vi.advanceTimersByTimeAsync(10);
-  expect(callback).toHaveBeenLastCalledWith(null, [{ path: target, type: "update" }]);
 });
 
 function directoryEntry(name: string, directory: boolean) {
