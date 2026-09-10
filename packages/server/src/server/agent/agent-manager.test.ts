@@ -11243,10 +11243,13 @@ test("legacy names that are only the raw first prompt get generated names, typed
   }
 });
 
-test("cold startup backfills persisted legacy titles through the normal loader", async () => {
+test.each([
+  "Investigate order sync failures now",
+  "Please investigate order sync failures in the inventory service and explain the underlying cause",
+])("cold startup backfills persisted legacy titles: %s", async (prompt) => {
   const workdir = mkdtempSync(join(tmpdir(), "agent-manager-cold-title-"));
   const storage = new AgentStorage(join(workdir, "agents"), logger);
-  const prompt = "Investigate order sync failures now";
+  const legacyTitle = prompt.slice(0, 60).trim();
   class HistorySession extends TestAgentSession {
     override async *streamHistory(): AsyncGenerator<AgentStreamEvent> {
       yield { type: "timeline", provider: "codex", item: { type: "user_message", text: prompt } };
@@ -11265,7 +11268,14 @@ test("cold startup backfills persisted legacy titles through the normal loader",
   let manager = new AgentManager({ clients: { codex: client }, registry: storage, logger });
   const records: StoredAgentRecord[] = [];
   try {
-    for (const title of [prompt, "Sync bug", prompt, prompt, prompt, prompt]) {
+    for (const title of [
+      legacyTitle,
+      "Sync bug",
+      legacyTitle,
+      legacyTitle,
+      legacyTitle,
+      legacyTitle,
+    ]) {
       const agent = await manager.createAgent(
         { provider: "codex", cwd: workdir, title },
         undefined,
@@ -11313,7 +11323,7 @@ test("cold startup backfills persisted legacy titles through the normal loader",
     });
     expect((await storage.get(records[5]!.id))?.titleSource).toBeUndefined();
     await expect(manager.backfillLegacyTitles(load)).resolves.toBe(0);
-    await manager.setGeneratedTitle(records[0]!.id, prompt, "Order sync investigation");
+    await manager.setGeneratedTitle(records[0]!.id, legacyTitle, "Order sync investigation");
     expect((await storage.get(records[0]!.id))?.title).toBe("Order sync investigation");
     expect((await storage.get(records[1]!.id))?.title).toBe("Sync bug");
     expect((await storage.get(records[2]!.id))?.titleSource).toBe("manual");
