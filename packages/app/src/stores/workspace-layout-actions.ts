@@ -840,9 +840,7 @@ export function stripEphemeralTabsFromLayout(layout: WorkspaceLayout): Workspace
   });
 }
 
-function restoreEmptyPanesInNode(
-  node: SplitNodeInternal,
-): SplitNodeInternal {
+function restoreEmptyPanesInNode(node: SplitNodeInternal): SplitNodeInternal {
   if (node.kind === "pane") {
     return node.pane.tabs.length > 0
       ? node
@@ -858,16 +856,12 @@ function restoreEmptyPanesInNode(
   return createGroupNode({
     id: node.group.id,
     direction: node.group.direction,
-    children: node.group.children.map((child) =>
-      restoreEmptyPanesInNode(child),
-    ),
+    children: node.group.children.map((child) => restoreEmptyPanesInNode(child)),
     sizes: node.group.sizes,
   });
 }
 
-export function restoreEmptyPanesInLayout(
-  layout: WorkspaceLayout,
-): WorkspaceLayout {
+export function restoreEmptyPanesInLayout(layout: WorkspaceLayout): WorkspaceLayout {
   const normalized = normalizeLayout(layout);
   return {
     ...normalized,
@@ -945,7 +939,7 @@ function isSingleChatRoot(root: SplitNodeInternal): boolean {
   );
 }
 
-type WorkspaceTargetHostResolver = {
+type WorkspaceTargetHostResolver = (
   target: WorkspaceTabTarget,
   previousHost?: PaneHost,
 ) => PaneHost;
