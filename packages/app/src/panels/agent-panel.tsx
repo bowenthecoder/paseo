@@ -432,14 +432,19 @@ function DraftPanel() {
     (agentSnapshot: Parameters<typeof normalizeAgentSnapshot>[0]) => {
       const normalized = normalizeAgentSnapshot(agentSnapshot, serverId);
       const agent = applyLegacyDaemonWorkspaceOwnership({ serverId, agent: normalized });
+      const converted = useWorkspaceLayoutStore
+        .getState()
+        .convertDraftToAgent(`${serverId}:${workspaceId}`, tabId, agentSnapshot.id);
+      if (!converted) {
+        retargetCurrentTab({ kind: "agent", agentId: agentSnapshot.id });
+      }
       useSessionStore.getState().setAgents(serverId, (prev) => {
         const next = new Map(prev);
         next.set(agentSnapshot.id, agent);
         return next;
       });
-      retargetCurrentTab({ kind: "agent", agentId: agentSnapshot.id });
     },
-    [retargetCurrentTab, serverId],
+    [retargetCurrentTab, serverId, tabId, workspaceId],
   );
 
   return (

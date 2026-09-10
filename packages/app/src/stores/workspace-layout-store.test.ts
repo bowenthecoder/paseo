@@ -2126,6 +2126,33 @@ describe("workspace-layout-store actions", () => {
     expect(findPaneContainingTab(layout.root, "agent_agent-1")?.id).toBe("main");
   });
 
+  it("does not open a second chat when Enter converts a draft after the agent is known", () => {
+    const workspaceKey = createWorkspaceKey();
+    const store = workspaceLayoutStore.getState();
+    const draftTabId = store.openTab({
+      workspaceKey,
+      target: { kind: "draft", draftId: "draft-enter" },
+      intent: "reveal",
+    });
+
+    store.convertDraftToAgent(workspaceKey, draftTabId!, "agent-enter");
+    workspaceLayoutStore.getState().reconcileTabs(workspaceKey, {
+      agentsHydrated: true,
+      terminalsHydrated: true,
+      activeAgentIds: ["agent-enter"],
+      autoOpenAgentIds: ["agent-enter"],
+      knownAgentIds: ["agent-enter"],
+      standaloneTerminalIds: [],
+      hasActivePendingDraftCreate: false,
+    });
+
+    const layout = workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey];
+    const agentTabs = collectAllTabs(layout.root).filter(
+      (tab) => tab.target.kind === "agent" && tab.target.agentId === "agent-enter",
+    );
+    expect(agentTabs).toHaveLength(1);
+  });
+
   it("reconcileTabs canonicalizes duplicates and prunes stale entity tabs from hydrated snapshots", () => {
     const workspaceKey = createWorkspaceKey();
 
