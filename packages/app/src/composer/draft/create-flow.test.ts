@@ -239,6 +239,7 @@ describe("useDraftAgentCreateFlow", () => {
       attachments: [attachment],
       cwd: "/repo",
     });
+    expect(createRequest).toHaveBeenCalledTimes(1);
     expect(createRequest).toHaveBeenCalledWith({
       attempt: expect.objectContaining({
         text: "",
@@ -249,5 +250,45 @@ describe("useDraftAgentCreateFlow", () => {
       cwd: "/repo",
     });
     expect(onCreateSuccess).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a second Enter while the first create is still in flight", async () => {
+    let release!: () => void;
+    const createRequest = vi.fn(
+      () =>
+        new Promise<{ agentId: string; result: { id: string } }>((resolve) => {
+          release = () => resolve({ agentId: "agent-1", result: { id: "agent-1" } });
+        }),
+    );
+    const { result } = renderHook(() =>
+      useDraftAgentCreateFlow({
+        draftId: "draft-1",
+        getPendingServerId: () => "server-1",
+        buildDraftAgent: (currentAttempt) => ({ currentAttempt }),
+        createRequest,
+        onCreateSuccess: () => undefined,
+      }),
+    );
+
+    let first!: Promise<unknown>;
+    await act(async () => {
+      first = result.current.handleCreateFromInput({
+        text: "hello",
+        attachments: [],
+        cwd: "/repo",
+      });
+    });
+    await expect(
+      result.current.handleCreateFromInput({
+        text: "hello again",
+        attachments: [],
+        cwd: "/repo",
+      }),
+    ).rejects.toThrow(/already/i);
+    await act(async () => {
+      release();
+      await first;
+    });
+    expect(createRequest).toHaveBeenCalledTimes(1);
   });
 });

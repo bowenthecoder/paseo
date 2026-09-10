@@ -7,6 +7,7 @@ import { buildStatusGroups } from "@/hooks/sidebar-status-view-model";
 
 import {
   buildSidebarShortcutModel,
+  buildSidebarShortcutSections,
   buildStatusSidebarShortcutModel,
   getRelativeSidebarShortcutTarget,
 } from "./sidebar-shortcuts";
@@ -163,6 +164,37 @@ describe("buildSidebarShortcutModel", () => {
   });
 });
 
+describe("buildSidebarShortcutSections", () => {
+  it("keeps each manual chat distinct when chats share a working folder", () => {
+    const sharedWorkspace = workspace({
+      serverId: "s1",
+      workspaceId: "ws-main",
+      workspaceDirectory: "/repo/main",
+      name: "main",
+    });
+    const chat = (agentId: string) => ({
+      ...sharedWorkspace,
+      agentId,
+      workspaceKey: `s1:chat:${agentId}`,
+    });
+    const model = buildSidebarShortcutSections({
+      sections: [
+        { workspaces: [chat("pinned-chat")] },
+        { workspaces: [chat("hidden-chat")], collapsed: true },
+        { workspaces: [chat("ungrouped-chat")] },
+      ],
+    });
+
+    expect(model.shortcutTargets).toEqual([
+      { serverId: "s1", workspaceId: "ws-main", agentId: "pinned-chat" },
+      { serverId: "s1", workspaceId: "ws-main", agentId: "ungrouped-chat" },
+    ]);
+    expect(model.shortcutIndexByWorkspaceKey.get("s1:chat:pinned-chat")).toBe(1);
+    expect(model.shortcutIndexByWorkspaceKey.get("s1:chat:ungrouped-chat")).toBe(2);
+    expect(model.shortcutIndexByWorkspaceKey.has("s1:chat:hidden-chat")).toBe(false);
+  });
+});
+
 describe("buildStatusSidebarShortcutModel", () => {
   it("builds shortcut targets in status visual order", () => {
     const workspaces = [
@@ -316,5 +348,60 @@ describe("getRelativeSidebarShortcutTarget", () => {
         delta: -1,
       }),
     ).toEqual({ serverId: "s1", workspaceId: "ws-3" });
+  });
+
+  it("moves between individual chats in the same workspace and wraps after the last chat", () => {
+    const chatTargets = ["first", "second", "third"].map((agentId) => ({
+      serverId: "s1",
+      workspaceId: "ws-1",
+      agentId,
+    }));
+
+    expect(
+      getRelativeSidebarShortcutTarget({
+        targets: chatTargets,
+        currentTarget: chatTargets[1],
+        delta: 1,
+      }),
+    ).toEqual(chatTargets[2]);
+    expect(
+      getRelativeSidebarShortcutTarget({
+        targets: chatTargets,
+        currentTarget: chatTargets[1],
+        delta: -1,
+      }),
+    ).toEqual(chatTargets[0]);
+    expect(
+      getRelativeSidebarShortcutTarget({
+        targets: chatTargets,
+        currentTarget: chatTargets[2],
+        delta: 1,
+      }),
+    ).toEqual(chatTargets[0]);
+  });
+
+  it("keeps legacy workspace navigation when the active selection also has a chat", () => {
+    expect(
+      getRelativeSidebarShortcutTarget({
+        targets,
+        currentTarget: { serverId: "s1", workspaceId: "ws-2", agentId: "active-chat" },
+        delta: 1,
+      }),
+    ).toEqual(targets[2]);
+  });
+
+  it("starts at the edge when the selected chat is in a collapsed group", () => {
+    const chatTargets = ["first", "second", "third"].map((agentId) => ({
+      serverId: "s1",
+      workspaceId: "ws-1",
+      agentId,
+    }));
+    expect(
+      getRelativeSidebarShortcutTarget({
+        targets: chatTargets,
+        currentTarget: { serverId: "s1", workspaceId: "ws-1", agentId: "hidden-chat" },
+        delta: 1,
+      }),
+    ).toEqual(chatTargets[0]);
   });
 });

@@ -41,7 +41,6 @@ export const DocumentFileHeader = memo(function DocumentFileHeader({
       onActivate={activate}
       onSelect={onSelectPath}
       onOpenFile={working?.onOpenFile}
-      onOpenToSide={working?.onOpenToSide}
       onAddToChat={working?.onAddToChat}
       onCopyPath={working?.onCopyPath}
       onCopyRelativePath={working?.onCopyRelativePath}

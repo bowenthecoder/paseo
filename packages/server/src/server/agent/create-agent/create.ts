@@ -344,21 +344,24 @@ async function resolveMcpCreateAgent(
   });
 
   const trimmedPrompt = input.initialPrompt?.trim() ?? "";
+  const { config, provisionalTitle } = buildMcpSessionConfig({
+    input,
+    resolvedProviderModel,
+    provider,
+    resolvedCwd: intent.cwd,
+    trimmedPrompt,
+    resolvedMode: resolvedCreateConfig.modeId,
+    resolvedFeatures: resolvedCreateConfig.featureValues,
+  });
   return {
-    config: buildMcpSessionConfig({
-      input,
-      resolvedProviderModel,
-      provider,
-      resolvedCwd: intent.cwd,
-      trimmedPrompt,
-      resolvedMode: resolvedCreateConfig.modeId,
-      resolvedFeatures: resolvedCreateConfig.featureValues,
-    }),
+    config,
     createOptions: {
       ...(Object.keys(intent.labels).length > 0 ? { labels: intent.labels } : {}),
       workspaceId: intent.workspaceId,
       owner: input.owner,
       env: input.env,
+      // A prompt-derived name stays provisional so the first accepted prompt can name the chat.
+      ...(provisionalTitle ? { initialTitle: provisionalTitle } : {}),
     },
     prompt: trimmedPrompt ? trimmedPrompt : undefined,
     setupContinuation,
@@ -409,9 +412,9 @@ function buildMcpSessionConfig(params: {
   trimmedPrompt: string;
   resolvedMode?: string;
   resolvedFeatures?: Record<string, unknown>;
-}): AgentSessionConfig {
+}): { config: AgentSessionConfig; provisionalTitle: string | null } {
   const passthroughConfig = params.input.config;
-  const { provisionalTitle } = resolveCreateAgentTitles({
+  const { explicitTitle, provisionalTitle } = resolveCreateAgentTitles({
     configTitle: passthroughConfig?.title ?? params.input.title,
     initialPrompt: params.trimmedPrompt,
   });
@@ -425,13 +428,16 @@ function buildMcpSessionConfig(params: {
     thinkingOptionId: params.input.thinking ?? passthroughConfig?.thinkingOptionId,
     internal: params.input.internal ?? passthroughConfig?.internal,
   };
-  if (provisionalTitle) {
-    config.title = provisionalTitle;
+  if (explicitTitle) {
+    config.title = explicitTitle;
+  } else {
+    delete config.title;
   }
   if (featureValues) {
     config.featureValues = featureValues;
   }
-  return config;
+  // A caller-provided title is final; only a prompt-derived name stays provisional.
+  return { config, provisionalTitle: explicitTitle ? null : provisionalTitle };
 }
 
 async function ensureWorkspaceForMcpCreate(

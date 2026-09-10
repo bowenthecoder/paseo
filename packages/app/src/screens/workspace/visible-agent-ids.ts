@@ -8,12 +8,15 @@ export function selectVisibleAgentIds(input: {
   tabs: WorkspaceTab[];
   routeFocused: boolean;
   focusedPaneOnly: boolean;
+  visiblePaneId?: string;
 }): string[] {
   if (!input.routeFocused || !input.layout) {
     return [];
   }
   const panes = input.focusedPaneOnly
-    ? collectAllPanes(input.layout.root).filter((pane) => pane.id === input.layout?.focusedPaneId)
+    ? collectAllPanes(input.layout.root).filter(
+        (pane) => pane.id === (input.visiblePaneId ?? input.layout?.focusedPaneId),
+      )
     : collectAllPanes(input.layout.root);
 
   return [
@@ -32,6 +35,7 @@ export function useVisibleAgentIds(input: {
   tabs: WorkspaceTab[];
   routeFocused: boolean;
   focusedPaneOnly: boolean;
+  visiblePaneId?: string;
 }): string[] {
   const nextAgentIds = selectVisibleAgentIds(input);
   const stableAgentIds = useRef<string[]>([]);

@@ -1,5 +1,6 @@
 import { expect, test } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import { waitForWorkspaceInReplicaCache } from "../support/helpers/replica-cache-storage";
 import { seedWorkspace, type SeededWorkspace } from "../support/helpers/seed-client";
 import {
@@ -19,6 +20,7 @@ test.describe("Workspace archive cache coherence", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await selectWorkspaceInSidebar(page, workspace.workspaceId);
       await waitForWorkspaceInReplicaCache(page, workspace.workspaceId);

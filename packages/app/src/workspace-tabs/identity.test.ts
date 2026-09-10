@@ -18,6 +18,15 @@ describe("New tab identity", () => {
 });
 
 describe("provider subagent tab identity", () => {
+  test("keeps each parent's task sidebar distinct and stable", () => {
+    const target = { kind: "subagents", parentAgentId: "parent-a" } as const;
+    expect(normalizeWorkspaceTabTarget({ ...target, parentAgentId: " parent-a " })).toEqual(target);
+    expect(normalizeWorkspaceTabTarget({ ...target, parentAgentId: " " })).toBeNull();
+    expect(buildDeterministicWorkspaceTabId(target)).toBe("subagents_parent-a");
+    expect(workspaceTabTargetsEqual(target, { ...target })).toBe(true);
+    expect(workspaceTabTargetsEqual(target, { ...target, parentAgentId: "parent-b" })).toBe(false);
+  });
+
   test("normalizes and compares the parent and provider child as one tab identity", () => {
     const target = normalizeWorkspaceTabTarget({
       kind: "provider_subagent",

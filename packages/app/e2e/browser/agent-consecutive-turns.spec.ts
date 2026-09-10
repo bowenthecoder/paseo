@@ -221,7 +221,7 @@ async function recordTurnFrames(page: Page, prompt: string): Promise<void> {
       row?.querySelector('[role="button"][aria-label="Open image attachment"]');
     const findAgentTabState = () => {
       const agentTab = Array.from(
-        document.querySelectorAll('[data-testid^="workspace-tab-agent_"]'),
+        document.querySelectorAll('[data-testid^="workspace-panel-agent_"]'),
       ).find((candidate) => isVisible(candidate));
       return {
         agentTab,
@@ -344,7 +344,7 @@ async function installActivityContinuityOracle(page: Page, prompt: string): Prom
     const isVisible = (element: Element | null) => Boolean(element?.checkVisibility());
     const snapshot = (): ActivityCheckpoint => {
       const visibleAgentTab = Array.from(
-        document.querySelectorAll('[data-testid^="workspace-tab-agent_"]'),
+        document.querySelectorAll('[data-testid^="workspace-panel-agent_"]'),
       ).find((candidate) => isVisible(candidate));
       return {
         row: Array.from(document.querySelectorAll('[data-testid="user-message"]')).some(

@@ -31,7 +31,9 @@ export type SubagentObservation =
   | { kind: "status"; id: string; status: ProviderSubagentStatus; timestamp?: string }
   /** Complete provider-owned secondary label. Clients display this without parsing it. */
   | { kind: "subtitle"; id: string; subtitle: string; timestamp?: string }
-  | { kind: "timeline"; id: string; item: AgentTimelineItem; timestamp?: string };
+  | { kind: "timeline"; id: string; item: AgentTimelineItem; timestamp?: string }
+  /** The row is over and keeps no history of its own; the transcript holds the outcome. */
+  | { kind: "remove"; id: string };
 
 /**
  * Turn observations into store events.
@@ -74,6 +76,11 @@ export function foldSubagentObservations(
         status: observation.status,
         ...(observation.timestamp ? { timestamp: observation.timestamp } : {}),
       });
+      continue;
+    }
+
+    if (observation.kind === "remove") {
+      events.push({ type: "remove", id: observation.id });
       continue;
     }
 

@@ -6,6 +6,9 @@ import { MarkdownTextSpan } from "@/components/markdown-text";
 import { MarkdownLinkText } from "@/components/markdown/link-text";
 import { AssistantLinkPressProvider, type AssistantLinkPress } from "./link-press-context";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { FileActionsContextMenuContent } from "@/components/file-actions-menu";
+import { useStableEvent } from "@/hooks/use-stable-event";
 import { CODE_SURFACE_DATASET } from "@/styles/code-surface";
 import { markdownCopyDataSet } from "@/assistant-selection-copy/markup";
 import { useAssistantFileLinkResolverContext } from "./provider";
@@ -30,7 +33,7 @@ export function AssistantMarkdownLink({
   monoSurface,
   children,
 }: AssistantMarkdownLinkProps) {
-  const { target, onHoverIn, onPress } = useFileLink(source);
+  const { target, canOpenFile, onHoverIn, onPress, open } = useFileLink(source);
   const { configRef } = useAssistantFileLinkResolverContext();
   const workspaceRoot = configRef.current.workspaceRoot;
   const tooltipPath = useMemo(
@@ -41,6 +44,8 @@ export function AssistantMarkdownLink({
     () => ({ onPress, accessibilityRole: "link" }),
     [onPress],
   );
+  const openMain = useStableEvent(() => open(source, "main"));
+  const openToSide = useStableEvent(() => open(source, "side"));
   const unwrapForMarkdownCopy = source.sourceType === "inline-code" || source.markup === "linkify";
 
   if (isNative) {
@@ -98,7 +103,24 @@ export function AssistantMarkdownLink({
     </a>
   );
 
-  return <FileLinkHoverTooltip filePath={tooltipPath}>{anchor}</FileLinkHoverTooltip>;
+  return (
+    <FileLinkHoverTooltip filePath={tooltipPath}>
+      {canOpenFile ? (
+        <ContextMenu>
+          <ContextMenuTrigger contextOnly style={FILE_LINK_TOOLTIP_TRIGGER_STYLE}>
+            {anchor}
+          </ContextMenuTrigger>
+          <FileActionsContextMenuContent
+            fileKind="file"
+            onOpenFile={openMain}
+            onOpenToSide={openToSide}
+          />
+        </ContextMenu>
+      ) : (
+        anchor
+      )}
+    </FileLinkHoverTooltip>
+  );
 }
 
 interface AssistantMarkdownCodeLinkProps {

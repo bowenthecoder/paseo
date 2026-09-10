@@ -1,7 +1,6 @@
 import { Fragment, useMemo, type ReactElement } from "react";
 import { withUnistyles } from "react-native-unistyles";
 import {
-  ArrowRightToLine,
   Copy,
   CopyPlus,
   Download,
@@ -40,21 +39,12 @@ interface FileAction {
   testID?: string;
 }
 
-function optionalFileAction(
-  available: boolean,
-  onSelect: (() => void) | undefined,
-  action: Omit<FileAction, "onSelect">,
-): FileAction | null {
-  return available && onSelect ? { ...action, onSelect } : null;
-}
-
 interface FileActionsContextMenuContentProps {
   fileKind: "file" | "directory";
   fileExists?: boolean;
   onOpenFile?: () => void;
   onOpenInEditor?: () => void;
   editorTargetName?: string;
-  onOpenToSide?: () => void;
   onCopyPath?: () => void;
   onCopyRelativePath?: () => void;
   onReveal?: () => void;
@@ -81,7 +71,6 @@ export function FileActionsContextMenuContent({
   onOpenFile,
   onOpenInEditor,
   editorTargetName,
-  onOpenToSide,
   onCopyPath,
   onCopyRelativePath,
   onReveal,
@@ -151,12 +140,6 @@ export function FileActionsContextMenuContent({
           }
         : null,
       openInEditorAction,
-      optionalFileAction(availableFile, onOpenToSide, {
-        key: "open-to-side",
-        group: "open",
-        label: t("workspace.fileActions.openToSide"),
-        icon: ArrowRightToLine,
-      }),
       onCopyPath
         ? {
             key: "copy-path",
@@ -262,7 +245,6 @@ export function FileActionsContextMenuContent({
     onNewFolder,
     onOpenFile,
     openInEditorAction,
-    onOpenToSide,
     onRename,
     onReveal,
     onRevert,

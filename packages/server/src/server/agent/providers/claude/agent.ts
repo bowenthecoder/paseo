@@ -3136,6 +3136,9 @@ class ClaudeAgentSession implements AgentSession {
     // resume: sessionId and the new query continues the existing conversation.
     this.persistence = null;
 
+    // A setting chosen before the first query is already included in buildOptions.
+    // Consume its restart request before the pump calls ensureQuery again.
+    this.queryRestartNeeded = false;
     const input = createAsyncMessageInput<SDKUserMessage>();
     const options = await this.buildOptions();
     this.logger.debug({ options: summarizeClaudeOptionsForLog(options) }, "claude query");
@@ -4175,6 +4178,9 @@ class ClaudeAgentSession implements AgentSession {
     // The launching sidechain already owns and renders this tool call. Mirroring it into the
     // managed parent's transcript would flatten both the card and the child relationship.
     if (declaration.parentSubagentId) return null;
+    // Background shell commands also declare temporary task rows. They are not subagents:
+    // synthesizing a running Task card for them leaves it stuck after their row is removed.
+    if (!this.taskProtocolSource.isDeclared(declaration.id)) return null;
     const toolCall = mapClaudeRunningToolCall({
       name: "Task",
       callId: declaration.id,

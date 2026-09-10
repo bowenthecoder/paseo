@@ -43,7 +43,6 @@ export interface FileHeaderProps {
   onActivate?: (path: string) => void;
   onSelect?: (path: string) => void;
   onOpenFile?: (path: string) => void;
-  onOpenToSide?: (path: string) => void;
   onAddToChat?: (path: string) => void;
   onCopyPath?: (path: string) => void;
   onCopyRelativePath?: (path: string) => void;
@@ -137,7 +136,6 @@ function fileChange(file: ParsedDiffFile): "added" | "deleted" | "modified" {
 function FileHeaderMenu({
   file,
   onOpenFile,
-  onOpenToSide,
   onAddToChat,
   onCopyPath,
   onCopyRelativePath,
@@ -149,7 +147,6 @@ function FileHeaderMenu({
   testID,
 }: FileHeaderProps) {
   const openFile = useCallback(() => onOpenFile?.(file.path), [file.path, onOpenFile]);
-  const openToSide = useCallback(() => onOpenToSide?.(file.path), [file.path, onOpenToSide]);
   const addToChat = useCallback(() => onAddToChat?.(file.path), [file.path, onAddToChat]);
   const copyPath = useCallback(() => onCopyPath?.(file.path), [file.path, onCopyPath]);
   const copyRelativePath = useCallback(
@@ -168,7 +165,6 @@ function FileHeaderMenu({
       fileKind="file"
       fileExists={!file.isDeleted}
       onOpenFile={onOpenFile ? openFile : undefined}
-      onOpenToSide={onOpenToSide ? openToSide : undefined}
       onCopyPath={onCopyPath ? copyPath : undefined}
       onCopyRelativePath={onCopyRelativePath ? copyRelativePath : undefined}
       onReveal={onReveal ? reveal : undefined}

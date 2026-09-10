@@ -1,4 +1,4 @@
-import { en, type TranslationResources } from "./en";
+import type { TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ru: TranslationResources = {
@@ -68,8 +68,6 @@ export const ru: TranslationResources = {
       agents: "Агенты",
       newAgent: "Новый агент",
       open: "Открыть {{name}}",
-      openInSidePane: "Открыть {{name}} в боковой панели",
-      openInFocusedPane: "Открыть {{name}} в активной области",
       addProject: "Добавить проект",
       home: "Главная",
       groupByProject: "Группировать по проекту",
@@ -107,6 +105,8 @@ export const ru: TranslationResources = {
       sendMessage: "Отправить сообщение",
       queue: "Очередь",
       send: "Отправить",
+      holdQueue: "Очередь",
+      holdQueueMessage: "Поставить сообщение в очередь без отправки",
     },
     cancel: {
       cancelingAgent: "Отменить агента",
@@ -135,6 +135,9 @@ export const ru: TranslationResources = {
       dropFilesHere: "Переместите файлы сюда",
       editQueuedMessage: "Изменить сообщение из очереди",
       sendQueuedMessageNow: "Отправить сообщение из очереди сейчас",
+      removeQueuedMessage: "Удалить сообщение из очереди",
+      heldQueuedMessage: "Удержано",
+      sendAllHeldMessages: "Отправить все",
       openImage: "Открыть прикрепленное изображение",
       removeImage: "Удалить прикрепленное изображение",
       removeFile: "Удалить прикрепленный файл",
@@ -160,6 +163,7 @@ export const ru: TranslationResources = {
     clientCommands: {
       archiveAgent: "Архивировать текущего агента",
       freshDraft: "Архивировать этого агента и создать новый черновик",
+      planMode: "Включить или выключить режим плана для этого агента",
     },
     github: {
       searching: "Идет поиск...",
@@ -432,7 +436,6 @@ export const ru: TranslationResources = {
     fileActions: {
       openFile: "Открыть файл",
       openIn: "Открыть в {{target}}",
-      openToSide: "Открыть сбоку",
       copyPath: "Копировать путь",
       copyRelativePath: "Копировать относительный путь",
       revealIn: "Показать в {{target}}",
@@ -478,6 +481,10 @@ export const ru: TranslationResources = {
         refreshing: "Обновление файлов",
         hideHiddenFiles: "Скрыть скрытые файлы",
         showHiddenFiles: "Показать скрытые файлы",
+        parentFolder: "Родительская папка",
+        homeFolder: "Домашняя папка",
+        deviceRoot: "Корень устройства",
+        workingFolder: "Рабочая папка",
       },
       empty: {
         noFiles: "Нет файлов",
@@ -605,12 +612,6 @@ export const ru: TranslationResources = {
         copyTerminalId: "Скопировать идентификатор терминала",
         copyFilePath: "Скопировать путь к файлу",
         rename: "Переименовать",
-        closeAbove: "Закрыть вкладки выше",
-        closeBelow: "Закрыть вкладки ниже",
-        closeLeft: "Закрыть вкладки слева",
-        closeRight: "Закрыть вкладки справа",
-        closeOthers: "Закрыть другие вкладки",
-        moveToMain: "Переместить на основную панель",
         reloadAgent: "Перезагрузить агента",
         reloadAgentTooltip: "Перезагрузите агента, чтобы обновить навыки, MCP или статус входа.",
         close: "Закрыть",
@@ -618,18 +619,12 @@ export const ru: TranslationResources = {
         renameAgent: "Переименовать агента",
       },
       actions: {
-        newTab: "Новая вкладка",
         newAgent: "Новый агент",
         newTerminal: "Новый терминал",
         preparingTerminal: "Подготовка вкладки терминала",
         preparingTerminalTooltip: "Подготовка терминала...",
         newBrowser: "Новый браузер",
-        maximizePane: "Развернуть панель",
-        restorePane: "Восстановить панель",
-        closePane: "Закрыть панель",
         exitFocusMode: "Выйти из режима фокусировки",
-        splitRight: "Разделить панель справа",
-        splitDown: "Разделить панель снизу",
         changes: "Изменения",
         files: "Файлы",
         pullRequest: "PR",
@@ -661,9 +656,6 @@ export const ru: TranslationResources = {
         unsavedMessage:
           "В этой вкладке есть несохранённые изменения. При закрытии черновик будет удалён.",
         closeWithoutSaving: "Закрыть без сохранения",
-        closePaneTitle: "Закрыть панель?",
-        bulkUnsaved:
-          "Вкладок с несохранёнными изменениями: {{count}}. При закрытии черновики будут удалены.",
         close: "Закрыть",
         cancel: "Отмена",
         archive: "Архивировать",
@@ -673,22 +665,16 @@ export const ru: TranslationResources = {
         archiveRunningAgentTitle: "Архивировать работающего агента?",
         archiveRunningAgentMessage:
           "Этот агент всё ещё работает. При архивировании агент будет остановлен, а вкладка закрыта.",
-        closeTabsLeftTitle: "Закрыть вкладки слева?",
-        closeTabsRightTitle: "Закрыть вкладки справа?",
-        closeOtherTabsTitle: "Закрыть другие вкладки?",
-        bulk: {
-          all: "Будут архивированы агенты ({{agents}}), закрыты терминалы ({{terminals}}) и вкладки ({{tabs}}). Все запущенные процессы в закрытых терминалах будут немедленно остановлены.",
-          agentsAndTerminals:
-            "Будут архивированы агенты ({{agents}}) и закрыты терминалы ({{terminals}}). Все запущенные процессы в закрытых терминалах будут немедленно остановлены.",
-          terminalsAndTabs:
-            "Будут закрыты терминалы ({{terminals}}) и вкладки ({{tabs}}). Все запущенные процессы в закрытых терминалах будут немедленно остановлены.",
-          agentsAndTabs: "Будут архивированы агенты ({{agents}}) и закрыты вкладки ({{tabs}}).",
-          terminals:
-            "Будут закрыты терминалы ({{terminals}}). Все запущенные процессы в них будут немедленно остановлены.",
-          tabs: "Будут закрыты вкладки ({{tabs}}).",
-          agents: "Будут архивированы агенты ({{agents}}).",
-        },
       },
+    },
+    chat: {
+      empty: {
+        title: "Нет открытых чатов",
+        action: "Новый чат",
+      },
+    },
+    sidePanel: {
+      close: "Закрыть боковую панель",
     },
     header: {
       actions: {
@@ -700,6 +686,8 @@ export const ru: TranslationResources = {
         copyPath: "Скопировать путь к рабочему пространству",
         copyBranchName: "Скопировать название ветки",
         showSetup: "Показать настройку рабочего пространства",
+        toggleTerminal: "Терминал",
+        toggleBrowser: "Браузер",
       },
       toasts: {
         workspacePathUnavailable: "Путь к рабочему пространству пока недоступен.",
@@ -1778,10 +1766,17 @@ export const ru: TranslationResources = {
     backdrop: "Фон меню",
   },
   subagents: {
+    viewChild: "Открыть",
+    loadFailed: "Не удалось загрузить эту задачу.",
+    connectToLoad: "Подключитесь к этому хосту, чтобы загрузить задачу.",
+    tasksTitle: "Задачи",
+    empty: "Нет субагентов для отображения.",
+    pillLabelWorkingOne: "1 задача выполняется",
+    contextTokens: "{{tokens}} токенов · контекст",
     title: "Субагенты",
     pillLabelOne: "1 субагент",
     pillLabelMany: "Субагентов: {{count}}",
-    pillLabelWorking: "{{count}} в работе",
+    pillLabelWorking: "{{count}} задач выполняются",
     pillLabelFailed: "{{count}} с ошибкой",
     pillLabelNeedsInputOne: "1 ожидает ввода",
     pillLabelNeedsInputMany: "{{count}} ожидают ввода",
@@ -1862,6 +1857,18 @@ export const ru: TranslationResources = {
     output: "Выходные данные",
   },
   toolCallGroup: {
+    runningTools: {
+      one: "выполняется инструментов: {{count}}",
+      other: "выполняется инструментов: {{count}}",
+    },
+    failedTools: {
+      one: "сбоев инструментов: {{count}}",
+      other: "сбоев инструментов: {{count}}",
+    },
+    canceledTools: {
+      one: "отмененных инструментов: {{count}}",
+      other: "отмененных инструментов: {{count}}",
+    },
     editedFiles: {
       one: "изменён {{count}} файл",
       other: "изменены файлы ({{count}})",
@@ -1870,6 +1877,11 @@ export const ru: TranslationResources = {
       one: "выполнена {{count}} команда",
       other: "выполнены команды ({{count}})",
     },
+    createdFiles: {
+      one: "создал файл",
+      other: "создал файлов: {{count}}",
+    },
+    readFile: "прочитал {{name}}",
     readFiles: {
       one: "прочитан {{count}} файл",
       other: "прочитаны файлы ({{count}})",
@@ -1877,6 +1889,10 @@ export const ru: TranslationResources = {
     searches: {
       one: "выполнен {{count}} поиск",
       other: "выполнены поисковые запросы ({{count}})",
+    },
+    subagents: {
+      one: "запустил субагента",
+      other: "запустил {{count}} субагентов",
     },
     otherTools: {
       one: "использован {{count}} другой инструмент",
@@ -1886,6 +1902,8 @@ export const ru: TranslationResources = {
       one: "выполнен {{count}} вызов Paseo",
       other: "выполнены вызовы Paseo ({{count}})",
     },
+    failedSuffix: "({{count}} с ошибкой)",
+    separator: ", ",
     and: "и",
   },
   renameModal: {
@@ -1938,7 +1956,6 @@ export const ru: TranslationResources = {
     sections: {
       general: "Основные",
       appearance: "Оформление",
-      layout: en.settings.sections.layout,
       editor: "Редактор",
       shortcuts: "Сочетания клавиш",
       integrations: "Интеграции",
@@ -1947,7 +1964,6 @@ export const ru: TranslationResources = {
       diagnostics: "Диагностика",
       about: "О приложении",
     },
-    layout: en.settings.layout,
     editor: {
       title: "Редактор",
       vimKeybindings: "Сочетания клавиш Vim",
@@ -2207,7 +2223,7 @@ export const ru: TranslationResources = {
       sections: {
         general: "Общие",
         workspaces: "Проекты и рабочие пространства",
-        tabsPanes: "Вкладки и панели",
+        chat: "Чат",
         layout: "Макет",
         agentInput: "Ввод для агента",
       },
@@ -2216,26 +2232,12 @@ export const ru: TranslationResources = {
         newWorkspace: "Новое рабочее пространство",
         newWorktree: "Новый worktree",
         archiveWorkspace: "Архивировать рабочее пространство",
-        newTab: "Новая вкладка",
         closeCurrentTab: "Закрыть текущую вкладку",
         jumpToWorkspace: "Перейти к рабочему пространству",
-        jumpToTab: "Перейти на вкладку",
         previousWorkspace: "Предыдущее рабочее пространство",
         nextWorkspace: "Следующее рабочее пространство",
-        previousTab: "Предыдущая вкладка",
-        nextTab: "Следующая вкладка",
-        splitPaneRight: "Разделить панель справа",
-        splitPaneDown: "Разделить панель вниз",
-        focusPaneLeft: "Перейти на панель слева",
-        focusPaneRight: "Перейти на панель справа",
-        focusPaneUp: "Перейти на панель выше",
-        focusPaneDown: "Перейти на панель ниже",
-        moveTabLeft: "Переместить вкладку влево",
-        moveTabRight: "Переместить вкладку вправо",
-        moveTabUp: "Переместить вкладку вверх",
-        moveTabDown: "Переместить вкладку вниз",
-        closePane: "Закрыть панель",
         newTerminal: "Новый терминал",
+        closeSidePanel: "Закрыть боковую панель",
         searchFiles: "Поиск файлов",
         toggleCommandCenter: "Переключить командный центр",
         showKeyboardShortcuts: "Показать сочетания клавиш",

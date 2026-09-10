@@ -68,8 +68,6 @@ export const ko: TranslationResources = {
       agents: "에이전트",
       newAgent: "새 에이전트",
       open: "{{name}} 열기",
-      openInSidePane: "사이드 패널에서 {{name}} 열기",
-      openInFocusedPane: "포커스된 창에서 {{name}} 열기",
       addProject: "프로젝트 추가",
       home: "홈",
       groupByProject: "프로젝트별 그룹화",
@@ -107,6 +105,8 @@ export const ko: TranslationResources = {
       sendMessage: "메시지 보내기",
       queue: "대기열",
       send: "보내기",
+      holdQueue: "대기열",
+      holdQueueMessage: "보내지 않고 메시지를 대기열에 추가",
     },
     cancel: {
       cancelingAgent: "에이전트 취소 중",
@@ -135,6 +135,9 @@ export const ko: TranslationResources = {
       dropFilesHere: "여기에 파일을 끌어다 놓으세요",
       editQueuedMessage: "대기 중인 메시지 편집",
       sendQueuedMessageNow: "대기 중인 메시지 지금 보내기",
+      removeQueuedMessage: "대기 중인 메시지 제거",
+      heldQueuedMessage: "보류됨",
+      sendAllHeldMessages: "모두 보내기",
       openImage: "이미지 첨부 열기",
       removeImage: "이미지 첨부 제거",
       removeFile: "파일 첨부 제거",
@@ -160,6 +163,7 @@ export const ko: TranslationResources = {
     clientCommands: {
       archiveAgent: "현재 에이전트 보관",
       freshDraft: "이 에이전트를 보관하고 새 초안을 시작합니다",
+      planMode: "이 에이전트의 플랜 모드 켜기/끄기",
     },
     github: {
       searching: "검색 중...",
@@ -430,7 +434,6 @@ export const ko: TranslationResources = {
     fileActions: {
       openFile: "파일 열기",
       openIn: "{{target}}에서 열기",
-      openToSide: "옆에 열기",
       copyPath: "경로 복사",
       copyRelativePath: "상대 경로 복사",
       revealIn: "{{target}}에서 보기",
@@ -476,6 +479,10 @@ export const ko: TranslationResources = {
         refreshing: "파일 새로고침 중",
         hideHiddenFiles: "숨겨진 파일 숨기기",
         showHiddenFiles: "숨겨진 파일 표시",
+        parentFolder: "상위 폴더",
+        homeFolder: "홈 폴더",
+        deviceRoot: "기기 루트",
+        workingFolder: "작업 폴더",
       },
       empty: {
         noFiles: "파일 없음",
@@ -601,12 +608,6 @@ export const ko: TranslationResources = {
         copyTerminalId: "터미널 ID 복사",
         copyFilePath: "파일 경로 복사",
         rename: "이름 변경",
-        closeAbove: "위쪽 탭 닫기",
-        closeBelow: "아래쪽 탭 닫기",
-        closeLeft: "왼쪽 탭 닫기",
-        closeRight: "오른쪽 탭 닫기",
-        closeOthers: "다른 탭 닫기",
-        moveToMain: "기본 패널로 이동",
         reloadAgent: "에이전트 다시 로드",
         reloadAgentTooltip:
           "스킬, MCP 또는 로그인 상태를 업데이트하려면 에이전트를 다시 로드하세요.",
@@ -615,18 +616,12 @@ export const ko: TranslationResources = {
         renameAgent: "에이전트 이름 변경",
       },
       actions: {
-        newTab: "새 탭",
         newAgent: "새 에이전트",
         newTerminal: "새 터미널",
         preparingTerminal: "터미널 탭 준비 중",
         preparingTerminalTooltip: "터미널 준비 중...",
         newBrowser: "새 브라우저",
-        maximizePane: "창 최대화",
-        restorePane: "창 복원",
-        closePane: "창 닫기",
         exitFocusMode: "집중 모드 종료",
-        splitRight: "창을 오른쪽으로 분할",
-        splitDown: "창을 아래로 분할",
         changes: "변경 사항",
         files: "파일",
         pullRequest: "풀 리퀘스트",
@@ -660,30 +655,21 @@ export const ko: TranslationResources = {
         unsavedTitle: "저장되지 않은 변경사항",
         unsavedMessage: "이 탭에는 저장되지 않은 변경사항이 있습니다. 닫으면 초안이 삭제됩니다.",
         closeWithoutSaving: "저장하지 않고 닫기",
-        closePaneTitle: "창을 닫으시겠어요?",
-        bulkUnsaved:
-          "{{count}} 탭에 저장되지 않은 변경 사항이 있습니다. 종료하면 해당 초안이 삭제됩니다.",
         closeTerminalTitle: "터미널을 닫을까요?",
         closeTerminalMessage: "이 터미널에서 실행 중인 프로세스가 즉시 중지됩니다.",
         archiveRunningAgentTitle: "실행 중인 에이전트를 보관할까요?",
         archiveRunningAgentMessage:
           "이 에이전트는 아직 실행 중입니다. 보관하면 에이전트가 중지되고 탭이 닫힙니다.",
-        closeTabsLeftTitle: "왼쪽 탭을 닫을까요?",
-        closeTabsRightTitle: "오른쪽 탭을 닫을까요?",
-        closeOtherTabsTitle: "다른 탭을 닫을까요?",
-        bulk: {
-          all: "에이전트 {{agents}}개를 보관하고, 터미널 {{terminals}}개를 닫고, 탭 {{tabs}}개를 닫습니다. 닫히는 터미널에서 실행 중인 프로세스는 즉시 중지됩니다.",
-          agentsAndTerminals:
-            "에이전트 {{agents}}개를 보관하고 터미널 {{terminals}}개를 닫습니다. 닫히는 터미널에서 실행 중인 프로세스는 즉시 중지됩니다.",
-          terminalsAndTabs:
-            "터미널 {{terminals}}개를 닫고 탭 {{tabs}}개를 닫습니다. 닫히는 터미널에서 실행 중인 프로세스는 즉시 중지됩니다.",
-          agentsAndTabs: "에이전트 {{agents}}개를 보관하고 탭 {{tabs}}개를 닫습니다.",
-          terminals:
-            "터미널 {{terminals}}개를 닫습니다. 닫히는 터미널에서 실행 중인 프로세스는 즉시 중지됩니다.",
-          tabs: "탭 {{tabs}}개를 닫습니다.",
-          agents: "에이전트 {{agents}}개를 보관합니다.",
-        },
       },
+    },
+    chat: {
+      empty: {
+        title: "열린 채팅이 없습니다",
+        action: "새 채팅",
+      },
+    },
+    sidePanel: {
+      close: "사이드 패널 닫기",
     },
     header: {
       actions: {
@@ -695,6 +681,8 @@ export const ko: TranslationResources = {
         copyPath: "워크스페이스 경로 복사",
         copyBranchName: "브랜치 이름 복사",
         showSetup: "설정 표시",
+        toggleTerminal: "터미널",
+        toggleBrowser: "브라우저",
       },
       toasts: {
         workspacePathUnavailable: "워크스페이스 경로를 아직 사용할 수 없습니다",
@@ -1758,10 +1746,17 @@ export const ko: TranslationResources = {
     backdrop: "메뉴 배경",
   },
   subagents: {
+    viewChild: "보기",
+    loadFailed: "이 작업을 불러올 수 없습니다.",
+    connectToLoad: "작업을 불러오려면 이 호스트에 연결하세요.",
+    tasksTitle: "작업",
+    empty: "표시할 하위 에이전트가 없습니다.",
+    pillLabelWorkingOne: "작업 1개 실행 중",
+    contextTokens: "{{tokens}} 토큰 · 컨텍스트",
     title: "하위 에이전트",
     pillLabelOne: "하위 에이전트 1개",
     pillLabelMany: "하위 에이전트 {{count}}개",
-    pillLabelWorking: "{{count}}개 실행 중",
+    pillLabelWorking: "작업 {{count}}개 실행 중",
     pillLabelFailed: "{{count}}개 실패",
     pillLabelNeedsInputOne: "1개 입력 필요",
     pillLabelNeedsInputMany: "{{count}}개 입력 필요",
@@ -1841,6 +1836,18 @@ export const ko: TranslationResources = {
     output: "출력",
   },
   toolCallGroup: {
+    runningTools: {
+      one: "도구 {{count}}개 실행 중",
+      other: "도구 {{count}}개 실행 중",
+    },
+    failedTools: {
+      one: "도구 {{count}}개 실패",
+      other: "도구 {{count}}개 실패",
+    },
+    canceledTools: {
+      one: "도구 {{count}}개 취소",
+      other: "도구 {{count}}개 취소",
+    },
     editedFiles: {
       one: "{{count}} 파일을 편집했습니다.",
       other: "{{count}} 파일을 편집했습니다.",
@@ -1849,6 +1856,11 @@ export const ko: TranslationResources = {
       one: "{{count}} 명령을 실행했습니다.",
       other: "{{count}} 명령을 실행했습니다.",
     },
+    createdFiles: {
+      one: "파일 1개 생성",
+      other: "파일 {{count}}개 생성",
+    },
+    readFile: "{{name}} 읽음",
     readFiles: {
       one: "파일 {{count}}개 읽음",
       other: "파일 {{count}}개 읽음",
@@ -1856,6 +1868,10 @@ export const ko: TranslationResources = {
     searches: {
       one: "{{count}}회 검색함",
       other: "{{count}}회 검색함",
+    },
+    subagents: {
+      one: "하위 에이전트 1개 실행",
+      other: "하위 에이전트 {{count}}개 실행",
     },
     otherTools: {
       one: "기타 도구 {{count}}개 사용함",
@@ -1865,6 +1881,8 @@ export const ko: TranslationResources = {
       one: "Paseo를 {{count}}회 호출함",
       other: "Paseo를 {{count}}회 호출함",
     },
+    failedSuffix: "({{count}}개 실패)",
+    separator: ", ",
     and: "그리고",
   },
   renameModal: {
@@ -1917,7 +1935,6 @@ export const ko: TranslationResources = {
     sections: {
       general: "일반",
       appearance: "모양",
-      layout: en.settings.sections.layout,
       editor: "편집기",
       shortcuts: "단축키",
       integrations: "통합",
@@ -1926,7 +1943,6 @@ export const ko: TranslationResources = {
       diagnostics: "진단",
       about: "정보",
     },
-    layout: en.settings.layout,
     editor: {
       title: "편집기",
       vimKeybindings: "Vim 키 바인딩",
@@ -2179,7 +2195,7 @@ export const ko: TranslationResources = {
       sections: {
         general: "일반",
         workspaces: "프로젝트 및 워크스페이스",
-        tabsPanes: "탭 및 창",
+        chat: "채팅",
         layout: "레이아웃",
         agentInput: "에이전트 입력",
       },
@@ -2188,26 +2204,12 @@ export const ko: TranslationResources = {
         newWorkspace: "새 워크스페이스",
         newWorktree: "새 워크트리",
         archiveWorkspace: "워크스페이스 보관",
-        newTab: "새 탭",
         closeCurrentTab: "현재 탭 닫기",
         jumpToWorkspace: "워크스페이스로 이동",
-        jumpToTab: "탭으로 이동",
         previousWorkspace: "이전 워크스페이스",
         nextWorkspace: "다음 워크스페이스",
-        previousTab: "이전 탭",
-        nextTab: "다음 탭",
-        splitPaneRight: "창을 오른쪽으로 분할",
-        splitPaneDown: "창을 아래로 분할",
-        focusPaneLeft: "왼쪽 창에 포커스",
-        focusPaneRight: "오른쪽 창에 포커스",
-        focusPaneUp: "위쪽 창에 포커스",
-        focusPaneDown: "아래쪽 창에 포커스",
-        moveTabLeft: "탭을 왼쪽으로 이동",
-        moveTabRight: "탭을 오른쪽으로 이동",
-        moveTabUp: "탭을 위로 이동",
-        moveTabDown: "탭을 아래로 이동",
-        closePane: "창 닫기",
         newTerminal: "새 터미널",
+        closeSidePanel: "사이드 패널 닫기",
         searchFiles: "파일 검색",
         toggleCommandCenter: "명령 센터 토글",
         showKeyboardShortcuts: "키보드 단축키 표시",

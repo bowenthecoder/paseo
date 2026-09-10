@@ -1,4 +1,6 @@
 import type { Query, QueryCacheNotifyEvent, QueryClient, QueryKey } from "@tanstack/react-query";
+import equal from "fast-deep-equal";
+import { resetProviderUsageQueries } from "@/provider-usage/query-cache";
 import type {
   ListTerminalsResponse,
   MutableDaemonConfig,
@@ -432,6 +434,12 @@ function applyDaemonConfigStatus(input: {
   if (!isDaemonConfigChangedPayload(payload)) {
     return;
   }
+  const previous = input.queryClient.getQueryData<MutableDaemonConfig>(
+    daemonConfigQueryKey(input.serverId),
+  );
+  if (!equal(previous?.providers, payload.config.providers)) {
+    void resetProviderUsageQueries(input.queryClient, input.serverId);
+  }
   input.queryClient.setQueryData<MutableDaemonConfig>(
     daemonConfigQueryKey(input.serverId),
     payload.config,
@@ -651,7 +659,20 @@ function canEventChangeDesiredSubscriptions(type: QueryCacheNotifyEvent["type"])
 }
 
 function getServerDataRoute(query: Query): ServerDataRoute | null {
-  const meta = query.meta;
+  let inactiveRoute: ServerDataRoute | null = null;
+  // Query metadata follows the last observer. A retained, hidden panel must
+  // not disable a subscription that another observer still needs.
+  for (const observer of query.observers) {
+    const route = readServerDataMeta(observer.options.meta);
+    if (route?.enabled) {
+      return route;
+    }
+    inactiveRoute ??= route;
+  }
+  return inactiveRoute ?? readServerDataMeta(query.meta);
+}
+
+function readServerDataMeta(meta: unknown): ServerDataRoute | null {
   if (!isRecord(meta) || !isRecord(meta.serverData)) {
     return null;
   }

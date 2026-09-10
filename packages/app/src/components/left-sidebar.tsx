@@ -1,5 +1,14 @@
 import { router } from "expo-router";
-import { FolderPlus, GitBranch, Import, Server, Settings, X } from "lucide-react-native";
+import { useSidebarChatGroupsStore } from "@/stores/sidebar-chat-groups-store";
+import {
+  FolderPlus,
+  GitBranch,
+  Import,
+  Plus,
+  Server,
+  Settings,
+  X,
+} from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
@@ -145,13 +154,17 @@ export const LeftSidebar = memo(function LeftSidebar({ active }: { active: boole
   const { open: openImportSession, sheet: importSessionSheet } = useImportSession();
 
   const handleOpenProjectMobile = useCallback(() => {
-    showMobileAgent();
-    void openProjectPicker();
-  }, [showMobileAgent, openProjectPicker]);
+    if (groupMode === "manual") useSidebarChatGroupsStore.getState().openEditor();
+    else {
+      showMobileAgent();
+      void openProjectPicker();
+    }
+  }, [groupMode, showMobileAgent, openProjectPicker]);
 
   const handleOpenProjectDesktop = useCallback(() => {
-    void openProjectPicker();
-  }, [openProjectPicker]);
+    if (groupMode === "manual") useSidebarChatGroupsStore.getState().openEditor();
+    else void openProjectPicker();
+  }, [groupMode, openProjectPicker]);
 
   const handleSettingsMobile = useCallback(() => {
     showMobileAgent();
@@ -190,14 +203,15 @@ export const LeftSidebar = memo(function LeftSidebar({ active }: { active: boole
 
   const labels = useMemo(
     (): SidebarLabels => ({
-      addProject: t("sidebar.actions.addProject"),
+      addProject: groupMode === "manual" ? "New group" : t("sidebar.actions.addProject"),
+      newWorkspace: groupMode === "manual" ? "New chat" : t("sidebar.actions.newWorkspace"),
       hosts: t("sidebar.actions.hosts"),
       importSession: t("importSession.title"),
       settings: t("sidebar.actions.settings"),
       searchHosts: t("sidebar.host.searchPlaceholder"),
       closeSidebar: t("sidebar.actions.closeSidebar"),
     }),
-    [t],
+    [groupMode, t],
   );
 
   const sharedProps = {
@@ -440,6 +454,65 @@ function IconTooltipContent({
     </View>
   );
 }
+
+const SidebarNewWorkspaceHeaderRow = memo(function SidebarNewWorkspaceHeaderRow({
+  label,
+  testID,
+  variant,
+  shortcutKeys,
+  onBeforeNavigate,
+}: {
+  label: string;
+  testID: string;
+  variant: "header" | "compact";
+  shortcutKeys: ShortcutKey[][] | null;
+  onBeforeNavigate?: () => void;
+}) {
+  const activeWorkspaceSelection = useActiveWorkspaceSelection();
+  const activeWorkspaceServerId = activeWorkspaceSelection?.serverId ?? null;
+  const activeWorkspaceId = activeWorkspaceSelection?.workspaceId ?? null;
+  const activeWorkspace = useWorkspace(activeWorkspaceServerId, activeWorkspaceId);
+  const supportsWorkspaceMultiplicity = useHostFeature(
+    activeWorkspaceServerId,
+    "workspaceMultiplicity",
+  );
+  const canUseActiveWorkspaceContext = Boolean(
+    activeWorkspace &&
+    (supportsWorkspaceMultiplicity || canCreateWorktreeForProjectKind(activeWorkspace.projectKind)),
+  );
+
+  const handlePress = useCallback(() => {
+    onBeforeNavigate?.();
+    if (useSidebarViewStore.getState().groupMode === "manual") {
+      router.push(buildNewWorkspaceRoute());
+      return;
+    }
+    router.push(
+      activeWorkspaceServerId
+        ? buildNewWorkspaceRoute(
+            activeWorkspace && canUseActiveWorkspaceContext
+              ? {
+                  serverId: activeWorkspaceServerId,
+                  sourceDirectory: activeWorkspace.projectRootPath,
+                  projectId: activeWorkspace.projectId,
+                }
+              : { serverId: activeWorkspaceServerId },
+          )
+        : buildNewWorkspaceRoute(),
+    );
+  }, [activeWorkspace, activeWorkspaceServerId, canUseActiveWorkspaceContext, onBeforeNavigate]);
+
+  return (
+    <SidebarHeaderRow
+      icon={Plus}
+      label={label}
+      onPress={handlePress}
+      testID={testID}
+      variant={variant}
+      shortcutKeys={shortcutKeys}
+    />
+  );
+});
 
 function SidebarFooter({
   theme,
@@ -800,11 +873,36 @@ function DesktopSidebar({
   );
 }
 
+function openNewChatGroup() {
+  useSidebarChatGroupsStore.getState().openEditor();
+}
+
 function WorkspacesSectionHeader() {
+  const { theme } = useUnistyles();
+  const manual = useSidebarViewStore((state) => state.groupMode === "manual");
+  const searchButtonStyle = useCallback(
+    ({ hovered = false, pressed }: PressableStateCallbackType & { hovered?: boolean }) => [
+      styles.workspacesHeaderIconButton,
+      (hovered || pressed) && styles.workspacesHeaderIconButtonHovered,
+    ],
+    [],
+  );
+
   return (
     <View style={styles.workspacesSectionHeader}>
-      <Text style={styles.workspacesSectionTitle}>Workspaces</Text>
+      <Text style={styles.workspacesSectionTitle}>{manual ? "Chats" : "Workspaces"}</Text>
       <View style={styles.workspacesSectionActions}>
+        {manual ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="New group"
+            testID="sidebar-new-group"
+            style={searchButtonStyle}
+            onPress={openNewChatGroup}
+          >
+            <Plus size={16} color={theme.colors.foregroundMuted} />
+          </Pressable>
+        ) : null}
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
             <View>

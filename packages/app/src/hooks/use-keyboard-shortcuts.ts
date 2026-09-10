@@ -21,12 +21,15 @@ import {
 } from "@/desktop/browser/shortcuts";
 import type { KeyboardFocusScope, KeyboardShortcutPayload } from "@/keyboard/actions";
 import {
+  dispatchKeyboardShortcutAction,
   routeKeyboardShortcut,
   type ShortcutAction,
   type ShortcutCallbackName,
 } from "@/keyboard/route-shortcut";
 import { getShortcutOs } from "@/utils/shortcut-platform";
 import { useOpenAddProject } from "@/hooks/use-open-add-project";
+import { useActiveSidebarShortcutTarget } from "@/hooks/use-active-sidebar-shortcut-target";
+import type { SidebarShortcutWorkspaceTarget } from "@/utils/sidebar-shortcuts";
 import { useKeyboardShortcutOverrides } from "@/hooks/use-keyboard-shortcut-overrides";
 import { isNative } from "@/constants/platform";
 import { keyboardShortcutsAvailable } from "@/keyboard/availability";
@@ -34,11 +37,7 @@ import { getDesktopHost, isElectronRuntime } from "@/desktop/host";
 import { isImeComposingKeyboardEvent } from "@/utils/keyboard-ime";
 import { buildOpenProjectRoute } from "@/utils/host-routes";
 import { hasActiveWebOverlay } from "@/lib/overlay-root";
-import {
-  type ActiveWorkspaceSelection,
-  navigateToLastWorkspace,
-  useActiveWorkspaceSelection,
-} from "@/stores/navigation-active-workspace-store";
+import { navigateToLastWorkspace } from "@/stores/navigation-active-workspace-store";
 import { dispatchTopWebOverlayKeyDown } from "@/lib/overlay-root";
 
 export function useKeyboardShortcuts({
@@ -73,8 +72,8 @@ export function useKeyboardShortcuts({
     timeoutId: null,
   });
   const openProjectPickerAction = useOpenAddProject();
-  const activeWorkspaceSelection = useActiveWorkspaceSelection();
-  const keyboardWorkspaceSelectionRef = useRef<ActiveWorkspaceSelection | null>(null);
+  const activeWorkspaceSelection = useActiveSidebarShortcutTarget();
+  const keyboardWorkspaceSelectionRef = useRef<SidebarShortcutWorkspaceTarget | null>(null);
   const badgeModifierKeyRef = useRef<string | null | undefined>(undefined);
 
   const publishBrowserShortcutPolicy = useCallback(
@@ -172,13 +171,20 @@ export function useKeyboardShortcuts({
         case "none":
           return false;
         case "dispatch":
-          return keyboardActionDispatcher.dispatch(action.action);
+          return dispatchKeyboardShortcutAction(action.action, keyboardActionDispatcher, event);
         case "navigate-workspace":
           keyboardWorkspaceSelectionRef.current = {
             serverId: action.serverId,
             workspaceId: action.workspaceId,
+            ...(action.agentId ? { agentId: action.agentId } : {}),
           };
-          navigateToWorkspace({ serverId: action.serverId, workspaceId: action.workspaceId });
+          navigateToWorkspace({
+            serverId: action.serverId,
+            workspaceId: action.workspaceId,
+            ...(action.agentId
+              ? { target: { kind: "agent", agentId: action.agentId } as const }
+              : {}),
+          });
           return true;
         case "navigate-last-workspace":
           if (navigateToLastWorkspace()) {

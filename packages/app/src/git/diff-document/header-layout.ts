@@ -5,6 +5,53 @@ export interface VisibleDiffFileSections {
   sticky: { file: DiffFileSection; y: number } | null;
 }
 
+export interface DiffInteractionWindow {
+  top: number;
+  paths: string[];
+}
+
+export function retainDiffInteractionWindow(
+  current: DiffInteractionWindow,
+  input: {
+    files: readonly DiffFileSection[];
+    scrollTop: number;
+    viewportHeight: number;
+  },
+): DiffInteractionWindow {
+  const top = diffInteractionWindowTop(input.scrollTop, input.viewportHeight);
+  const files = resolveVisibleFileSections({
+    files: input.files,
+    scrollTop: top,
+    viewportHeight: input.viewportHeight,
+    overscan: input.viewportHeight * 2,
+  }).files;
+  // A materialized file already contains all of its text. Keep only its identity
+  // here: rebuilding the model refreshes section objects without changing this
+  // window. The renderer obtains current header geometry from that live model.
+  if (
+    current.paths.length === files.length &&
+    current.paths.every((path, index) => path === files[index]?.path)
+  ) {
+    // A live edit can move these same files outside the saved bucket. Keep that
+    // bucket only while it still materializes and renders the current file set.
+    const retainedFiles =
+      top === current.top
+        ? files
+        : resolveVisibleFileSections({
+            files: input.files,
+            scrollTop: current.top,
+            viewportHeight: input.viewportHeight,
+            overscan: input.viewportHeight * 2,
+          }).files;
+    if (
+      retainedFiles.length === files.length &&
+      retainedFiles.every((file, index) => file.path === files[index]?.path)
+    )
+      return current;
+  }
+  return { top, paths: files.map((file) => file.path) };
+}
+
 export function diffInteractionWindowTop(scrollTop: number, viewportHeight: number): number {
   "worklet";
   const bucketHeight = Math.max(1, viewportHeight * 2);

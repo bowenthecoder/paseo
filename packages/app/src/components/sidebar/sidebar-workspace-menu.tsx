@@ -1,4 +1,10 @@
-import { useMemo, type ComponentProps, type PropsWithChildren, type ReactNode } from "react";
+import {
+  useCallback,
+  useMemo,
+  type ComponentProps,
+  type PropsWithChildren,
+  type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { type PressableStateCallbackType } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -12,6 +18,7 @@ import {
   PinOff,
   Tag,
 } from "lucide-react-native";
+import { useSidebarWorkspacePinController } from "@/hooks/use-sidebar-workspace-pin";
 import { isWeb } from "@/constants/platform";
 import { getForgePresentation, normalizeForge } from "@/git/forge";
 import type { SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list";
@@ -22,6 +29,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -31,7 +39,10 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { Shortcut } from "@/components/ui/shortcut";
+import { useSidebarUnreadStore } from "@/stores/sidebar-unread-store";
+import { WorkspaceChatActions } from "./workspace-chat-actions";
+import { WorkspaceOpenMenuTrigger, workspaceOpenMenuPage } from "./workspace-open-menu";
+import { MoveChatToGroupTrigger, moveChatToGroupPage } from "./chat-group-menu";
 import { OpenInFileManagerMenuItem } from "@/workspace/open-in-file-manager/menu-item";
 import { resolveSidebarWorkspaceAccessibilityLabel } from "@/components/sidebar/sidebar-workspace-title";
 import {
@@ -44,7 +55,9 @@ import {
   type WorkspaceLabelTarget,
 } from "@/workspace-labels/picker";
 
-const foregroundColorMapping = (theme: Theme) => ({ color: theme.colors.foreground });
+const foregroundColorMapping = (theme: Theme) => ({
+  color: theme.colors.foreground,
+});
 const foregroundMutedColorMapping = (theme: Theme) => ({
   color: theme.colors.foregroundMuted,
 });
@@ -66,6 +79,7 @@ const markAsReadLeadingIcon = (
 const archiveLeadingIcon = <ThemedArchive size={14} uniProps={foregroundMutedColorMapping} />;
 const pinLeadingIcon = <ThemedPin size={14} uniProps={foregroundMutedColorMapping} />;
 const unpinLeadingIcon = <ThemedPinOff size={14} uniProps={foregroundMutedColorMapping} />;
+const labelLeadingIcon = <ThemedTag size={14} uniProps={foregroundMutedColorMapping} />;
 
 function renderTriggerIcon({ hovered }: { hovered?: boolean }) {
   return (
@@ -80,10 +94,14 @@ export interface SidebarWorkspaceMenuProps {
   workspaceKey: string;
   serverId?: string;
   workspaceId?: string;
+  /** A manual chat row always passes its own agent, independent of the focused workspace tab. */
+  agentId?: string;
   workspaceLabels?: readonly string[];
   onCopyPath?: () => void;
   onCopyBranchName?: () => void;
   onRename?: () => void;
+  /** Archives this chat and opens a fresh draft with the same setup. */
+  onReset?: () => void;
   onMarkAsRead?: () => void;
   onArchive: () => void;
   archiveLabel?: string;
@@ -115,7 +133,9 @@ function WorkspaceMenuItem({
   children,
   ...props
 }: PropsWithChildren<
-  Omit<ComponentProps<typeof DropdownMenuItem>, "children"> & { surface: MenuSurface }
+  Omit<ComponentProps<typeof DropdownMenuItem>, "children"> & {
+    surface: MenuSurface;
+  }
 >) {
   if (surface === "context") {
     return <ContextMenuItem {...props}>{children}</ContextMenuItem>;
@@ -123,34 +143,15 @@ function WorkspaceMenuItem({
   return <DropdownMenuItem {...props}>{children}</DropdownMenuItem>;
 }
 
-function SidebarWorkspaceMenuItems({
+function WorkspaceCopyMenuItems({
   surface,
   workspaceKey,
-  serverId,
-  workspaceId,
   onCopyPath,
   onCopyBranchName,
-  onRename,
-  onMarkAsRead,
-  onArchive,
-  archiveLabel,
-  archiveStatus,
-  archivePendingLabel,
-  archiveShortcutKeys,
-  isPinned,
-  onTogglePin,
-  openInFileManagerPath,
-}: SidebarWorkspaceMenuItemsProps & { surface: MenuSurface }): ReactNode {
+}: Pick<SidebarWorkspaceMenuItemsProps, "workspaceKey" | "onCopyPath" | "onCopyBranchName"> & {
+  surface: MenuSurface;
+}) {
   const { t } = useTranslation();
-  const archiveTrailing = useMemo(
-    () => (archiveShortcutKeys ? <Shortcut chord={archiveShortcutKeys} /> : null),
-    [archiveShortcutKeys],
-  );
-  const labelLeading = useMemo(
-    () => <ThemedTag size={14} uniProps={foregroundMutedColorMapping} />,
-    [],
-  );
-
   return (
     <>
       {onCopyPath ? (
@@ -173,16 +174,149 @@ function SidebarWorkspaceMenuItems({
           {t("sidebar.workspace.actions.copyBranchName")}
         </WorkspaceMenuItem>
       ) : null}
+    </>
+  );
+}
+
+function WorkspaceLabelsMenuItem({
+  workspaceKey,
+  serverId,
+  workspaceId,
+  agentId,
+}: Pick<SidebarWorkspaceMenuItemsProps, "workspaceKey" | "serverId" | "workspaceId" | "agentId">) {
+  const { t } = useTranslation();
+  if (!serverId || !workspaceId || agentId) return null;
+  return (
+    <DropdownMenuSubTrigger
+      id={WORKSPACE_LABEL_PAGE_ID}
+      leading={labelLeadingIcon}
+      testID={`sidebar-workspace-menu-labels-${workspaceKey}`}
+    >
+      {t("workspaceLabels.title")}
+    </DropdownMenuSubTrigger>
+  );
+}
+
+function WorkspaceRenameMenuItems({
+  surface,
+  workspaceKey,
+  agentId,
+  onRename,
+  onReset,
+  renameIcon,
+  renameLabel,
+}: Pick<SidebarWorkspaceMenuItemsProps, "workspaceKey" | "agentId" | "onRename" | "onReset"> & {
+  surface: MenuSurface;
+  renameIcon: ComponentProps<typeof DropdownMenuItem>["leading"];
+  renameLabel: string;
+}) {
+  return (
+    <>
       {onRename ? (
         <WorkspaceMenuItem
           surface={surface}
+          shortcut="R"
           testID={`sidebar-workspace-menu-rename-${workspaceKey}`}
-          leading={renameLeadingIcon}
+          leading={renameIcon}
           onSelect={onRename}
         >
-          {t("sidebar.workspace.actions.rename")}
+          {renameLabel}
         </WorkspaceMenuItem>
       ) : null}
+      {agentId && onReset ? (
+        <WorkspaceMenuItem
+          surface={surface}
+          shortcut="N"
+          testID={`sidebar-workspace-menu-reset-${workspaceKey}`}
+          onSelect={onReset}
+        >
+          Reset context (new chat)
+        </WorkspaceMenuItem>
+      ) : null}
+    </>
+  );
+}
+
+function useWorkspaceMenuPresentation(agentId: string | undefined, isPinned: boolean | undefined) {
+  const { t } = useTranslation();
+  if (agentId) {
+    return {
+      pinIcon: undefined,
+      pinLabel: isPinned ? t("sidebar.workspace.actions.unpin") : "Pin",
+      renameIcon: undefined,
+      renameLabel: t("renameModal.rename"),
+      archiveIcon: undefined,
+    };
+  }
+  return {
+    pinIcon: isPinned ? unpinLeadingIcon : pinLeadingIcon,
+    pinLabel: isPinned ? t("sidebar.workspace.actions.unpin") : t("sidebar.workspace.actions.pin"),
+    renameIcon: renameLeadingIcon,
+    renameLabel: t("sidebar.workspace.actions.rename"),
+    archiveIcon: archiveLeadingIcon,
+  };
+}
+
+function SidebarWorkspaceMenuItems({
+  surface,
+  workspaceKey,
+  serverId,
+  workspaceId,
+  agentId,
+  onCopyPath,
+  onCopyBranchName,
+  onRename,
+  onReset,
+  onMarkAsRead,
+  onArchive,
+  archiveLabel,
+  archiveStatus,
+  archivePendingLabel,
+  isPinned,
+  onTogglePin,
+  openInFileManagerPath,
+}: SidebarWorkspaceMenuItemsProps & { surface: MenuSurface }): ReactNode {
+  const { t } = useTranslation();
+  const presentation = useWorkspaceMenuPresentation(agentId, isPinned);
+
+  const unread = useSidebarUnreadStore((state) => state.unread[workspaceKey] === true);
+  const toggleUnread = useCallback(
+    () => useSidebarUnreadStore.getState().setUnread(workspaceKey, !unread),
+    [workspaceKey, unread],
+  );
+  return (
+    <>
+      {agentId && serverId && workspaceId ? <WorkspaceOpenMenuTrigger /> : null}
+      {agentId ? <DropdownMenuSeparator /> : null}
+      {onTogglePin ? (
+        <WorkspaceMenuItem
+          surface={surface}
+          shortcut="P"
+          testID={`sidebar-workspace-menu-pin-${workspaceKey}`}
+          leading={presentation.pinIcon}
+          onSelect={onTogglePin}
+        >
+          {presentation.pinLabel}
+        </WorkspaceMenuItem>
+      ) : null}
+      <WorkspaceMenuItem surface={surface} shortcut="U" onSelect={toggleUnread}>
+        {unread ? "Mark as read" : "Mark as unread"}
+      </WorkspaceMenuItem>
+      <WorkspaceCopyMenuItems
+        surface={surface}
+        workspaceKey={workspaceKey}
+        onCopyPath={onCopyPath}
+        onCopyBranchName={onCopyBranchName}
+      />
+      <WorkspaceRenameMenuItems
+        surface={surface}
+        workspaceKey={workspaceKey}
+        agentId={agentId}
+        onRename={onRename}
+        onReset={onReset}
+        renameIcon={presentation.renameIcon}
+        renameLabel={presentation.renameLabel}
+      />
       {onMarkAsRead ? (
         <WorkspaceMenuItem
           surface={surface}
@@ -193,42 +327,48 @@ function SidebarWorkspaceMenuItems({
           Mark as read
         </WorkspaceMenuItem>
       ) : null}
-      {onTogglePin ? (
-        <WorkspaceMenuItem
-          surface={surface}
-          testID={`sidebar-workspace-menu-pin-${workspaceKey}`}
-          leading={isPinned ? unpinLeadingIcon : pinLeadingIcon}
-          onSelect={onTogglePin}
-        >
-          {isPinned ? t("sidebar.workspace.actions.unpin") : t("sidebar.workspace.actions.pin")}
-        </WorkspaceMenuItem>
+      {agentId && serverId && workspaceId ? (
+        <WorkspaceChatActions
+          serverId={serverId}
+          workspaceId={workspaceId}
+          agentId={agentId}
+          action="fork"
+        />
       ) : null}
-      {serverId && workspaceId ? (
-        <DropdownMenuSubTrigger
-          id={WORKSPACE_LABEL_PAGE_ID}
-          leading={labelLeading}
-          testID={`sidebar-workspace-menu-labels-${workspaceKey}`}
-        >
-          {t("workspaceLabels.title")}
-        </DropdownMenuSubTrigger>
-      ) : null}
+      {agentId ? <DropdownMenuSeparator /> : null}
+      <MoveChatToGroupTrigger />
+      <WorkspaceLabelsMenuItem
+        workspaceKey={workspaceKey}
+        serverId={serverId}
+        workspaceId={workspaceId}
+        agentId={agentId}
+      />
       <OpenInFileManagerMenuItem
         surface={surface}
         path={openInFileManagerPath}
         testID={`sidebar-workspace-menu-open-folder-${workspaceKey}`}
       />
+      {agentId ? <DropdownMenuSeparator /> : null}
       {onArchive ? (
         <WorkspaceMenuItem
           surface={surface}
+          shortcut="A"
           testID={`sidebar-workspace-menu-archive-${workspaceKey}`}
-          leading={archiveLeadingIcon}
-          trailing={archiveTrailing}
+          leading={presentation.archiveIcon}
           status={archiveStatus}
           pendingLabel={archivePendingLabel}
           onSelect={onArchive}
         >
           {archiveLabel ?? t("sidebar.workspace.actions.archive")}
         </WorkspaceMenuItem>
+      ) : null}
+      {serverId && workspaceId ? (
+        <WorkspaceChatActions
+          serverId={serverId}
+          workspaceId={workspaceId}
+          agentId={agentId}
+          action={agentId ? "delete" : undefined}
+        />
       ) : null}
     </>
   );
@@ -238,10 +378,12 @@ export function SidebarWorkspaceMenu({
   workspaceKey,
   serverId,
   workspaceId,
+  agentId,
   workspaceLabels,
   onCopyPath,
   onCopyBranchName,
   onRename,
+  onReset,
   onMarkAsRead,
   onArchive,
   archiveLabel,
@@ -260,7 +402,14 @@ export function SidebarWorkspaceMenu({
       serverId && workspaceId ? { serverId, workspaceId, labels: workspaceLabels ?? [] } : null,
     [serverId, workspaceId, workspaceLabels],
   );
-  const pages = useWorkspaceLabelMenuPages(workspaceTarget);
+  const labelPages = useWorkspaceLabelMenuPages(agentId ? null : workspaceTarget);
+  const pages = [
+    ...(agentId && serverId && workspaceId
+      ? [workspaceOpenMenuPage(serverId, workspaceId, agentId)]
+      : []),
+    ...labelPages,
+    moveChatToGroupPage(workspaceKey),
+  ];
   return (
     <DropdownMenu compactMode="sheet" open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger
@@ -283,10 +432,12 @@ export function SidebarWorkspaceMenu({
           workspaceKey={workspaceKey}
           serverId={serverId}
           workspaceId={workspaceId}
+          agentId={agentId}
           workspaceLabels={workspaceLabels}
           onCopyPath={onCopyPath}
           onCopyBranchName={onCopyBranchName}
           onRename={onRename}
+          onReset={onReset}
           onMarkAsRead={onMarkAsRead}
           onArchive={onArchive}
           archiveLabel={archiveLabel}
@@ -316,9 +467,11 @@ export function SidebarWorkspaceContextMenu({
   hostBadgeLabel,
   serviceSummary,
   workspaceKey,
+  agentId,
   onCopyPath,
   onCopyBranchName,
   onRename,
+  onReset,
   onMarkAsRead,
   onArchive,
   archiveLabel,
@@ -360,7 +513,9 @@ export function SidebarWorkspaceContextMenu({
     hostBadgeLabel,
     pullRequestLabel,
     serviceLabel: serviceSummary
-      ? t(workspaceServiceLabelKey(serviceSummary), { name: serviceSummary.name })
+      ? t(workspaceServiceLabelKey(serviceSummary), {
+          name: serviceSummary.name,
+        })
       : null,
   });
   const workspaceTarget = useMemo<WorkspaceLabelTarget>(
@@ -371,8 +526,15 @@ export function SidebarWorkspaceContextMenu({
     }),
     [workspace],
   );
-  const pages = useWorkspaceLabelMenuPages(workspaceTarget);
+  const labelPages = useWorkspaceLabelMenuPages(agentId ? null : workspaceTarget);
+  const pages = [
+    ...(agentId ? [workspaceOpenMenuPage(workspace.serverId, workspace.workspaceId, agentId)] : []),
+    ...labelPages,
+    moveChatToGroupPage(workspaceKey),
+  ];
 
+  const togglePin = useSidebarWorkspacePinController();
+  const handleTogglePin = useCallback(() => togglePin(workspace), [togglePin, workspace]);
   return (
     <ContextMenu open={contextMenuOpen} onOpenChange={onContextMenuOpenChange}>
       <ContextMenuTrigger
@@ -394,18 +556,20 @@ export function SidebarWorkspaceContextMenu({
           workspaceKey={workspaceKey}
           serverId={workspaceTarget.serverId}
           workspaceId={workspaceTarget.workspaceId}
+          agentId={agentId}
           workspaceLabels={workspaceTarget.labels}
           onCopyPath={onCopyPath}
           onCopyBranchName={onCopyBranchName}
           onRename={onRename}
+          onReset={onReset}
           onMarkAsRead={onMarkAsRead}
           onArchive={onArchive}
           archiveLabel={archiveLabel}
           archiveStatus={archiveStatus}
           archivePendingLabel={archivePendingLabel}
           archiveShortcutKeys={archiveShortcutKeys}
-          isPinned={isPinned}
-          onTogglePin={onTogglePin}
+          isPinned={isPinned ?? workspace.pinnedAt != null}
+          onTogglePin={onTogglePin ?? (agentId ? undefined : handleTogglePin)}
           openInFileManagerPath={openInFileManagerPath}
         />
       </ContextMenuContent>

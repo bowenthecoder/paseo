@@ -93,6 +93,32 @@ describe("quit-lifecycle", () => {
     expect(events).toEqual([]);
   });
 
+  it("does not inspect or stop the daemon when built-in management is disabled", async () => {
+    const events: string[] = [];
+
+    const stopped = await stopDesktopManagedDaemonOnQuitIfNeeded({
+      settingsStore: {
+        get: async () => ({
+          ...SETTINGS_STOP_ON_QUIT,
+          daemon: { manageBuiltInDaemon: false, keepRunningAfterQuit: false },
+        }),
+      },
+      isDesktopManagedDaemonRunning: () => {
+        events.push("inspect");
+        return true;
+      },
+      stopDaemon: async () => {
+        events.push("stop");
+      },
+      showShutdownFeedback: () => {
+        events.push("feedback");
+      },
+    });
+
+    expect(stopped).toBe(false);
+    expect(events).toEqual([]);
+  });
+
   it("shows feedback then stops a desktop-managed daemon", async () => {
     const events: string[] = [];
 

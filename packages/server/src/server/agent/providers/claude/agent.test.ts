@@ -860,32 +860,38 @@ describe("ClaudeAgentSession features", () => {
     await session.close();
   });
 
-  test("maps Ultracode to xhigh effort and Claude ultracode settings", async () => {
-    const { queryFactory } = createQueryMock();
-    const client = new ClaudeAgentClient({
-      logger,
-      queryFactory,
-      resolveBinary: async () => "/test/claude/bin",
-    });
-    const session = await client.createSession({
-      provider: "claude",
-      cwd: process.cwd(),
-      model: "claude-opus-4-8",
-      thinkingOptionId: "ultracode",
-    });
+  test.each(["low", "medium", "high", "xhigh", "max", "ultracode"])(
+    "sends Claude effort %s to the SDK",
+    async (effort) => {
+      const { queryFactory } = createQueryMock();
+      const client = new ClaudeAgentClient({
+        logger,
+        queryFactory,
+        resolveBinary: async () => "/test/claude/bin",
+      });
+      const session = await client.createSession({
+        provider: "claude",
+        cwd: process.cwd(),
+        model: "claude-opus-4-8",
+        thinkingOptionId: effort,
+      });
 
-    await expect(session.startTurn("hello")).resolves.toEqual({
-      turnId: expect.stringMatching(/^foreground-turn-/),
-    });
+      await expect(session.startTurn("hello")).resolves.toEqual({
+        turnId: expect.stringMatching(/^foreground-turn-/),
+      });
 
-    expect(queryFactory.mock.calls[0]?.[0].options).toMatchObject({
-      effort: "xhigh",
-      thinking: { type: "adaptive" },
-      settings: { ultracode: true },
-    });
+      expect(queryFactory.mock.calls[0]?.[0].options).toMatchObject({
+        effort: effort === "ultracode" ? "xhigh" : effort,
+        thinking: { type: "adaptive" },
+      });
 
-    await session.close();
-  });
+      expect(queryFactory.mock.calls[0]?.[0].options.settings?.ultracode === true).toBe(
+        effort === "ultracode",
+      );
+
+      await session.close();
+    },
+  );
 
   test("turns Claude thinking off without retaining an effort level", async () => {
     const { queryFactory, launches } = createQueryMock();

@@ -27,7 +27,7 @@ async function seedSettledMockAgent(workspace: SeededWorkspace, title: string) {
 }
 
 function visibleAgentTab(page: import("@playwright/test").Page, agentId: string) {
-  return page.getByTestId(`workspace-tab-agent_${agentId}`).filter({ visible: true }).first();
+  return page.getByTestId(`workspace-panel-agent_${agentId}`).filter({ visible: true }).first();
 }
 
 test.describe("Composer control density across tab switches", () => {
@@ -72,7 +72,7 @@ test.describe("Composer control density across tab switches", () => {
       await clickNewChat(page);
 
       const draftTabs = page
-        .locator('[data-testid^="workspace-tab-draft"]')
+        .locator('[data-testid^="workspace-panel-draft"]')
         .filter({ visible: true });
       await expect(draftTabs).toHaveCount(2, { timeout: 30_000 });
       await expect(

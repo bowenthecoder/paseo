@@ -1,5 +1,6 @@
 import { test } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import { seedWorkspace } from "../support/helpers/seed-client";
 import {
   closeProjectContextMenu,
@@ -21,6 +22,7 @@ test.describe("Sidebar context menus", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
 
       await showWorkspaceHoverCard(page, workspace.workspaceId);
       await openWorkspaceContextMenu(page, workspace.workspaceId);

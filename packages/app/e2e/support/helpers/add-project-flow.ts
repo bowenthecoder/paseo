@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import { openCommandCenter } from "./command-center";
 
 export type AddProjectFlowPage =
   | "host"
@@ -47,7 +48,20 @@ async function openAddProjectFlowSurface(
   page: Page,
   expectedPage: "host" | "method",
 ): Promise<void> {
-  await page.getByTestId("sidebar-add-project").click();
+  const addProjectButton = page
+    .getByTestId("sidebar-add-project")
+    .and(page.getByRole("button", { name: "Add project", exact: true }));
+  if (await addProjectButton.isVisible()) {
+    // The empty project view has no list header/search trigger. Its footer opens
+    // this flow directly, including on compact layouts without global shortcuts.
+    await addProjectButton.click();
+  } else {
+    // The manual-chat footer creates groups. Register folders through the public
+    // command instead, preserving its host-first flow when several hosts exist.
+    const commands = await openCommandCenter(page);
+    await commands.getByTestId("command-center-input").fill("Add project");
+    await commands.getByText("Add project", { exact: true }).click();
+  }
   await expect(addProjectFlow(page)).toBeVisible({ timeout: 30_000 });
   await expectAddProjectPage(page, expectedPage);
 }
@@ -85,7 +99,7 @@ export async function expectNewWorkspaceForAddedProject(
   expect(url.searchParams.get("serverId")).toBe(input.serverId);
   expect(url.searchParams.get("projectId")).toBe(input.projectId);
   expect(url.searchParams.get("dir")).toBe(input.projectPath);
-  await expect(page.getByRole("button", { name: "Workspace project" })).toContainText(
+  await expect(page.getByRole("button", { name: "Working folder", exact: true })).toContainText(
     input.projectName,
     { timeout: 30_000 },
   );

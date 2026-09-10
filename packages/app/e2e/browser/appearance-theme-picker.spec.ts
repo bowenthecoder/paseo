@@ -1,5 +1,6 @@
 import { expect, test } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import { seedWorkspace } from "../support/helpers/seed-client";
 import { getServerId } from "../support/helpers/server-id";
 import { openSettingsSection } from "../support/helpers/settings";
@@ -29,6 +30,7 @@ test("keeps the selected workspace visible in Light", async ({ page }, testInfo)
       localStorage.setItem("@paseo:app-settings", JSON.stringify({ theme: "light" }));
     });
     await gotoAppShell(page);
+    await selectSidebarProjectGrouping(page);
 
     const row = page.getByTestId(`sidebar-workspace-row-${getServerId()}:${workspace.workspaceId}`);
     await expect(row).toBeVisible({ timeout: 30_000 });
@@ -56,6 +58,7 @@ test("keeps the selected workspace visible in Pure black", async ({ page }, test
       localStorage.setItem("@paseo:app-settings", JSON.stringify({ theme: "pureBlack" }));
     });
     await gotoAppShell(page);
+    await selectSidebarProjectGrouping(page);
 
     const row = page.getByTestId(`sidebar-workspace-row-${getServerId()}:${workspace.workspaceId}`);
     await expect(row).toBeVisible({ timeout: 30_000 });

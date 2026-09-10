@@ -13,10 +13,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import {
-  FlatList as SheetFlatList,
-  ScrollView as SheetScrollView,
-} from "@/components/ui/scroll-view";
+import { BottomSheetFlatList, BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import {
@@ -52,6 +49,9 @@ import {
   type ProviderSelectionModelRow,
   type ProviderSelectorProvider,
 } from "@/provider-selection/provider-selection";
+import { formatShortUsage } from "@/provider-usage/short-usage";
+import type { ProviderUsage } from "@/provider-usage/types";
+import { useModelPickerUsageMap } from "@/provider-usage/use-model-picker-usage-map";
 import { useProviderSettingsStore } from "@/stores/provider-settings-store";
 import { useCurrentOverlayLayer } from "@/lib/overlay-root";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
@@ -157,10 +157,10 @@ interface ModelBrowserInput {
 }
 
 export interface ModelBrowserState {
-  serverId: string | null;
   providers: ProviderSelectorProvider[];
   selectedProvider: string;
   selectedModel: string;
+  serverId: string | null;
   profiles: AgentProfilePicker | null;
   view: ModelBrowserView;
   searchQuery: string;
@@ -196,11 +196,11 @@ interface ModelBrowserProps {
 }
 
 interface ModelBrowserContentProps extends Omit<ModelBrowserProps, "state" | "scrolling"> {
-  serverId: string | null;
   view: ModelBrowserView;
   providers: ProviderSelectorProvider[];
   selectedProvider: string;
   selectedModel: string;
+  serverId: string | null;
   searchQuery: string;
   isSearchFocused: boolean;
   profiles: AgentProfilePicker | null;
@@ -214,16 +214,14 @@ type ProviderGlyphTone = "muted" | "foreground";
 
 export function ModelProviderGlyph({
   provider,
-  serverId,
   size,
   tone = "muted",
 }: {
   provider: string;
-  serverId?: string | null;
   size: number;
   tone?: ProviderGlyphTone;
 }) {
-  const Icon = getProviderIcon(provider, serverId);
+  const Icon = getProviderIcon(provider);
   const color =
     tone === "foreground" ? styles.providerIconForeground.color : styles.providerIconMuted.color;
   return <Icon size={size} color={color} />;
@@ -337,12 +335,7 @@ export function useModelBrowser({
     return {
       title: view.providerLabel,
       leading: (
-        <ModelProviderGlyph
-          provider={view.providerId}
-          serverId={serverId}
-          size={ICON_SIZE.md}
-          tone="foreground"
-        />
+        <ModelProviderGlyph provider={view.providerId} size={ICON_SIZE.md} tone="foreground" />
       ),
       back: singleProviderView ? undefined : { onPress: showAll },
       actions: (
@@ -401,10 +394,10 @@ export function useModelBrowser({
   );
 
   return {
-    serverId,
     providers,
     selectedProvider,
     selectedModel,
+    serverId,
     profiles,
     view,
     searchQuery,
@@ -529,6 +522,7 @@ type ModelBrowserRowTone = "default" | "elevated" | "drillDown";
 
 function ModelBrowserRow({
   label,
+  labelSuffix,
   description,
   leadingSlot,
   trailingSlot,
@@ -541,6 +535,8 @@ function ModelBrowserRow({
   testID,
 }: {
   label: string;
+  /** Muted state that reads as part of the name, such as an account's usage. */
+  labelSuffix?: string;
   description?: string;
   leadingSlot: React.ReactNode;
   trailingSlot?: React.ReactNode;
@@ -586,6 +582,9 @@ function ModelBrowserRow({
             style={labelMuted ? styles.browserRowLabelMuted : styles.browserRowLabel}
           >
             {label}
+            {labelSuffix ? (
+              <Text style={styles.browserRowLabelSuffix}>{` · ${labelSuffix}`}</Text>
+            ) : null}
           </Text>
           {description ? (
             <Text numberOfLines={1} style={styles.browserRowDescription}>
@@ -665,7 +664,6 @@ function ModelRowProfileAction({
 
 function ModelRow({
   row,
-  serverId,
   isSelected,
   showProviderLabel = false,
   onPress,
@@ -675,7 +673,6 @@ function ModelRow({
   onEditProfiles,
 }: {
   row: ProviderSelectionModelRow;
-  serverId: string | null;
   isSelected: boolean;
   showProviderLabel?: boolean;
   onPress: () => void;
@@ -687,8 +684,8 @@ function ModelRow({
   const { t } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
   const leadingSlot = useMemo(
-    () => <ModelProviderGlyph provider={row.provider} serverId={serverId} size={ICON_SIZE.sm} />,
-    [row.provider, serverId],
+    () => <ModelProviderGlyph provider={row.provider} size={ICON_SIZE.sm} />,
+    [row.provider],
   );
 
   const description = showProviderLabel ? buildProviderQualifiedDescription(row) : row.description;
@@ -825,7 +822,6 @@ function ModelRow({
 
 function SelectableModelRow({
   row,
-  serverId,
   isSelected,
   showProviderLabel,
   onSelect,
@@ -835,7 +831,6 @@ function SelectableModelRow({
   onEditProfiles,
 }: {
   row: ProviderSelectionModelRow;
-  serverId: string | null;
   isSelected: boolean;
   showProviderLabel?: boolean;
   onSelect: (provider: string, modelId: string) => void;
@@ -850,7 +845,6 @@ function SelectableModelRow({
   return (
     <ModelRow
       row={row}
-      serverId={serverId}
       isSelected={isSelected}
       showProviderLabel={showProviderLabel}
       onPress={handlePress}
@@ -966,11 +960,11 @@ function AgentProfilesPickerContent({
 
 function GroupProviderButton({
   provider,
-  serverId,
+  usage,
   onDrillDown,
 }: {
   provider: ProviderSelectorProvider;
-  serverId: string | null;
+  usage: ProviderUsage | undefined;
   onDrillDown: (providerId: string, providerLabel: string) => void;
 }) {
   const { t } = useTranslation();
@@ -1008,8 +1002,8 @@ function GroupProviderButton({
     );
   }, [selection, t]);
   const leadingSlot = useMemo(
-    () => <ModelProviderGlyph provider={provider.id} serverId={serverId} size={ICON_SIZE.sm} />,
-    [provider.id, serverId],
+    () => <ModelProviderGlyph provider={provider.id} size={ICON_SIZE.sm} />,
+    [provider.id],
   );
   const trailingSlot = useMemo(
     () => (
@@ -1024,6 +1018,8 @@ function GroupProviderButton({
   return (
     <ModelBrowserRow
       label={provider.label}
+      // Loading and failed lookups say nothing here; the footer card owns that copy.
+      labelSuffix={usage ? formatShortUsage(usage) : undefined}
       leadingSlot={leadingSlot}
       trailingSlot={trailingSlot}
       tone="drillDown"
@@ -1043,12 +1039,20 @@ function GroupedProviderRows({
   serverId: string | null;
   onDrillDown: (providerId: string, providerLabel: string) => void;
 }) {
+  const providerIds = useMemo(() => providers.map((provider) => provider.id), [providers]);
+  // These rows exist only while the picker is open, so mounting them is the signal
+  // to look up usage; nothing fetches for a closed picker.
+  const usage = useModelPickerUsageMap(serverId, providerIds, true);
   return (
     <View>
       {providers.map((provider, index) => (
         <View key={provider.id}>
           {index > 0 ? <View style={styles.separator} /> : null}
-          <GroupProviderButton provider={provider} serverId={serverId} onDrillDown={onDrillDown} />
+          <GroupProviderButton
+            provider={provider}
+            usage={usage.get(provider.id)}
+            onDrillDown={onDrillDown}
+          />
         </View>
       ))}
     </View>
@@ -1133,7 +1137,6 @@ function IndependentProviderList({ children }: { children: React.ReactNode }) {
 
 function ModelRowList({
   rows,
-  serverId,
   selectedProvider,
   selectedModel,
   onSelect,
@@ -1146,7 +1149,6 @@ function ModelRowList({
   onEditProfiles,
 }: {
   rows: ProviderSelectionModelRow[];
-  serverId: string | null;
   selectedProvider: string;
   selectedModel: string;
   onSelect: (provider: string, modelId: string) => void;
@@ -1163,7 +1165,6 @@ function ModelRowList({
     ({ item }: { item: ProviderSelectionModelRow }) => (
       <SelectableModelRow
         row={item}
-        serverId={serverId}
         isSelected={item.provider === selectedProvider && item.modelId === selectedModel}
         showProviderLabel={showProviderLabel}
         onSelect={onSelect}
@@ -1181,7 +1182,6 @@ function ModelRowList({
       profiledLookup,
       selectedModel,
       selectedProvider,
-      serverId,
       showProviderLabel,
     ],
   );
@@ -1193,7 +1193,7 @@ function ModelRowList({
 
   if (isCompact && isNative) {
     return (
-      <SheetFlatList
+      <BottomSheetFlatList
         data={rows}
         renderItem={renderItem}
         ListHeaderComponent={header}
@@ -1255,7 +1255,6 @@ function ModelSearchEmptyState() {
 }
 
 function ProviderModelBrowserContent({
-  serverId,
   view,
   provider,
   profiles,
@@ -1273,7 +1272,6 @@ function ProviderModelBrowserContent({
   isRetryingProvider,
   scrolling,
 }: {
-  serverId: string | null;
   view: Extract<ModelBrowserView, { kind: "provider" }>;
   provider: ProviderSelectorProvider | null;
   profiles: AgentProfilePicker | null;
@@ -1346,7 +1344,6 @@ function ProviderModelBrowserContent({
   }
   return (
     <ModelRowList
-      serverId={serverId}
       rows={visibleRows}
       selectedProvider={selectedProvider}
       selectedModel={selectedModel}
@@ -1362,11 +1359,11 @@ function ProviderModelBrowserContent({
 }
 
 function ModelBrowserContent({
-  serverId,
   view,
   providers,
   selectedProvider,
   selectedModel,
+  serverId,
   searchQuery,
   isSearchFocused,
   profiles,
@@ -1410,7 +1407,6 @@ function ModelBrowserContent({
   if (view.kind === "provider") {
     return (
       <ProviderModelBrowserContent
-        serverId={serverId}
         view={view}
         provider={selectedViewProvider}
         profiles={profiles}
@@ -1445,7 +1441,6 @@ function ModelBrowserContent({
   if (allView.kind === "searchResults") {
     return (
       <ModelRowList
-        serverId={serverId}
         rows={allView.rows}
         selectedProvider={selectedProvider}
         selectedModel={selectedModel}
@@ -1491,7 +1486,7 @@ function ModelBrowserContent({
   return scrolling === "independent" ? (
     <IndependentProviderList>{allProvidersContent}</IndependentProviderList>
   ) : (
-    <SheetScrollView
+    <BottomSheetScrollView
       style={styles.virtualizedModelList}
       contentContainerStyle={[
         styles.virtualizedModelListContent,
@@ -1503,7 +1498,7 @@ function ModelBrowserContent({
       testID="compact-provider-list"
     >
       {allProvidersContent}
-    </SheetScrollView>
+    </BottomSheetScrollView>
   );
 }
 
@@ -1523,11 +1518,11 @@ export function ModelBrowser({
 }: ModelBrowserProps) {
   return (
     <ModelBrowserContent
-      serverId={state.serverId}
       view={state.view}
       providers={state.providers}
       selectedProvider={state.selectedProvider}
       selectedModel={state.selectedModel}
+      serverId={state.serverId}
       searchQuery={state.searchQuery}
       isSearchFocused={state.isSearchFocused}
       profiles={state.profiles}
@@ -1633,6 +1628,9 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.base,
     color: theme.colors.foregroundMuted,
     flexShrink: 0,
+  },
+  browserRowLabelSuffix: {
+    color: theme.colors.foregroundMuted,
   },
   browserRowDescription: {
     fontSize: theme.fontSize.sm,

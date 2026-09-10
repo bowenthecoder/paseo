@@ -2,7 +2,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, type Page } from "@playwright/test";
 import { test } from "../support/fixtures";
-import { openFileExplorer } from "../support/helpers/file-explorer";
+import { expectFileTabOpen, openFileExplorer } from "../support/helpers/file-explorer";
 import { openChangesPanel } from "../support/helpers/workspace-tabs";
 import { gotoWorkspace } from "../support/helpers/launcher";
 import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
@@ -174,6 +174,11 @@ test("creates, renames, copies, and deletes entries through the file explorer", 
   await page.getByText("New file", { exact: true }).click();
   await nameInput.fill("child.txt");
   await nameInput.press("Enter");
+  await expectFileTabOpen(page, "folder/child.txt");
+  await expect
+    .poll(() => readFile(path.join(workspace.repoPath, "folder", "child.txt"), "utf8"))
+    .toBe("");
+  await openFileExplorer(page);
   await expect(entry("child.txt")).toBeVisible();
 
   await entry("folder").click({ button: "right" });
@@ -202,10 +207,14 @@ test("creates, renames, copies, and deletes entries through the file explorer", 
   await page.getByTestId("files-new-file").click();
   await nameInput.fill("created.txt");
   await nameInput.press("Enter");
+  await expectFileTabOpen(page, "created.txt");
+  await openFileExplorer(page);
   await expect(entry("created.txt")).toBeVisible();
   await expect(entry("created.txt")).toHaveCSS("user-select", "none");
   await entry("created.txt").dblclick();
   expect(await page.evaluate(() => window.getSelection()?.toString() ?? "")).toBe("");
+  await expectFileTabOpen(page, "created.txt");
+  await openFileExplorer(page);
 
   const folderRow = entry("folder").locator(
     "xpath=ancestor::*[starts-with(@data-testid, 'file-explorer-row-')][1]",
@@ -300,6 +309,8 @@ test("creates, renames, copies, and deletes entries through the file explorer", 
   await page.getByText("Rename", { exact: true }).click();
   await nameInput.fill("renamed.txt");
   await nameInput.press("Tab");
+  await expectFileTabOpen(page, "renamed.txt");
+  await openFileExplorer(page);
   await expect(entry("renamed.txt")).toBeVisible();
   await expect(entry("created.txt")).toBeHidden();
 

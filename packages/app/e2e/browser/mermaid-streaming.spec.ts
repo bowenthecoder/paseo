@@ -1,8 +1,9 @@
-import { test } from "../support/fixtures";
+import { expect, test } from "../support/fixtures";
 import {
   expectCompletedDiagram,
   expectDiagramRemainsRenderedWhileStreaming,
   expectDiagramWithLabels,
+  expectStoredDiagramSource,
   reloadConversation,
   requestDiagram,
   waitForDiagramTurnToComplete,
@@ -63,6 +64,7 @@ test("keeps a Mermaid diagram rendered while its message streams, completes, and
     });
 
     await test.step("The completed diagram remains rendered after reload", async () => {
+      await expectStoredDiagramSource(agent, STREAMED_MERMAID);
       await reloadConversation(page);
       await expectCompletedDiagram(page, ["Start", "Done", "Release"]);
     });

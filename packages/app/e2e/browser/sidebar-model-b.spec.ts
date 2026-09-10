@@ -1,15 +1,19 @@
 import { test, expect, type Page } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import { gotoWorkspace, clickNewTerminal } from "../support/helpers/launcher";
 import { seedWorkspace, type SeededWorkspace } from "../support/helpers/seed-client";
 import { seedMockAgentWorkspace } from "../support/helpers/mock-agent";
 import { getServerId } from "../support/helpers/server-id";
 import { projectEquivalenceViewKey } from "../support/helpers/project-view-key";
-import { selectSidebarStatusGrouping } from "../support/helpers/sidebar";
+import {
+  closeSidebarDisplayPreferences,
+  selectSidebarStatusGrouping,
+} from "../support/helpers/sidebar";
 import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
-import { getVisibleWorkspaceAgentTabIds } from "../support/helpers/workspace-tabs";
+import { getVisibleWorkspaceAgentPanelIds } from "../support/helpers/workspace-tabs";
 
-// Model B sidebar shape: every project — git or non-git, single- or
+// Optional project-view shape: every project — git or non-git, single- or
 // multi-workspace — renders as the same expandable parent, the deepest sidebar
 // level is the workspace row, and tabs/agents/terminals NEVER appear in the
 // sidebar. These specs prove all three invariants end to end.
@@ -37,7 +41,7 @@ async function seedSecondWorkspace(seeded: SeededWorkspace, title: string): Prom
   return created.workspace.id;
 }
 
-test.describe("Model B sidebar shape", () => {
+test.describe("Project and status sidebar shape", () => {
   test.describe.configure({ timeout: 180_000 });
 
   test("git and non-git projects both render as expandable parents, both show a per-row New workspace icon, and the global button covers both", async ({
@@ -51,6 +55,7 @@ test.describe("Model B sidebar shape", () => {
       const nonGitSecondId = await seedSecondWorkspace(nonGitProject, "Non-git second");
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
 
       // Both projects are expandable parents — the non-git one is NOT flattened
@@ -87,7 +92,7 @@ test.describe("Model B sidebar shape", () => {
     }
   });
 
-  test("no tab, agent, or terminal ever renders as a sidebar row", async ({ page }) => {
+  test("no tab, agent, or terminal renders as a project-view sidebar row", async ({ page }) => {
     const mock = await seedMockAgentWorkspace({
       repoPrefix: "model-b-leaf-",
       title: "Leaf workspace",
@@ -96,17 +101,21 @@ test.describe("Model B sidebar shape", () => {
     try {
       // Open the workspace and materialize both an agent tab and a terminal tab.
       await gotoWorkspace(page, mock.workspaceId);
-      const agentTabs = await getVisibleWorkspaceAgentTabIds(page);
-      expect(agentTabs).toContain(`workspace-tab-agent_${mock.agentId}`);
+      await selectSidebarProjectGrouping(page);
+      const agentTabs = await getVisibleWorkspaceAgentPanelIds(page);
+      expect(agentTabs).toContain(`workspace-panel-agent_${mock.agentId}`);
 
       await clickNewTerminal(page);
       await expect(
-        page.locator('[data-testid^="workspace-tab-terminal_"]').filter({ visible: true }).first(),
+        page
+          .locator('[data-testid^="workspace-panel-terminal_"]')
+          .filter({ visible: true })
+          .first(),
       ).toBeVisible({ timeout: 30_000 });
 
       // The deepest level inside the sidebar is the workspace row: no tab,
       // agent, or terminal element appears as a sidebar descendant.
-      const sidebar = page.getByTestId("sidebar-sessions").filter({ visible: true }).first();
+      const sidebar = page.getByTestId("sidebar-project-workspace-list-scroll");
       await expect(workspaceRow(page, mock.workspaceId).first()).toBeVisible({ timeout: 30_000 });
       await expect(sidebar.locator('[data-testid^="workspace-tab-"]')).toHaveCount(0);
       await expect(sidebar.locator('[data-testid^="sidebar-agent-row-"]')).toHaveCount(0);
@@ -129,13 +138,15 @@ test.describe("Model B sidebar shape", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await expect(workspaceRow(page, idleProject.workspaceId)).toBeVisible({ timeout: 30_000 });
 
       // Switch to status grouping.
       await selectSidebarStatusGrouping(page);
+      await closeSidebarDisplayPreferences(page);
 
-      const sidebar = page.getByTestId("sidebar-sessions").filter({ visible: true }).first();
+      const sidebar = page.getByTestId("sidebar-status-list-scroll");
 
       // The idle workspace lands in the Done bucket; the busy mock-agent workspace
       // lands in the Working bucket. Each workspace is bucketed independently.

@@ -12,6 +12,8 @@ import {
   type DraftRecord,
   type DraftStoreState,
   type PersistedDraftImage,
+  type QueuedDraftMessage,
+  type QueuedDraftMessagesByServer,
 } from "./state";
 
 const LegacyPullRequestItemSchema = z.strictObject({
@@ -98,9 +100,20 @@ const FlatDraftRecordSchema = RawDraftInputSchema.extend({
   version: z.number().int().positive().optional(),
 });
 const PersistedDraftRecordSchema = z.union([NestedDraftRecordSchema, FlatDraftRecordSchema]);
+const PersistedQueuedMessageSchema = z.strictObject({
+  id: z.string(),
+  text: z.string().optional(),
+  attachments: z.array(PersistedComposerAttachmentSchema).optional(),
+  hold: z.boolean().optional(),
+});
+const PersistedQueuesSchema = z.record(
+  z.string(),
+  z.record(z.string(), z.array(PersistedQueuedMessageSchema)),
+);
 export const PersistedDraftStoreSchema = z.strictObject({
   drafts: z.record(z.string(), PersistedDraftRecordSchema).optional(),
   createModalDraft: PersistedDraftRecordSchema.nullable().optional(),
+  queues: PersistedQueuesSchema.optional(),
 });
 type PersistedDraftRecord = z.infer<typeof PersistedDraftRecordSchema>;
 
@@ -163,6 +176,39 @@ export async function migrateDraftInput(
     text: typeof rawInput.text === "string" ? rawInput.text : "",
     attachments: [...attachments, ...legacyImagesToAttachments(migratedImages)],
   };
+}
+
+function migrateQueuedMessage(
+  parsed: z.infer<typeof PersistedQueuedMessageSchema>,
+): QueuedDraftMessage {
+  return {
+    id: parsed.id,
+    text: parsed.text ?? "",
+    attachments: (parsed.attachments ?? [])
+      .map(normalizePersistedComposerAttachment)
+      .filter((attachment): attachment is UserComposerAttachment => attachment !== null),
+    ...(parsed.hold ? { hold: true } : {}),
+  };
+}
+
+/** v6 introduced the queue; anything older simply has none. */
+function migrateQueues(
+  parsed: z.infer<typeof PersistedQueuesSchema> | undefined,
+): QueuedDraftMessagesByServer {
+  const queues: QueuedDraftMessagesByServer = {};
+  for (const [serverId, agentQueues] of Object.entries(parsed ?? {})) {
+    const migratedAgents: Record<string, QueuedDraftMessage[]> = {};
+    for (const [agentId, queue] of Object.entries(agentQueues)) {
+      const migrated = queue.map(migrateQueuedMessage);
+      if (migrated.length > 0) {
+        migratedAgents[agentId] = migrated;
+      }
+    }
+    if (Object.keys(migratedAgents).length > 0) {
+      queues[serverId] = migratedAgents;
+    }
+  }
+  return queues;
 }
 
 function resolvePersistedLifecycle(
@@ -252,5 +298,6 @@ export async function migratePersistedState(
     // COMPAT(newWorkspaceDraftSingleton): migrated in v0.1.108; remove after 2027-01-13.
     drafts: migrateNewWorkspaceDraftKeys(nextDrafts),
     createModalDraft,
+    queues: migrateQueues(input.queues),
   };
 }

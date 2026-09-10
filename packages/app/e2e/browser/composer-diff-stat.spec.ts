@@ -4,10 +4,8 @@ import { expect, test, type Page } from "../support/fixtures";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
 import { ensureExplorerSidebar, openFilesPanel } from "../support/helpers/workspace-tabs";
 
-const APP_SETTINGS_KEY = "@paseo:app-settings";
-
-function visibleMainPane(page: Page) {
-  return page.getByTestId("workspace-pane-main").filter({ visible: true });
+function visibleChatPane(page: Page) {
+  return page.getByTestId("workspace-chat-pane").filter({ visible: true });
 }
 
 function composerChangesPill(page: Page) {
@@ -19,7 +17,7 @@ async function revealComposerChangesInExplorer(page: Page) {
 
   const explorer = await ensureExplorerSidebar(page);
   await expect(explorer.getByTestId("changes-tree-panel")).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId("workspace-tab-working_diff")).toHaveCount(0);
+  await expect(page.getByTestId("workspace-panel-working_diff")).toHaveCount(0);
 }
 
 async function openComposerDiff(page: Page) {
@@ -54,12 +52,9 @@ async function seedChangedAgent(repoPrefix: string) {
   }
 }
 
-test("composer diff stat reveals Changes, then opens the diff in the configured side pane", async ({
+test("composer diff stat reveals Changes, then opens the diff in the side panel", async ({
   page,
 }) => {
-  await page.addInitScript((settingsKey) => {
-    localStorage.setItem(settingsKey, JSON.stringify({ openInSidePane: { diffs: true } }));
-  }, APP_SETTINGS_KEY);
   const workspace = await seedChangedAgent("composer-diff-stat-side-");
 
   try {
@@ -76,23 +71,20 @@ test("composer diff stat reveals Changes, then opens the diff in the configured 
     await revealComposerChangesInExplorer(page);
     await openComposerDiff(page);
 
-    const sidePane = page
-      .locator('[data-testid^="workspace-pane-"]')
-      .filter({ visible: true })
-      .filter({ has: page.getByTestId("working-diff-panel") });
-    await expect(sidePane.getByTestId("workspace-tab-working_diff")).toBeVisible({
+    const sidePane = page.getByTestId("workspace-side-panel").filter({ visible: true });
+    await expect(sidePane.getByTestId("workspace-panel-working_diff")).toBeVisible({
       timeout: 30_000,
     });
     await expect(sidePane.getByTestId("working-diff-panel")).toBeVisible({ timeout: 30_000 });
-    await expect(visibleMainPane(page).getByTestId("working-diff-panel")).toHaveCount(0);
+    await expect(visibleChatPane(page).getByTestId("working-diff-panel")).toHaveCount(0);
 
     await test.step("Explorer navigation does not replace the side pane", async () => {
       await openFilesPanel(page);
-      await expect(page.getByTestId("workspace-explorer-sidebar")).toContainText("Files");
+      await expect(page.getByTestId("workspace-side-panel")).toContainText("Files");
 
       await pill.click();
       await expect(sidePane.getByTestId("working-diff-panel")).toBeVisible();
-      await expect(page.getByTestId("workspace-tab-working_diff")).toHaveCount(1);
+      await expect(page.getByTestId("workspace-panel-working_diff")).toHaveCount(1);
     });
   } finally {
     await workspace.cleanup();
@@ -120,35 +112,7 @@ test("composer diff stat opens the compact explorer instead of a Changes tab", a
     await expect(page.getByTestId("changes-header").filter({ visible: true }).first()).toBeVisible({
       timeout: 30_000,
     });
-    await expect(page.getByTestId("workspace-tab-working_diff")).toHaveCount(0);
-  } finally {
-    await workspace.cleanup();
-  }
-});
-
-test("composer diff stat reveals Changes, then opens the diff in the focused pane by default", async ({
-  page,
-}) => {
-  const workspace = await seedChangedAgent("composer-diff-stat-tab-");
-
-  try {
-    await page.setViewportSize({ width: 1400, height: 900 });
-    await openAgentRoute(page, {
-      workspaceId: workspace.workspaceId,
-      agentId: workspace.agentId,
-    });
-
-    await revealComposerChangesInExplorer(page);
-    await openComposerDiff(page);
-
-    const mainPane = visibleMainPane(page);
-    await expect(mainPane.getByTestId("workspace-tab-working_diff")).toBeVisible({
-      timeout: 30_000,
-    });
-    await expect(mainPane.getByTestId("working-diff-panel")).toBeVisible({ timeout: 30_000 });
-    await expect(
-      page.locator('[data-testid^="workspace-pane-"]').filter({ visible: true }),
-    ).toHaveCount(1);
+    await expect(page.getByTestId("workspace-panel-working_diff")).toHaveCount(0);
   } finally {
     await workspace.cleanup();
   }

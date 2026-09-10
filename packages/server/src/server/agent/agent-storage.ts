@@ -52,6 +52,8 @@ const STORED_AGENT_SCHEMA = z.object({
   lastActivityAt: z.string().optional(),
   lastUserMessageAt: z.string().nullable().optional(),
   title: z.string().nullable().optional(),
+  titleSource: z.enum(["manual", "native", "generated", "provisional"]).optional(),
+  titleGenerationAttempted: z.boolean().optional(),
   labels: z.record(z.string(), z.string()).default({}),
   lastStatus: AgentStatusSchema.default("closed"),
   lastModeId: z.string().nullable().optional(),
@@ -239,7 +241,12 @@ export class AgentStorage {
 
   async applySnapshot(
     agent: ManagedAgent,
-    options?: { title?: string | null; internal?: boolean },
+    options?: {
+      title?: string | null;
+      titleSource?: StoredAgentRecord["titleSource"];
+      titleGenerationAttempted?: boolean;
+      internal?: boolean;
+    },
   ): Promise<void> {
     await this.load();
     const hasTitleOverride =
@@ -252,6 +259,10 @@ export class AgentStorage {
         createdAt: existing?.createdAt,
         internal: hasInternalOverride ? options?.internal : (agent.internal ?? existing?.internal),
       });
+
+      record.titleSource = options?.titleSource ?? existing?.titleSource;
+      record.titleGenerationAttempted =
+        options?.titleGenerationAttempted ?? existing?.titleGenerationAttempted;
 
       // Preserve soft-delete/archive status across snapshot flushes. The
       // projection runs inside the per-agent write queue so it cannot commit a

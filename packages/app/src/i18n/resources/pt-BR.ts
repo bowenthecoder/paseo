@@ -68,8 +68,6 @@ export const ptBR: TranslationResources = {
       agents: "Agentes",
       newAgent: "Novo agente",
       open: "Abrir {{name}}",
-      openInSidePane: "Abrir {{name}} no painel lateral",
-      openInFocusedPane: "Abrir {{name}} no painel em foco",
       addProject: "Adicionar projeto",
       home: "Início",
       groupByProject: "Agrupar por projeto",
@@ -107,6 +105,8 @@ export const ptBR: TranslationResources = {
       sendMessage: "Enviar mensagem",
       queue: "Fila",
       send: "Enviar",
+      holdQueue: "Fila",
+      holdQueueMessage: "Enfileirar mensagem sem enviar",
     },
     cancel: {
       cancelingAgent: "Cancelando agente",
@@ -135,6 +135,9 @@ export const ptBR: TranslationResources = {
       dropFilesHere: "Solte arquivos aqui",
       editQueuedMessage: "Editar mensagem na fila",
       sendQueuedMessageNow: "Enviar mensagem da fila agora",
+      removeQueuedMessage: "Remover mensagem da fila",
+      heldQueuedMessage: "Retida",
+      sendAllHeldMessages: "Enviar tudo",
       openImage: "Abrir anexo de imagem",
       removeImage: "Remover anexo de imagem",
       removeFile: "Remover anexo de arquivo",
@@ -160,6 +163,7 @@ export const ptBR: TranslationResources = {
     clientCommands: {
       archiveAgent: "Arquivar o agente atual",
       freshDraft: "Arquivar este agente e iniciar um novo rascunho",
+      planMode: "Ativar ou desativar o modo de plano deste agente",
     },
     github: {
       searching: "Buscando...",
@@ -433,7 +437,6 @@ export const ptBR: TranslationResources = {
     fileActions: {
       openFile: "Abrir arquivo",
       openIn: "Abrir no {{target}}",
-      openToSide: "Abrir ao lado",
       copyPath: "Copiar caminho",
       copyRelativePath: "Copiar caminho relativo",
       revealIn: "Mostrar no {{target}}",
@@ -479,6 +482,10 @@ export const ptBR: TranslationResources = {
         refreshing: "Atualizando arquivos",
         hideHiddenFiles: "Ocultar arquivos ocultos",
         showHiddenFiles: "Mostrar arquivos ocultos",
+        parentFolder: "Pasta superior",
+        homeFolder: "Pasta pessoal",
+        deviceRoot: "Raiz do dispositivo",
+        workingFolder: "Pasta de trabalho",
       },
       empty: {
         noFiles: "Nenhum arquivo",
@@ -604,12 +611,6 @@ export const ptBR: TranslationResources = {
         copyTerminalId: "Copiar ID do terminal",
         copyFilePath: "Copiar caminho do arquivo",
         rename: "Renomear",
-        closeAbove: "Fechar abas acima",
-        closeBelow: "Fechar abas abaixo",
-        closeLeft: "Fechar à esquerda",
-        closeRight: "Fechar à direita",
-        closeOthers: "Fechar outras abas",
-        moveToMain: "Mover para o painel principal",
         reloadAgent: "Recarregar agente",
         reloadAgentTooltip: "Recarregue o agente para atualizar skills, MCPs ou status de login.",
         close: "Fechar",
@@ -617,18 +618,12 @@ export const ptBR: TranslationResources = {
         renameAgent: "Renomear agente",
       },
       actions: {
-        newTab: "Nova aba",
         newAgent: "Novo agente",
         newTerminal: "Novo terminal",
         preparingTerminal: "Preparando aba de terminal",
         preparingTerminalTooltip: "Preparando terminal...",
         newBrowser: "Novo navegador",
-        maximizePane: "Maximizar painel",
-        restorePane: "Restaurar painel",
-        closePane: "Fechar painel",
         exitFocusMode: "Sair do modo de foco",
-        splitRight: "Dividir painel à direita",
-        splitDown: "Dividir painel abaixo",
         changes: "Alterações",
         files: "Arquivos",
         pullRequest: "Pull request",
@@ -659,9 +654,6 @@ export const ptBR: TranslationResources = {
         unsavedTitle: "Alterações não salvas",
         unsavedMessage: "Esta aba tem alterações não salvas. Fechá-la descartará o rascunho.",
         closeWithoutSaving: "Fechar sem salvar",
-        closePaneTitle: "Fechar painel?",
-        bulkUnsaved:
-          "{{count}} aba(s) têm alterações não salvas. Fechar descartará esses rascunhos.",
         close: "Fechar",
         cancel: "Cancelar",
         archive: "Arquivar",
@@ -671,22 +663,16 @@ export const ptBR: TranslationResources = {
         archiveRunningAgentTitle: "Arquivar agente em execução?",
         archiveRunningAgentMessage:
           "Este agente ainda está em execução. Arquivá-lo interromperá o agente e fechará a aba.",
-        closeTabsLeftTitle: "Fechar abas à esquerda?",
-        closeTabsRightTitle: "Fechar abas à direita?",
-        closeOtherTabsTitle: "Fechar outras abas?",
-        bulk: {
-          all: "Isso vai arquivar {{agents}} agente(s), fechar {{terminals}} terminal(ais) e fechar {{tabs}} aba(s). Qualquer processo em execução em um terminal fechado será interrompido imediatamente.",
-          agentsAndTerminals:
-            "Isso vai arquivar {{agents}} agente(s) e fechar {{terminals}} terminal(ais). Qualquer processo em execução em um terminal fechado será interrompido imediatamente.",
-          terminalsAndTabs:
-            "Isso vai fechar {{terminals}} terminal(ais) e fechar {{tabs}} aba(s). Qualquer processo em execução em um terminal fechado será interrompido imediatamente.",
-          agentsAndTabs: "Isso vai arquivar {{agents}} agente(s) e fechar {{tabs}} aba(s).",
-          terminals:
-            "Isso vai fechar {{terminals}} terminal(ais). Qualquer processo em execução em um terminal fechado será interrompido imediatamente.",
-          tabs: "Isso vai fechar {{tabs}} aba(s).",
-          agents: "Isso vai arquivar {{agents}} agente(s).",
-        },
       },
+    },
+    chat: {
+      empty: {
+        title: "Nenhum chat aberto",
+        action: "Novo chat",
+      },
+    },
+    sidePanel: {
+      close: "Fechar painel lateral",
     },
     header: {
       actions: {
@@ -698,6 +684,8 @@ export const ptBR: TranslationResources = {
         copyPath: "Copiar caminho do workspace",
         copyBranchName: "Copiar nome da branch",
         showSetup: "Mostrar configuração",
+        toggleTerminal: "Terminal",
+        toggleBrowser: "Navegador",
       },
       toasts: {
         workspacePathUnavailable: "O caminho do workspace ainda não está disponível",
@@ -1780,10 +1768,17 @@ export const ptBR: TranslationResources = {
     backdrop: "Fundo do menu",
   },
   subagents: {
+    viewChild: "Ver",
+    loadFailed: "Não foi possível carregar esta tarefa.",
+    connectToLoad: "Conecte-se a este host para carregar a tarefa.",
+    tasksTitle: "Tarefas",
+    empty: "Nenhum subagente para mostrar.",
+    pillLabelWorkingOne: "1 tarefa em execução",
+    contextTokens: "{{tokens}} tokens · contexto",
     title: "Subagentes",
     pillLabelOne: "1 subagente",
     pillLabelMany: "{{count}} subagentes",
-    pillLabelWorking: "{{count}} em execução",
+    pillLabelWorking: "{{count}} tarefas em execução",
     pillLabelFailed: "{{count}} com falha",
     pillLabelNeedsInputOne: "1 precisa de resposta",
     pillLabelNeedsInputMany: "{{count}} precisam de resposta",
@@ -1863,6 +1858,18 @@ export const ptBR: TranslationResources = {
     output: "Saída",
   },
   toolCallGroup: {
+    runningTools: {
+      one: "{{count}} ferramenta em execução",
+      other: "{{count}} ferramentas em execução",
+    },
+    failedTools: {
+      one: "{{count}} ferramenta falhou",
+      other: "{{count}} ferramentas falharam",
+    },
+    canceledTools: {
+      one: "{{count}} ferramenta cancelada",
+      other: "{{count}} ferramentas canceladas",
+    },
     editedFiles: {
       one: "editou {{count}} arquivo",
       other: "editou {{count}} arquivos",
@@ -1871,6 +1878,11 @@ export const ptBR: TranslationResources = {
       one: "executou {{count}} comando",
       other: "executou {{count}} comandos",
     },
+    createdFiles: {
+      one: "criou um arquivo",
+      other: "criou {{count}} arquivos",
+    },
+    readFile: "leu {{name}}",
     readFiles: {
       one: "leu {{count}} arquivo",
       other: "leu {{count}} arquivos",
@@ -1878,6 +1890,10 @@ export const ptBR: TranslationResources = {
     searches: {
       one: "pesquisou {{count}} vez",
       other: "pesquisou {{count}} vezes",
+    },
+    subagents: {
+      one: "iniciou um subagente",
+      other: "iniciou {{count}} subagentes",
     },
     otherTools: {
       one: "usou {{count}} outra ferramenta",
@@ -1887,6 +1903,8 @@ export const ptBR: TranslationResources = {
       one: "chamou o Paseo {{count}} vez",
       other: "chamou o Paseo {{count}} vezes",
     },
+    failedSuffix: "({{count}} com falha)",
+    separator: ", ",
     and: "e",
   },
   renameModal: {
@@ -1939,7 +1957,6 @@ export const ptBR: TranslationResources = {
     sections: {
       general: "Geral",
       appearance: "Aparência",
-      layout: en.settings.sections.layout,
       editor: "Editor",
       shortcuts: "Atalhos",
       integrations: "Integrações",
@@ -1948,7 +1965,6 @@ export const ptBR: TranslationResources = {
       diagnostics: "Diagnósticos",
       about: "Sobre",
     },
-    layout: en.settings.layout,
     editor: {
       title: "Editor",
       vimKeybindings: "Atalhos do Vim",
@@ -2203,7 +2219,7 @@ export const ptBR: TranslationResources = {
       sections: {
         general: "Geral",
         workspaces: "Projetos e workspaces",
-        tabsPanes: "Abas e painéis",
+        chat: "Chat",
         layout: "Layout",
         agentInput: "Entrada do agente",
       },
@@ -2212,26 +2228,12 @@ export const ptBR: TranslationResources = {
         newWorkspace: "Novo workspace",
         newWorktree: "Novo worktree",
         archiveWorkspace: "Arquivar workspace",
-        newTab: "Nova aba",
         closeCurrentTab: "Fechar aba atual",
         jumpToWorkspace: "Ir para workspace",
-        jumpToTab: "Ir para aba",
         previousWorkspace: "Workspace anterior",
         nextWorkspace: "Próximo workspace",
-        previousTab: "Aba anterior",
-        nextTab: "Próxima aba",
-        splitPaneRight: "Dividir painel à direita",
-        splitPaneDown: "Dividir painel abaixo",
-        focusPaneLeft: "Focar painel à esquerda",
-        focusPaneRight: "Focar painel à direita",
-        focusPaneUp: "Focar painel acima",
-        focusPaneDown: "Focar painel abaixo",
-        moveTabLeft: "Mover aba para a esquerda",
-        moveTabRight: "Mover aba para a direita",
-        moveTabUp: "Mover aba para cima",
-        moveTabDown: "Mover aba para baixo",
-        closePane: "Fechar painel",
         newTerminal: "Novo terminal",
+        closeSidePanel: "Fechar painel lateral",
         searchFiles: "Pesquisar arquivos",
         toggleCommandCenter: "Alternar central de comandos",
         showKeyboardShortcuts: "Mostrar atalhos de teclado",

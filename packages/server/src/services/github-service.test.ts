@@ -4027,6 +4027,124 @@ describe("ForgeService", () => {
     });
   });
 
+  it.each([
+    { kinds: undefined },
+    { kinds: ["issue"] as const },
+    { kinds: ["change_request"] as const },
+  ])(
+    "reports an error when all requested GitHub searches fail (kinds: $kinds)",
+    async ({ kinds }) => {
+      const service = createGitHubService({
+        runner: async (args, options) => {
+          throw new GitHubCommandError({
+            args,
+            cwd: options.cwd,
+            exitCode: 1,
+            stderr: "GraphQL: API rate limit exceeded",
+          });
+        },
+        resolveGhPath: async () => "/usr/bin/gh",
+        resolveRepoHost: async () => null,
+      });
+
+      await expect(
+        service.searchIssuesAndPrs({ cwd: "/repo", query: "attach", kinds: kinds && [...kinds] }),
+      ).rejects.toMatchObject({
+        kind: "command-error",
+        stderr: "GraphQL: API rate limit exceeded",
+      });
+    },
+  );
+
+  it.each(["issue", "pr"])(
+    "preserves the successful search when the %s search fails",
+    async (failedKind) => {
+      const service = createGitHubService({
+        runner: async (args, options) => {
+          if (args[0] === failedKind) {
+            throw new GitHubCommandError({
+              args,
+              cwd: options.cwd,
+              exitCode: 1,
+              stderr: "GraphQL: unavailable",
+            });
+          }
+          return {
+            stdout:
+              args[0] === "issue"
+                ? issueJson("Matching issue")
+                : searchPullRequestJson("Matching PR"),
+            stderr: "",
+          };
+        },
+        resolveGhPath: async () => "/usr/bin/gh",
+        resolveRepoHost: async () => null,
+      });
+
+      const result = await service.searchIssuesAndPrs({ cwd: "/repo", query: "attach" });
+
+      expect(result.authState).toBe("authenticated");
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]?.kind).toBe(failedKind === "issue" ? "change_request" : "issue");
+    },
+  );
+
+  it("preserves unavailable search states when both requests fail authentication", async () => {
+    const service = createGitHubService({
+      runner: async () => {
+        throw new GitHubAuthenticationError({ stderr: "To authenticate, run: gh auth login" });
+      },
+      resolveGhPath: async () => "/usr/bin/gh",
+      resolveRepoHost: async () => null,
+    });
+
+    await expect(
+      service.searchIssuesAndPrs({ cwd: "/repo", query: "attach" }),
+    ).resolves.toMatchObject({
+      authState: "unauthenticated",
+      items: [],
+    });
+  });
+
+  it("preserves the unavailable search state when gh is missing", async () => {
+    const service = createGitHubService({
+      resolveGhPath: async () => null,
+      resolveRepoHost: async () => null,
+    });
+
+    await expect(
+      service.searchIssuesAndPrs({ cwd: "/repo", query: "attach" }),
+    ).resolves.toMatchObject({
+      authState: "cli_missing",
+      items: [],
+    });
+  });
+
+  it("reports the non-authentication failure when neither GitHub search succeeds", async () => {
+    const service = createGitHubService({
+      runner: async (args, options) => {
+        if (args[0] === "issue") {
+          throw new GitHubAuthenticationError({ stderr: "To authenticate, run: gh auth login" });
+        }
+        throw new GitHubCommandError({
+          args,
+          cwd: options.cwd,
+          exitCode: 1,
+          stderr: "GraphQL: unavailable",
+        });
+      },
+      resolveGhPath: async () => "/usr/bin/gh",
+      resolveRepoHost: async () => null,
+    });
+
+    await expect(
+      service.searchIssuesAndPrs({ cwd: "/repo", query: "attach" }),
+    ).rejects.toMatchObject({
+      kind: "command-error",
+      stderr: "GraphQL: unavailable",
+    });
+  });
+
   it("searches GitHub issues and PRs", async () => {
     const runner = createRunner([issueJson("Issue title"), searchPullRequestJson("PR title")]);
     const service = createGitHubService({

@@ -2,75 +2,66 @@ import { expect, type Page } from "@playwright/test";
 import { buildHostWorkspaceRoute } from "../../../src/utils/host-routes";
 import { createTempGitRepo } from "./workspace";
 import { getServerId } from "./server-id";
-import { createAgentTabFromMenu } from "./workspace-tabs";
+import {
+  agentPanel,
+  createAgentTabFromMenu,
+  expectTerminalTabOpen,
+  getVisibleWorkspacePanelTestIds,
+  workspacePanelTestId,
+} from "./workspace-tabs";
 
 // ─── Navigation ────────────────────────────────────────────────────────────
 
-/** Navigate to a workspace and wait for the tab bar to appear. */
+/** Navigate to a workspace and wait for its chat surface. */
 export async function gotoWorkspace(page: Page, workspaceId: string): Promise<void> {
   const route = buildHostWorkspaceRoute(getServerId(), workspaceId);
   await page.goto(route);
-  await waitForTabBar(page);
+  await waitForChatSurface(page);
 }
 
-// ─── Tab bar queries ───────────────────────────────────────────────────────
-
-/** Wait for the workspace tab bar to be visible. */
-export async function waitForTabBar(page: Page): Promise<void> {
+/** Wait for the workspace chat surface to be on screen. */
+export async function waitForChatSurface(page: Page): Promise<void> {
   await expect(
-    page.getByTestId("workspace-tabs-row").filter({ visible: true }).first(),
-  ).toBeVisible({
-    timeout: 30_000,
-  });
+    page.getByTestId("workspace-chat-pane").filter({ visible: true }).first(),
+  ).toBeVisible({ timeout: 30_000 });
 }
 
-/** Return all tab test IDs currently in the tab bar. */
+// ─── Open surface queries ──────────────────────────────────────────────────
+
+/** Return the test IDs of every surface currently on screen. */
 export async function getTabTestIds(page: Page): Promise<string[]> {
-  const tabs = page
-    .locator('[data-testid^="workspace-tab-"]:not([data-testid^="workspace-tab-context-"])')
-    .filter({ visible: true });
-  const count = await tabs.count();
-  const ids: string[] = [];
-  for (let i = 0; i < count; i++) {
-    const testId = await tabs.nth(i).getAttribute("data-testid");
-    if (testId) ids.push(testId);
-  }
-  return ids;
+  return getVisibleWorkspacePanelTestIds(page);
 }
 
-/** Return the number of tabs matching a kind prefix (e.g. "launcher", "draft", "terminal", "agent"). */
+/** Count the visible surfaces whose test ID mentions a kind ("agent", "terminal", …). */
 export async function countTabsOfKind(page: Page, kind: string): Promise<number> {
   const ids = await getTabTestIds(page);
   return ids.filter((id) => id.includes(kind)).length;
 }
 
-/** Return the currently active tab's test ID (the one with aria-selected or focus styling). */
-export async function getActiveTabTestId(page: Page): Promise<string | null> {
-  // Active tab has the focused highlight — check for the aria-selected or data-active attribute
-  const activeTab = page
-    .locator(
-      '[data-testid^="workspace-tab-"]:not([data-testid^="workspace-tab-context-"])[aria-selected="true"]',
-    )
+// ─── Actions ───────────────────────────────────────────────────────────────
+
+/** Start another chat in this workspace from the workspace menu. */
+export async function clickNewChat(page: Page): Promise<void> {
+  await createAgentTabFromMenu(page);
+}
+
+/** Toggle the terminal in the side panel from the header. */
+export async function clickNewTerminal(page: Page): Promise<void> {
+  const toggle = page
+    .getByTestId("workspace-header-terminal-toggle")
     .filter({ visible: true })
     .first();
-  if (await activeTab.isVisible().catch(() => false)) {
-    return activeTab.getAttribute("data-testid");
-  }
-  // Fallback: the tab with focused styling
-  return null;
-}
-
-// ─── Tab actions ───────────────────────────────────────────────────────────
-
-/** Press Cmd+T (macOS) or Ctrl+T (Linux/Windows) to create a New tab in the focused pane. */
-export async function pressNewTabShortcut(page: Page): Promise<void> {
-  const modifier = process.platform === "darwin" ? "Meta" : "Control";
-  await page.keyboard.press(`${modifier}+t`);
-}
-
-export async function openNewTabMenuWithShortcut(page: Page): Promise<void> {
-  await pressNewTabShortcut(page);
-  await expect(page.getByTestId("workspace-new-tab-panel").filter({ visible: true })).toBeVisible();
+  await expect(toggle).toBeVisible({ timeout: 10_000 });
+  await expect(toggle).toBeEnabled();
+  const wasExpanded = (await toggle.getAttribute("aria-expanded")) === "true";
+  await toggle.click();
+  // Terminal creation is asynchronous. A following "ensure sidebar" action must
+  // not click its toggle while this open is pending and close the completed view.
+  await expect(toggle).toHaveAttribute("aria-expanded", String(!wasExpanded), {
+    timeout: 30_000,
+  });
+  if (!wasExpanded) await expectTerminalTabOpen(page);
 }
 
 export async function pressDirectNewTabShortcut(page: Page, key: string): Promise<void> {
@@ -78,162 +69,19 @@ export async function pressDirectNewTabShortcut(page: Page, key: string): Promis
   await page.keyboard.press(`${modifier}+Shift+${key}`);
 }
 
-// ─── Tab bar assertions ───────────────────────────────────────────────────
+// ─── Assertions ────────────────────────────────────────────────────────────
 
-/** Assert the inline plus button is visible in the tab bar. */
-export async function assertNewChatTileVisible(page: Page): Promise<void> {
-  await expect(
-    page.getByTestId("workspace-new-tab-button").filter({ visible: true }).first(),
-  ).toBeVisible();
-}
-
-/** Assert the New tab button is visible in the tab bar. */
-export async function assertNewTabMenuTriggerVisible(page: Page): Promise<void> {
-  await expect(
-    page.getByTestId("workspace-new-tab-button").filter({ visible: true }).first(),
-  ).toBeVisible();
-}
-
-// ─── Tab creation actions ─────────────────────────────────────────────────
-
-/** Choose Agent from the pane-local `+` menu. */
-export async function clickNewChat(page: Page): Promise<void> {
-  await createAgentTabFromMenu(page);
-}
-
-/** Choose Terminal from the pane-local `+` menu. */
-export async function clickNewTerminal(page: Page): Promise<void> {
-  const trigger = page.getByTestId("workspace-new-tab-button").filter({ visible: true }).first();
-  await expect(trigger).toBeVisible({ timeout: 10_000 });
-  await trigger.click();
-  const item = page
-    .getByTestId("workspace-new-tab-menu-terminal")
-    .filter({ visible: true })
-    .first();
-  await expect(item).toBeVisible({ timeout: 10_000 });
-  await item.click();
-}
-
-// ─── Tab title assertions ──────────────────────────────────────────────────
-
-/** Wait for any tab in the bar to display the given title text. */
-export async function waitForTabWithTitle(
-  page: Page,
-  title: string | RegExp,
-  timeout = 30_000,
-): Promise<void> {
-  const matcher = typeof title === "string" ? new RegExp(title, "i") : title;
-  await expect(
-    page
-      .locator('[data-testid^="workspace-tab-"]:not([data-testid^="workspace-tab-context-"])')
-      .filter({ hasText: matcher })
-      .filter({ visible: true })
-      .first(),
-  ).toBeVisible({ timeout });
-}
-
-/** Assert the inline plus button is visible in the tab bar. */
-export async function assertSingleNewTabButton(page: Page): Promise<void> {
-  const buttons = page.getByTestId("workspace-new-tab-button").filter({ visible: true });
-  const count = await buttons.count();
-  expect(count).toBeGreaterThanOrEqual(1);
-}
-
-// ─── No-flash measurement ──────────────────────────────────────────────────
-
-/**
- * Measure the time between clicking a launcher tile and the replacement panel becoming visible.
- * Returns elapsed milliseconds.
- */
-export async function measureTileTransition(
-  page: Page,
-  clickAction: () => Promise<void>,
-  successLocator: ReturnType<Page["locator"]>,
-  timeout = 5_000,
-): Promise<number> {
-  const start = Date.now();
-  await clickAction();
-  await expect(successLocator).toBeVisible({ timeout });
-  return Date.now() - start;
-}
-
-/**
- * Sample tab IDs at high frequency across a transition to detect blank/intermediate states.
- * Returns all unique snapshots observed.
- */
-export async function sampleTabsDuringTransition(
-  page: Page,
-  action: () => Promise<void>,
-  durationMs = 2_000,
-): Promise<Array<Array<{ id: string; width: number }>>> {
-  await page.evaluate((duration) => {
-    const scope = globalThis as typeof globalThis & {
-      __paseoTabTrackFrames?: Array<Array<{ id: string; width: number }>>;
-    };
-    scope.__paseoTabTrackFrames = [];
-    const startedAt = performance.now();
-    function sample() {
-      const tabs = Array.from(
-        document.querySelectorAll<HTMLElement>(
-          '[data-testid^="workspace-tab-"][role="button"][aria-selected]',
-        ),
-      ).filter((element) => element.getClientRects().length > 0);
-      scope.__paseoTabTrackFrames?.push(
-        tabs.map((element) => ({
-          id: element.getAttribute("data-testid") ?? "",
-          width: Math.round(element.getBoundingClientRect().width),
-        })),
-      );
-      if (performance.now() - startedAt < duration) {
-        requestAnimationFrame(sample);
-      }
-    }
-    // Establish the known-good pre-action state synchronously. Starting on the
-    // next animation frame lets the action race the first sample, which can
-    // misclassify a not-yet-painted test harness frame as a transition blank.
-    sample();
-  }, durationMs);
-  await action();
-  await page.waitForTimeout(durationMs + 100);
-  return page.evaluate(() => {
-    const scope = globalThis as typeof globalThis & {
-      __paseoTabTrackFrames?: Array<Array<{ id: string; width: number }>>;
-    };
-    return scope.__paseoTabTrackFrames ?? [];
-  });
-}
-
-export async function expectTabTitleFits(
-  page: Page,
-  title: string,
-  widthRange: { min: number; max: number },
-): Promise<void> {
-  const tab = page
-    .locator('[data-testid^="workspace-tab-"]:not([data-testid^="workspace-tab-context-"])')
-    .filter({ hasText: title })
-    .filter({ visible: true })
-    .last();
-  await expect(tab).toContainText(title);
-  const tabWidth = await tab.evaluate((element) => element.getBoundingClientRect().width);
-  expect(tabWidth).toBeGreaterThanOrEqual(widthRange.min);
-  expect(tabWidth).toBeLessThanOrEqual(widthRange.max);
-  const label = tab.getByText(title, { exact: true });
-  await expect(label).toBeVisible();
-  const labelFits = await label.evaluate((element) => element.scrollWidth <= element.clientWidth);
-  expect(labelFits).toBe(true);
+export async function expectAgentTabActive(page: Page, agentId: string): Promise<void> {
+  await expect(agentPanel(page, agentId).first()).toBeVisible({ timeout: 30_000 });
+  await expect
+    .poll(async () =>
+      (await getTabTestIds(page)).filter((id) => id.startsWith("workspace-panel-agent_")),
+    )
+    .toEqual([workspacePanelTestId("agent", agentId)]);
 }
 
 export function terminalSurfaceLocator(page: Page) {
   return page.locator('[data-testid="terminal-surface"]').filter({ visible: true }).first();
-}
-
-export async function expectAgentTabActive(page: Page, agentId: string): Promise<void> {
-  const tabTestId = `workspace-tab-agent_${agentId}`;
-  await expect(page.getByTestId(tabTestId).filter({ visible: true })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  await expect(getActiveTabTestId(page)).resolves.toBe(tabTestId);
 }
 
 // ─── Workspace setup ───────────────────────────────────────────────────────

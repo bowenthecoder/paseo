@@ -103,7 +103,6 @@ import { openDesktopTarget, useDesktopOpenTargets } from "@/workspace/desktop-op
 import { PullRequestStateIcon } from "@/git/pull-request-state-icon";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { openWorkspacePullRequest } from "@/workspace-tabs/open-supporting-view";
-import type { PullRequestOpenLocation } from "@/hooks/use-settings";
 
 export type { GitActionId, GitAction, GitActions } from "@/git/policy";
 
@@ -192,6 +191,7 @@ interface ChangesSurfaceProps {
   onOpenFile?: (path: string) => void;
   onOpenToSide?: (path: string) => void;
   onSelectDiffFile?: (path: string) => void;
+  selectedFileModeScope?: string;
   onAddToChat?: (path: string) => void;
   state?: ChangesState;
   onStateChange?: (state: ChangesState) => void;
@@ -1328,7 +1328,6 @@ function ChangedFilesTree({
           onActivate={handleSelectFile}
           onSelect={handleSelectPath}
           onOpenFile={mode.onOpenFile}
-          onOpenToSide={mode.onOpenToSide}
           onAddToChat={mode.onAddToChat}
           onCopyPath={mode.onCopyPath}
           onCopyRelativePath={mode.onCopyRelativePath}
@@ -1491,13 +1490,11 @@ function useDiffTabNavigation({
   workspaceId,
   cwd,
   isMobile,
-  pullRequestOpenLocation,
 }: {
   serverId: string;
   workspaceId?: string | null;
   cwd: string;
   isMobile: boolean;
-  pullRequestOpenLocation: PullRequestOpenLocation;
 }) {
   const openTab = useWorkspaceLayoutStore((state) => state.openTab);
   const openWorkspaceTab = useCallback(
@@ -1529,9 +1526,8 @@ function useDiffTabNavigation({
       isCompact: isMobile,
       workspaceKey: persistenceKey,
       checkout: { serverId, cwd, isGit: true },
-      destination: pullRequestOpenLocation,
     });
-  }, [cwd, isMobile, persistenceKey, pullRequestOpenLocation, serverId]);
+  }, [cwd, isMobile, persistenceKey, serverId]);
   return {
     openDiff,
     openCommit,
@@ -1550,6 +1546,7 @@ export function ChangesSurface({
   onOpenFile,
   onOpenToSide,
   onSelectDiffFile,
+  selectedFileModeScope,
   onAddToChat,
   state: changesState,
   onStateChange,
@@ -1611,7 +1608,6 @@ export function ChangesSurface({
     workspaceId,
     cwd,
     isMobile,
-    pullRequestOpenLocation: appSettings.pullRequestOpenLocation,
   });
   const refreshSupported = useSessionStore(
     (s) => s.sessions[serverId]?.serverInfo?.features?.checkoutRefresh === true,
@@ -1644,6 +1640,7 @@ export function ChangesSurface({
     baseRef,
     currentBranchName,
     diffMode,
+    selectDiffMode,
     selectUncommitted: handleSelectUncommitted,
     selectBase: handleSelectBase,
     files,
@@ -1785,6 +1782,9 @@ export function ChangesSurface({
   const handleSelectTreeFile = useCallback(
     (path: string) => {
       if (presentation === "tree" && onSelectDiffFile) {
+        if (selectedFileModeScope) {
+          selectDiffMode(diffMode, selectedFileModeScope);
+        }
         onSelectDiffFile(path);
         return;
       }
@@ -1793,7 +1793,7 @@ export function ChangesSurface({
         revision: Math.max(Date.now(), (current?.revision ?? 0) + 1),
       }));
     },
-    [onSelectDiffFile, presentation],
+    [diffMode, onSelectDiffFile, presentation, selectDiffMode, selectedFileModeScope],
   );
   const workingMode = useMemo(
     () => ({

@@ -1,9 +1,74 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { resolveKeyboardShortcut } from "./keyboard-shortcuts";
 import {
+  dispatchKeyboardShortcutAction,
   routeKeyboardShortcut,
   type ShortcutAction,
   type ShortcutRoutingContext,
 } from "./route-shortcut";
+
+const ESCAPE_EVENT = {
+  key: "Escape",
+  altKey: false,
+  ctrlKey: false,
+  metaKey: false,
+  shiftKey: false,
+};
+
+describe("dispatchKeyboardShortcutAction — Escape priority", () => {
+  const closeAction = { id: "workspace.sidePanel.close", scope: "workspace" } as const;
+
+  it("closes an open side panel without also interrupting the agent", () => {
+    const dispatcher = { dispatch: vi.fn().mockReturnValue(true) };
+    expect(dispatchKeyboardShortcutAction(closeAction, dispatcher, ESCAPE_EVENT)).toBe(true);
+    expect(dispatcher.dispatch.mock.calls).toEqual([[closeAction]]);
+  });
+
+  it("interrupts the agent when the default Escape action has no open panel to close", () => {
+    const resolved = resolveKeyboardShortcut({
+      event: { ...ESCAPE_EVENT, code: "Escape", repeat: false },
+      context: { isMac: false, isDesktop: false, focusScope: "other", commandCenterOpen: false },
+      chordState: { candidateIndices: [], step: 0, timeoutId: null },
+      onChordReset: () => undefined,
+    });
+    expect(resolved.match).not.toBeNull();
+    const routed = routeKeyboardShortcut(resolved.match!, makeCtx());
+    expect(routed.kind).toBe("dispatch");
+    if (routed.kind !== "dispatch") throw new Error("Escape did not resolve to a dispatch");
+    const dispatcher = { dispatch: vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true) };
+    expect(dispatchKeyboardShortcutAction(routed.action, dispatcher, ESCAPE_EVENT)).toBe(true);
+    expect(dispatcher.dispatch.mock.calls).toEqual([
+      [closeAction],
+      [{ id: "agent.interrupt", scope: "global" }],
+    ]);
+  });
+
+  it("leaves Escape unhandled when neither a panel nor an interrupt accepts it", () => {
+    const dispatcher = { dispatch: vi.fn().mockReturnValue(false) };
+    expect(dispatchKeyboardShortcutAction(closeAction, dispatcher, ESCAPE_EVENT)).toBe(false);
+    expect(dispatcher.dispatch).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    { ...ESCAPE_EVENT, key: "w" },
+    { ...ESCAPE_EVENT, altKey: true },
+    { ...ESCAPE_EVENT, ctrlKey: true },
+    { ...ESCAPE_EVENT, metaKey: true },
+    { ...ESCAPE_EVENT, shiftKey: true },
+    null,
+  ])("does not interrupt for a rebound or non-keyboard close command (%j)", (event) => {
+    const dispatcher = { dispatch: vi.fn().mockReturnValue(false) };
+    expect(dispatchKeyboardShortcutAction(closeAction, dispatcher, event)).toBe(false);
+    expect(dispatcher.dispatch.mock.calls).toEqual([[closeAction]]);
+  });
+
+  it("does not fall through from an unrelated action", () => {
+    const action = { id: "message-input.focus", scope: "message-input" } as const;
+    const dispatcher = { dispatch: vi.fn().mockReturnValue(false) };
+    expect(dispatchKeyboardShortcutAction(action, dispatcher, ESCAPE_EVENT)).toBe(false);
+    expect(dispatcher.dispatch.mock.calls).toEqual([[action]]);
+  });
+});
 
 const SIDEBAR_TARGETS = [
   { serverId: "srv", workspaceId: "ws-1" },
@@ -28,7 +93,6 @@ function makeCtx(overrides: Partial<ShortcutRoutingContext> = {}): ShortcutRouti
 describe("routeKeyboardShortcut — dispatch passthroughs", () => {
   it.each([
     ["agent.interrupt", { id: "agent.interrupt", scope: "global" }],
-    ["workspace.tab.menu.open", { id: "workspace.tab.menu.open", scope: "workspace" }],
     ["workspace.tab.target.agent", { id: "workspace.tab.target.agent", scope: "workspace" }],
     ["workspace.tab.target.browser", { id: "workspace.tab.target.browser", scope: "workspace" }],
     ["workspace.tab.target.changes", { id: "workspace.tab.target.changes", scope: "workspace" }],
@@ -39,19 +103,9 @@ describe("routeKeyboardShortcut — dispatch passthroughs", () => {
     ["workspace.pin", { id: "workspace.pin", scope: "sidebar" }],
     ["worktree.new", { id: "worktree.new", scope: "sidebar" }],
     ["workspace.terminal.new", { id: "workspace.terminal.new", scope: "workspace" }],
+    ["workspace.sidePanel.close", { id: "workspace.sidePanel.close", scope: "workspace" }],
     ["workspace.tab.close.current", { id: "workspace.tab.close-current", scope: "workspace" }],
     ["sidebar.toggle.right", { id: "sidebar.toggle.right", scope: "sidebar" }],
-    ["workspace.pane.split.right", { id: "workspace.pane.split.right", scope: "workspace" }],
-    ["workspace.pane.split.down", { id: "workspace.pane.split.down", scope: "workspace" }],
-    ["workspace.pane.focus.left", { id: "workspace.pane.focus.left", scope: "workspace" }],
-    ["workspace.pane.focus.right", { id: "workspace.pane.focus.right", scope: "workspace" }],
-    ["workspace.pane.focus.up", { id: "workspace.pane.focus.up", scope: "workspace" }],
-    ["workspace.pane.focus.down", { id: "workspace.pane.focus.down", scope: "workspace" }],
-    ["workspace.pane.move-tab.left", { id: "workspace.pane.move-tab.left", scope: "workspace" }],
-    ["workspace.pane.move-tab.right", { id: "workspace.pane.move-tab.right", scope: "workspace" }],
-    ["workspace.pane.move-tab.up", { id: "workspace.pane.move-tab.up", scope: "workspace" }],
-    ["workspace.pane.move-tab.down", { id: "workspace.pane.move-tab.down", scope: "workspace" }],
-    ["workspace.pane.close", { id: "workspace.pane.close", scope: "workspace" }],
     ["view.toggle.focus", { id: "workspace.focus.toggle", scope: "workspace" }],
   ])("%s → dispatch %j", (action, expected) => {
     expect(routeKeyboardShortcut({ action, payload: null }, makeCtx())).toEqual({
@@ -69,6 +123,31 @@ describe("routeKeyboardShortcut — dispatch passthroughs", () => {
     ).toEqual<ShortcutAction>({ kind: "navigate-last-workspace" });
   });
 
+  it.each([
+    { isMac: false, isDesktop: false },
+    { isMac: true, isDesktop: true },
+  ])("closes settings using the actual default Escape binding (%j)", (platform) => {
+    const resolved = resolveKeyboardShortcut({
+      event: {
+        key: "Escape",
+        code: "Escape",
+        altKey: false,
+        ctrlKey: false,
+        metaKey: false,
+        shiftKey: false,
+        repeat: false,
+      },
+      context: { ...platform, focusScope: "other", commandCenterOpen: false },
+      chordState: { candidateIndices: [], step: 0, timeoutId: null },
+      onChordReset: () => undefined,
+    });
+
+    expect(resolved.match).not.toBeNull();
+    expect(
+      routeKeyboardShortcut(resolved.match!, makeCtx({ pathname: "/settings/general" })),
+    ).toEqual<ShortcutAction>({ kind: "navigate-last-workspace" });
+  });
+
   it("keeps agent interrupt behavior on compact settings layouts", () => {
     expect(
       routeKeyboardShortcut(
@@ -82,48 +161,26 @@ describe("routeKeyboardShortcut — dispatch passthroughs", () => {
   });
 });
 
-describe("routeKeyboardShortcut — workspace.tab.navigate", () => {
-  it("forwards index payloads to the workspace.tab.navigate-index dispatch", () => {
-    expect(
-      routeKeyboardShortcut(
-        { action: "workspace.tab.navigate.index", payload: { index: 3 } },
-        makeCtx(),
-      ),
-    ).toEqual<ShortcutAction>({
-      kind: "dispatch",
-      action: { id: "workspace.tab.navigate-index", scope: "workspace", index: 3 },
-    });
-  });
-
-  it("returns none when index payload is missing", () => {
-    expect(
-      routeKeyboardShortcut({ action: "workspace.tab.navigate.index", payload: null }, makeCtx()),
-    ).toEqual<ShortcutAction>({ kind: "none" });
-  });
-
-  it("forwards delta payloads to the workspace.tab.navigate-relative dispatch", () => {
-    expect(
-      routeKeyboardShortcut(
-        { action: "workspace.tab.navigate.relative", payload: { delta: -1 } },
-        makeCtx(),
-      ),
-    ).toEqual<ShortcutAction>({
-      kind: "dispatch",
-      action: { id: "workspace.tab.navigate-relative", scope: "workspace", delta: -1 },
-    });
-  });
-
-  it("returns none when delta payload is missing", () => {
-    expect(
-      routeKeyboardShortcut(
-        { action: "workspace.tab.navigate.relative", payload: null },
-        makeCtx(),
-      ),
-    ).toEqual<ShortcutAction>({ kind: "none" });
-  });
-});
-
 describe("routeKeyboardShortcut — workspace.navigate.index", () => {
+  it("opens the numbered chat when several targets share a workspace", () => {
+    const chatTargets = ["first", "second"].map((agentId) => ({
+      serverId: "srv",
+      workspaceId: "shared-folder",
+      agentId,
+    }));
+    expect(
+      routeKeyboardShortcut(
+        { action: "workspace.navigate.index", payload: { index: 2 } },
+        makeCtx({ sidebarShortcutTargets: chatTargets }),
+      ),
+    ).toEqual<ShortcutAction>({
+      kind: "navigate-workspace",
+      serverId: "srv",
+      workspaceId: "shared-folder",
+      agentId: "second",
+    });
+  });
+
   it("navigates to the sidebar target at index-1", () => {
     expect(
       routeKeyboardShortcut(
@@ -169,6 +226,29 @@ describe("routeKeyboardShortcut — workspace.navigate.relative", () => {
     { serverId: "srv", workspaceId: "running-old" },
     { serverId: "srv", workspaceId: "done" },
   ] as const;
+
+  it("uses the selected chat to choose the next chat in the same workspace", () => {
+    const chatTargets = ["first", "second", "third"].map((agentId) => ({
+      serverId: "srv",
+      workspaceId: "shared-folder",
+      agentId,
+    }));
+    expect(
+      routeKeyboardShortcut(
+        { action: "workspace.navigate.relative", payload: { delta: 1 } },
+        makeCtx({
+          pathname: "/h/srv/workspace/shared-folder",
+          sidebarShortcutTargets: chatTargets,
+          navigationActiveWorkspace: chatTargets[1],
+        }),
+      ),
+    ).toEqual<ShortcutAction>({
+      kind: "navigate-workspace",
+      serverId: "srv",
+      workspaceId: "shared-folder",
+      agentId: "third",
+    });
+  });
 
   it("uses the retained navigation workspace selection over a stale pathname", () => {
     expect(

@@ -12,13 +12,12 @@ import {
   submitQuestionAnswers,
   waitForQuestionPrompt,
 } from "../support/helpers/questions";
-import { openMobileAgentSidebar } from "../support/helpers/sidebar";
+import { openMobileAgentSidebar, selectChatInSidebar } from "../support/helpers/sidebar";
 import {
   expectTimelinePromptVisible,
   openAgentTimeline,
   seedLongMockAgentTimeline,
 } from "../support/helpers/timeline-pagination";
-import { switchWorkspaceViaSidebar } from "../support/helpers/workspace-ui";
 
 async function expectChatAtBottom(page: Page): Promise<void> {
   await expect
@@ -30,13 +29,13 @@ async function expectChatAtBottom(page: Page): Promise<void> {
 
 async function openCompactWorkspace(
   page: Page,
-  workspace: Pick<MockAgentWorkspace, "workspaceId">,
+  workspace: Pick<MockAgentWorkspace, "workspaceId" | "agentId">,
 ): Promise<void> {
   await openMobileAgentSidebar(page);
-  await switchWorkspaceViaSidebar({
-    page,
+  await selectChatInSidebar(page, {
     serverId: getServerId(),
     workspaceId: workspace.workspaceId,
+    agentId: workspace.agentId,
   });
 }
 

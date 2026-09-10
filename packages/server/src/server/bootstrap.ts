@@ -1,3 +1,4 @@
+import { ensureUnarchivedAgentLoaded } from "./agent/agent-loading.js";
 import { describeHookWorkspace } from "./plugins/lifecycle/index.js";
 import express from "express";
 import { createServer as createHTTPServer, type IncomingMessage, type ServerResponse } from "http";
@@ -1087,6 +1088,20 @@ export async function createPaseoDaemon(
     logger,
   });
 
+  agentManager.setAgentTitleGenerationCallback((input) => {
+    workspaceAutoName.scheduleForAgent({
+      agentId: input.agentId,
+      expectedTitle: input.expectedTitle,
+      cwd: input.cwd,
+      firstAgentContext: { prompt: input.prompt },
+      currentSelection: {
+        provider: input.provider,
+        model: input.model,
+        thinkingOptionId: input.thinkingOptionId,
+      },
+    });
+  });
+
   setupAutoArchiveOnMerge({
     paseoHome: config.paseoHome,
     paseoWorktreesBaseRoot: config.worktreesRoot,
@@ -1741,6 +1756,20 @@ export async function createPaseoDaemon(
               relayRuntime?.setEnabled(value === true);
             });
             await hubRelationships.start();
+            // Resume legacy naming candidates only after native tools, MCP and plugins are ready.
+            void agentManager
+              .backfillLegacyTitles(async (agentId) => {
+                await ensureUnarchivedAgentLoaded(agentId, {
+                  agentManager,
+                  agentStorage,
+                  broadcastTimeline: false,
+                  requirePersistence: true,
+                  logger,
+                });
+              })
+              .catch((error) => {
+                logger.warn({ err: error }, "Legacy chat name backfill failed");
+              });
           };
 
           logAndResolve().then(resolve, reject);

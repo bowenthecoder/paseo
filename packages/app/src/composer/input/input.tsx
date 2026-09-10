@@ -84,6 +84,7 @@ import {
 } from "./state";
 
 const DEFAULT_SEND_KEYS: ShortcutKey[][] = [["Enter"]];
+const HOLD_QUEUE_KEYS: ShortcutKey[][] = [["mod", "shift", "Enter"]];
 const COMPOSER_INPUT_DATASET = { composerInput: "" } as const;
 
 export interface AttachmentMenuItem {
@@ -153,6 +154,11 @@ export interface MessageInputProps {
   defaultSendBehavior: "interrupt" | "steer" | "queue";
   /** Callback for queue button when agent is running */
   onQueue?: (payload: MessagePayload) => void;
+  /**
+   * Callback for the explicit Queue action (button, Cmd/Ctrl+Shift+Enter). Holds the draft in the
+   * queue whether or not the agent is running; nothing sends it until the user asks.
+   */
+  onHoldQueue?: (payload: MessagePayload) => void;
   /** Optional handler used when submit button is in loading state. */
   onSubmitLoadingPress?: () => void;
   /** Intercept key press events before default handling. Return true to prevent default. */
@@ -386,11 +392,17 @@ interface DesktopKeyPressContext {
   submitOnEnter: boolean;
   isAgentRunning: boolean;
   onQueue: ((payload: MessagePayload) => void) | undefined;
+  onHoldQueue: ((payload: MessagePayload) => void) | undefined;
   isSubmitDisabled: boolean;
   isSubmitLoading: boolean;
   disabled: boolean;
   handleAlternateSendAction: () => void;
   handleDefaultSendAction: () => void;
+  handleHoldQueueMessage: () => void;
+}
+
+function isKeyPressSubmitBlocked(ctx: DesktopKeyPressContext): boolean {
+  return ctx.isSubmitDisabled || ctx.isSubmitLoading || ctx.disabled;
 }
 
 function handleDesktopKeyPressImpl(
@@ -409,19 +421,27 @@ function handleDesktopKeyPressImpl(
   }
 
   const { shiftKey, metaKey, ctrlKey } = event.nativeEvent;
+  const modKey = metaKey || ctrlKey;
 
   if (event.nativeEvent.key !== "Enter") return;
   if (!ctx.submitOnEnter) return;
+  if (isKeyPressSubmitBlocked(ctx)) return;
+
+  // Cmd/Ctrl+Shift+Enter holds the draft in the queue, running agent or not.
+  if (modKey && shiftKey && ctx.onHoldQueue) {
+    event.preventDefault();
+    ctx.handleHoldQueueMessage();
+    return;
+  }
+
   if (shiftKey) return;
 
-  if ((metaKey || ctrlKey) && ctx.isAgentRunning && ctx.onQueue) {
-    if (ctx.isSubmitDisabled || ctx.isSubmitLoading || ctx.disabled) return;
+  if (modKey && ctx.isAgentRunning && ctx.onQueue) {
     event.preventDefault();
     ctx.handleAlternateSendAction();
     return;
   }
 
-  if (ctx.isSubmitDisabled || ctx.isSubmitLoading || ctx.disabled) return;
   event.preventDefault();
   ctx.handleDefaultSendAction();
 }
@@ -792,6 +812,47 @@ function SendButtonTooltip({
   );
 }
 
+function shouldShowHoldQueueButton(input: {
+  onHoldQueue: ((payload: MessagePayload) => void) | undefined;
+  hasSendableContent: boolean;
+  readOnly: boolean;
+}): boolean {
+  return Boolean(input.onHoldQueue) && input.hasSendableContent && !input.readOnly;
+}
+
+function HoldQueueButtonTooltip({
+  visible,
+  onPress,
+  disabled,
+  accessibilityLabel,
+  label,
+}: {
+  visible: boolean;
+  onPress: () => void;
+  disabled: boolean;
+  accessibilityLabel: string;
+  label: string;
+}) {
+  if (!visible) return null;
+  return (
+    <Tooltip delayDuration={0} enabledOnDesktop enabledOnMobile={false}>
+      <TooltipTrigger
+        onPress={onPress}
+        disabled={disabled}
+        accessibilityLabel={accessibilityLabel}
+        accessibilityRole="button"
+        testID="composer-hold-queue-button"
+        style={styles.holdQueueButton}
+      >
+        <Text style={styles.holdQueueButtonLabel}>{label}</Text>
+      </TooltipTrigger>
+      <TooltipContent side="top" align="center" offset={8}>
+        <SendTooltipBody label={accessibilityLabel} sendKeys={HOLD_QUEUE_KEYS} />
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 type PrimaryActionKind = "send" | "active" | "none";
 
 function hasSendableComposerContent(input: {
@@ -1072,6 +1133,7 @@ interface ResolvedMessageInputProps {
   isAgentRunning: boolean;
   defaultSendBehavior: "interrupt" | "steer" | "queue";
   onQueue: ((payload: MessagePayload) => void) | undefined;
+  onHoldQueue: ((payload: MessagePayload) => void) | undefined;
   onSubmitLoadingPress: (() => void) | undefined;
   onKeyPressCallback: ((event: ComposerKeyPressEvent) => boolean) | undefined;
   onSelectionChangeCallback: ((selection: { start: number; end: number }) => void) | undefined;
@@ -1119,6 +1181,7 @@ function resolveMessageInputProps(props: MessageInputProps): ResolvedMessageInpu
     isAgentRunning: props.isAgentRunning ?? false,
     defaultSendBehavior: props.defaultSendBehavior,
     onQueue: props.onQueue,
+    onHoldQueue: props.onHoldQueue,
     onSubmitLoadingPress: props.onSubmitLoadingPress,
     onKeyPressCallback: props.onKeyPress,
     onSelectionChangeCallback: props.onSelectionChange,
@@ -1174,6 +1237,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       isAgentRunning,
       defaultSendBehavior,
       onQueue,
+      onHoldQueue,
       onSubmitLoadingPress,
       onKeyPressCallback,
       onSelectionChangeCallback,
@@ -1542,6 +1606,19 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       [attachments, cwd, onQueue, replaceText, minimizeInputHeight],
     );
 
+    const handleHoldQueueMessage = useCallback(
+      () =>
+        queueMessageImpl({
+          value: textInputRef.current?.getText() ?? valueRef.current,
+          attachments,
+          cwd,
+          onQueue: onHoldQueue,
+          replaceText,
+          onMinimizeHeight: minimizeInputHeight,
+        }),
+      [attachments, cwd, onHoldQueue, replaceText, minimizeInputHeight],
+    );
+
     const handleDefaultSendAction = useCallback(() => {
       runDefaultSendAction({
         defaultSendBehavior,
@@ -1607,20 +1684,23 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         submitOnEnter: shouldSubmitOnEnter,
         isAgentRunning,
         onQueue,
+        onHoldQueue,
         isSubmitDisabled,
         isSubmitLoading,
         disabled,
         handleAlternateSendAction,
         handleDefaultSendAction,
+        handleHoldQueueMessage,
       });
     }
 
+    const hasSendableContent = hasSendableComposerContent({
+      hasText: hasLiveText,
+      attachments,
+      hasExternalContent,
+    });
     const primaryActionKind = resolvePrimaryActionKind({
-      hasSendableContent: hasSendableComposerContent({
-        hasText: hasLiveText,
-        attachments,
-        hasExternalContent,
-      }),
+      hasSendableContent,
       allowEmptySubmit,
       isAgentRunning,
       isSubmitLoading,
@@ -1858,6 +1938,13 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 dictationToggleKeys={dictationToggleKeys}
               />
               {rightContent}
+              <HoldQueueButtonTooltip
+                visible={shouldShowHoldQueueButton({ onHoldQueue, hasSendableContent, readOnly })}
+                onPress={handleHoldQueueMessage}
+                disabled={isSendButtonDisabled}
+                accessibilityLabel={t("composer.input.holdQueueMessage")}
+                label={t("composer.input.holdQueue")}
+              />
               <PrimaryAction
                 kind={primaryActionKind}
                 activeActionContent={activeActionContent}
@@ -2039,6 +2126,20 @@ const styles = StyleSheet.create((theme: Theme) => ({
     fontSize: theme.fontSize.base,
     fontWeight: theme.fontWeight.medium,
     color: theme.colors.accentForeground,
+  },
+  holdQueueButton: {
+    height: 28,
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.surface2,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: theme.spacing[1],
+  },
+  holdQueueButtonLabel: {
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.medium,
+    color: theme.colors.foreground,
   },
   iconButtonHovered: {
     backgroundColor: theme.colors.surface2,

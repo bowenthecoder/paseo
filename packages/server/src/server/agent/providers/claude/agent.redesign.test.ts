@@ -1544,3 +1544,32 @@ test("does not use stream_event uuid as assistant message identity when message_
 
   await session.close();
 });
+
+test("selecting effort before the first turn keeps the input stream alive", async () => {
+  sdkQueryFactory.mockImplementation(({ prompt }: { prompt: AsyncIterable<unknown> }) => {
+    const input = prompt[Symbol.asyncIterator]();
+    let sent = false;
+    return createBaseQueryMock(
+      vi.fn(async () => {
+        if (sent) return { done: true, value: undefined };
+        sent = true;
+        const message = await input.next();
+        expect(message.done).toBe(false);
+        return {
+          done: false,
+          value: { type: "result", subtype: "success", usage: buildUsage(), total_cost_usd: 0 },
+        };
+      }),
+    );
+  });
+  const session = await createSession();
+  try {
+    await session.setThinkingOption("low");
+    const events = await collectUntilTerminal(streamSession(session, "hello"));
+    expect(events.some((event) => event.type === "turn_completed")).toBe(true);
+    expect(events.some((event) => event.type === "turn_failed")).toBe(false);
+    expect(sdkQueryFactory).toHaveBeenCalledTimes(1);
+  } finally {
+    await session.close();
+  }
+});

@@ -65,6 +65,8 @@ import { buildWorkspaceExplorerStateKey } from "@/hooks/use-file-explorer-action
 import { usePanelStore, type ExpandedPathsUpdate, type SortOption } from "@/stores/panel-store";
 import { buildAbsoluteExplorerPath } from "@/utils/explorer-paths";
 import { isHiddenExplorerPath } from "@/file-explorer/visibility";
+import { FileExplorerNavigationBar } from "@/file-explorer/navigation-bar";
+import { explorerFileOpenPath, normalizeExplorerBrowsePath } from "@/file-explorer/navigation";
 import {
   flattenExplorerTree,
   reconcileRestoredExpandedPaths,
@@ -105,6 +107,7 @@ function DirectoryChevronIcon({ loading, expanded }: { loading: boolean; expande
 interface TreeRowItemProps {
   serverId: string;
   workspaceId?: string | null;
+  filePathRoot?: string;
   entry: ExplorerEntry;
   depth: number;
   isExpanded: boolean;
@@ -120,7 +123,6 @@ interface TreeRowItemProps {
   revealTargetName?: string;
   onDownloadEntry: (entry: ExplorerEntry) => void;
   onAddToChat?: (path: string) => void;
-  onOpenFileToSide?: (path: string) => void;
   onNewEntry?: (parentPath: string, kind: "file" | "directory") => void;
   onCollapseDirectory?: (path: string) => void;
   onRenameEntry?: (entry: ExplorerEntry) => void;
@@ -231,6 +233,7 @@ function EntryNameInputRow({
 function TreeRowItem({
   serverId,
   workspaceId,
+  filePathRoot,
   entry,
   depth,
   isExpanded,
@@ -246,7 +249,6 @@ function TreeRowItem({
   revealTargetName,
   onDownloadEntry,
   onAddToChat,
-  onOpenFileToSide,
   onNewEntry,
   onCollapseDirectory,
   onRenameEntry,
@@ -262,7 +264,9 @@ function TreeRowItem({
     enabled: !isDirectory,
     serverId,
     workspaceId,
-    path: entry.path,
+    path: filePathRoot
+      ? buildAbsoluteExplorerPath({ workspaceRoot: filePathRoot, entryPath: entry.path })
+      : entry.path,
   });
 
   const handlePress = useCallback(() => {
@@ -310,10 +314,6 @@ function TreeRowItem({
   const handleAddToChat = useCallback(() => {
     onAddToChat?.(entry.path);
   }, [onAddToChat, entry.path]);
-
-  const handleOpenToSide = useCallback(() => {
-    onOpenFileToSide?.(entry.path);
-  }, [entry.path, onOpenFileToSide]);
 
   const handleNewFile = useCallback(() => {
     onNewEntry?.(entry.path, "file");
@@ -383,7 +383,6 @@ function TreeRowItem({
         revealTargetName={revealTargetName}
         onDownload={handleDownload}
         onAddToChat={onAddToChat ? handleAddToChat : undefined}
-        onOpenToSide={!isDirectory && onOpenFileToSide ? handleOpenToSide : undefined}
         onNewFile={onNewEntry ? handleNewFile : undefined}
         onNewFolder={onNewEntry ? handleNewFolder : undefined}
         onCollapseFolder={isDirectory && isExpanded ? handleCollapseDirectory : undefined}
@@ -401,7 +400,6 @@ interface FileExplorerPaneProps {
   workspaceId?: string | null;
   workspaceRoot: string;
   onOpenFile?: (filePath: string) => void;
-  onOpenFileToSide?: (filePath: string) => void;
   onAddToChat?: (path: string) => void;
 }
 
@@ -409,21 +407,45 @@ export function FileExplorerPane({
   serverId,
   workspaceId,
   workspaceRoot,
-  onOpenFile,
-  onOpenFileToSide,
-  onAddToChat,
+  onOpenFile: openFile,
+  onAddToChat: addToChat,
 }: FileExplorerPaneProps) {
   const { t } = useTranslation();
   const isCompact = useIsCompactFormFactor();
 
-  const normalizedWorkspaceRoot = useMemo(() => workspaceRoot.trim(), [workspaceRoot]);
+  const scopeKey = `${serverId}:${workspaceId ?? ""}:${workspaceRoot}`;
+  const [browsingLocation, setBrowsingLocation] = useState<{
+    scopeKey: string;
+    path: string;
+  } | null>(null);
+  const normalizedWorkspaceRoot = normalizeExplorerBrowsePath(
+    browsingLocation?.scopeKey === scopeKey ? browsingLocation.path : workspaceRoot,
+  );
+  const isBrowsingWorkspace =
+    normalizedWorkspaceRoot === normalizeExplorerBrowsePath(workspaceRoot);
+  // A different root must not overwrite the working folder's relative-path cache.
+  const workspaceScopeId = isBrowsingWorkspace ? workspaceId : null;
+  const resolveOpenPath = useCallback(
+    (path: string) =>
+      explorerFileOpenPath({ path, browsingRoot: normalizedWorkspaceRoot, workspaceRoot }),
+    [normalizedWorkspaceRoot, workspaceRoot],
+  );
+  const onOpenFile = useMemo(
+    () => (openFile ? (path: string) => openFile(resolveOpenPath(path)) : undefined),
+    [openFile, resolveOpenPath],
+  );
+  const onAddToChat = useMemo(
+    () => (addToChat ? (path: string) => addToChat(resolveOpenPath(path)) : undefined),
+    [addToChat, resolveOpenPath],
+  );
   const workspaceStateKey = useMemo(
     () =>
       buildWorkspaceExplorerStateKey({
-        workspaceId,
+        serverId,
+        workspaceId: workspaceScopeId,
         workspaceRoot: normalizedWorkspaceRoot,
       }),
-    [normalizedWorkspaceRoot, workspaceId],
+    [normalizedWorkspaceRoot, serverId, workspaceScopeId],
   );
   const hasWorkspaceScope = Boolean(workspaceStateKey && normalizedWorkspaceRoot);
   const explorerState = useSessionStore((state) =>
@@ -441,7 +463,7 @@ export function FileExplorerPane({
     selectExplorerEntry,
   } = useFileExplorerActions({
     serverId,
-    workspaceId,
+    workspaceId: workspaceScopeId,
     workspaceRoot: normalizedWorkspaceRoot,
   });
   const toast = useToast();
@@ -463,9 +485,16 @@ export function FileExplorerPane({
     (state) => state.sessions[serverId]?.serverInfo?.features?.fsEntryDuplicate === true,
   );
   const [pendingEdit, setPendingEdit] = useState<ExplorerPendingEdit | null>(null);
+  const navigateDirectory = useCallback(
+    (path: string) => {
+      setPendingEdit(null);
+      setBrowsingLocation({ scopeKey, path });
+    },
+    [scopeKey],
+  );
   const downloadFile = useFileDownload({
     serverId,
-    workspaceId,
+    workspaceId: workspaceScopeId,
     workspaceRoot: normalizedWorkspaceRoot,
   });
   const sortOption = usePanelStore((state) => state.explorerSortOption);
@@ -970,6 +999,7 @@ export function FileExplorerPane({
         <TreeRowDispatcher
           serverId={serverId}
           workspaceId={workspaceId}
+          filePathRoot={isBrowsingWorkspace ? undefined : normalizedWorkspaceRoot}
           row={info.item.row}
           index={info.index}
           expandedPaths={expandedPaths}
@@ -985,7 +1015,6 @@ export function FileExplorerPane({
           revealTargetName={fileManagerTarget?.label}
           onDownloadEntry={handleDownloadEntry}
           onAddToChat={onAddToChat}
-          onOpenFileToSide={onOpenFileToSide}
           onNewEntry={fsEntryOpsEnabled ? handleNewEntry : undefined}
           onCollapseDirectory={handleCollapseDirectory}
           onRenameEntry={fsEntryOpsEnabled ? handleRenameEntry : undefined}
@@ -1018,9 +1047,10 @@ export function FileExplorerPane({
       openDirectoryInEditor,
       selectedEntryPath,
       onAddToChat,
-      onOpenFileToSide,
       serverId,
       workspaceId,
+      isBrowsingWorkspace,
+      normalizedWorkspaceRoot,
     ],
   );
 
@@ -1057,6 +1087,11 @@ export function FileExplorerPane({
       }}
       style={styles.container}
     >
+      <FileExplorerNavigationBar
+        browsingRoot={normalizedWorkspaceRoot}
+        workspaceRoot={workspaceRoot}
+        onNavigate={navigateDirectory}
+      />
       <FileExplorerPaneContent
         error={error}
         isCompact={isCompact}
@@ -1439,6 +1474,7 @@ function toggleDirectory({
 function TreeRowDispatcher({
   serverId,
   workspaceId,
+  filePathRoot,
   row,
   index,
   expandedPaths,
@@ -1454,7 +1490,6 @@ function TreeRowDispatcher({
   revealTargetName,
   onDownloadEntry,
   onAddToChat,
-  onOpenFileToSide,
   onNewEntry,
   onCollapseDirectory,
   onRenameEntry,
@@ -1463,6 +1498,7 @@ function TreeRowDispatcher({
 }: {
   serverId: string;
   workspaceId?: string | null;
+  filePathRoot?: string;
   row: ExplorerTreeRow;
   index: number;
   expandedPaths: Set<string>;
@@ -1478,7 +1514,6 @@ function TreeRowDispatcher({
   revealTargetName?: string;
   onDownloadEntry: (entry: ExplorerEntry) => void;
   onAddToChat?: (path: string) => void;
-  onOpenFileToSide?: (path: string) => void;
   onNewEntry?: (parentPath: string, kind: "file" | "directory") => void;
   onCollapseDirectory?: (path: string) => void;
   onRenameEntry?: (entry: ExplorerEntry) => void;
@@ -1496,6 +1531,7 @@ function TreeRowDispatcher({
     <TreeRowItem
       serverId={serverId}
       workspaceId={workspaceId}
+      filePathRoot={filePathRoot}
       entry={entry}
       depth={depth}
       isExpanded={isExpanded}
@@ -1511,7 +1547,6 @@ function TreeRowDispatcher({
       revealTargetName={revealTargetName}
       onDownloadEntry={onDownloadEntry}
       onAddToChat={onAddToChat}
-      onOpenFileToSide={onOpenFileToSide}
       onNewEntry={onNewEntry}
       onCollapseDirectory={onCollapseDirectory}
       onRenameEntry={onRenameEntry}

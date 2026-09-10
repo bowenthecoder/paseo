@@ -58,6 +58,35 @@ function context(
 }
 
 describe("reconcileProjectSelection", () => {
+  it("keeps an explicit No folder choice when projects hydrate or the host changes", () => {
+    const current: ProjectSelection = { contextKey: "", project: null, source: "no-folder" };
+    const remoteProject = project("remote-project", "remote");
+    const remoteContext = context({
+      contextKey: "remote:",
+      selectedServerId: "remote",
+      initialProject: remoteProject,
+      projects: [remoteProject],
+    });
+
+    expect(reconcileProjectSelection(current, remoteContext)).toBe(current);
+    expect(resolveProjectSelection(current, remoteContext)).toBeNull();
+  });
+
+  it("replaces No folder when a new route explicitly selects a working folder", () => {
+    const current: ProjectSelection = { contextKey: "", project: null, source: "no-folder" };
+    const routedProject = project("hermes");
+    const routedContext = context({
+      contextKey: "host:hermes",
+      manualContextKey: routedProject.viewKey,
+      routeProject: routedProject,
+      initialProject: routedProject,
+      projects: [routedProject],
+    });
+
+    const reconciled = reconcileProjectSelection(current, routedContext);
+    expect(resolveProjectSelection(reconciled, routedContext)).toBe(routedProject);
+  });
+
   it("keeps a still-selectable project when the default moves after archive", () => {
     const remembered = project("remembered");
     const other = project("other");

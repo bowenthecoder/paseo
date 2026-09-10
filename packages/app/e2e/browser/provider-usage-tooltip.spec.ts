@@ -47,17 +47,17 @@ test.describe("provider usage tooltip", () => {
     ]);
     const session = await openMockAgent(page);
     try {
-      expect(usageFixture.requestCount()).toBe(0);
+      await expect(page.getByTestId("account-usage-badge")).toHaveText("Plan 42%");
 
       await page.getByTestId("context-window-meter").hover();
-      await usageFixture.waitForRequestCount(1);
+      await usageFixture.waitForRequestCount(2);
 
       await expect(page.getByText("Mock provider", { exact: true })).toBeVisible({
         timeout: 10_000,
       });
       await expect(page.getByText("Test plan")).toBeVisible();
       await expect(page.getByText("Session", { exact: true })).toBeVisible();
-      await expect(page.getByText("42%")).toBeVisible();
+      await expect(page.getByText(/42% ·/)).toBeVisible();
     } finally {
       await session.cleanup();
     }
@@ -95,17 +95,18 @@ test.describe("provider usage tooltip", () => {
     try {
       const meter = page.getByTestId("context-window-meter");
 
+      await expect(page.getByTestId("account-usage-badge")).toHaveText("Plan 41%");
       await meter.hover();
-      await usageFixture.waitForRequestCount(1);
-      await expect(page.getByText("41%")).toBeVisible({ timeout: 10_000 });
+      await usageFixture.waitForRequestCount(2);
+      await expect(page.getByText("64%", { exact: true })).toBeVisible({ timeout: 10_000 });
 
       await page.mouse.move(0, 0);
       await expect(page.getByText("Mock provider", { exact: true })).toHaveCount(0);
 
       await meter.hover();
-      await usageFixture.waitForRequestCount(2);
-      expect(usageFixture.requestCount()).toBe(2);
-      await expect(page.getByText("64%")).toBeVisible();
+      await usageFixture.waitForRequestCount(3);
+      expect(usageFixture.requestCount()).toBeGreaterThanOrEqual(3);
+      await expect(page.getByText("64%", { exact: true })).toBeVisible();
     } finally {
       await session.cleanup();
     }

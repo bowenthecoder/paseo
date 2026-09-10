@@ -360,6 +360,17 @@ function updateAgentTasks(
 export type WorkspaceRestoreStatus = "restoring" | "failed" | "needs-host-upgrade";
 
 // Per-session state
+/**
+ * A composer message waiting in an agent's queue. Structurally identical to the composer's
+ * `QueuedComposerMessage`; kept declared here so the store stays free of composer imports.
+ */
+export interface QueuedSessionMessage {
+  id: string;
+  text: string;
+  attachments: ComposerAttachment[];
+  hold?: boolean;
+}
+
 export interface SessionState {
   serverId: string;
 
@@ -417,10 +428,7 @@ export interface SessionState {
   fileExplorer: Map<string, AgentFileExplorerState>;
 
   // Queued messages
-  queuedMessages: Map<
-    string,
-    Array<{ id: string; text: string; attachments: ComposerAttachment[] }>
-  >;
+  queuedMessages: Map<string, QueuedSessionMessage[]>;
 }
 
 // Global store state
@@ -595,10 +603,8 @@ interface SessionStoreActions {
   setQueuedMessages: (
     serverId: string,
     value:
-      | Map<string, Array<{ id: string; text: string; attachments: ComposerAttachment[] }>>
-      | ((
-          prev: Map<string, Array<{ id: string; text: string; attachments: ComposerAttachment[] }>>,
-        ) => Map<string, Array<{ id: string; text: string; attachments: ComposerAttachment[] }>>),
+      | Map<string, QueuedSessionMessage[]>
+      | ((prev: Map<string, QueuedSessionMessage[]>) => Map<string, QueuedSessionMessage[]>),
   ) => void;
 
   // Hydration

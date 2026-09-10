@@ -67,7 +67,8 @@ describe("resolveClientSlashCommand", () => {
       ]),
     ).toEqual([
       ["exit", ["quit", "q"], "immediate"],
-      ["clear", ["new"], "immediate"],
+      ["clear", ["new", "reset"], "immediate"],
+      ["plan", ["planmode"], "immediate"],
     ]);
   });
 

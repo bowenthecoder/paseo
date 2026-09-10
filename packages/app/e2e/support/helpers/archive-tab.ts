@@ -199,13 +199,13 @@ export async function openWorkspaceWithAgents(
 
 export async function expectWorkspaceTabVisible(page: Page, agentId: string): Promise<void> {
   await expect(
-    page.getByTestId(`workspace-tab-agent_${agentId}`).filter({ visible: true }).first(),
+    page.getByTestId(`workspace-panel-agent_${agentId}`).filter({ visible: true }).first(),
   ).toBeVisible({ timeout: 30_000 });
 }
 
 export async function expectWorkspaceTabHidden(page: Page, agentId: string): Promise<void> {
   await expect(
-    page.getByTestId(`workspace-tab-agent_${agentId}`).filter({ visible: true }),
+    page.getByTestId(`workspace-panel-agent_${agentId}`).filter({ visible: true }),
   ).toHaveCount(0, {
     timeout: 30_000,
   });
@@ -220,6 +220,12 @@ export async function expectWorkspaceArchiveOutcome(
 }
 
 export async function closeWorkspaceAgentTab(page: Page, agentId: string): Promise<void> {
+  // Close controls stay mounted at zero opacity until the tab is hovered.
+  await page
+    .getByTestId(`workspace-tab-agent_${agentId}`)
+    .filter({ visible: true })
+    .first()
+    .hover();
   const closeButton = page.getByTestId(`workspace-agent-close-${agentId}`).filter({
     visible: true,
   });

@@ -1,4 +1,4 @@
-import { test, expect } from "../support/fixtures";
+import { test, expect, type Page } from "../support/fixtures";
 import { expectComposerVisible, submitMessage } from "../support/helpers/composer";
 import { delayCreatedAgentInitialTailResponse } from "../support/helpers/agent-timeline-gate";
 import { delayBrowserAgentCreatedStatus } from "../support/helpers/new-workspace";
@@ -9,6 +9,26 @@ import {
 } from "../support/helpers/workspace-tabs";
 import { getServerId } from "../support/helpers/server-id";
 import { buildHostWorkspaceRoute } from "@/utils/host-routes";
+
+function mainChat(page: Page) {
+  return page.getByTestId("workspace-chat-pane").filter({ visible: true });
+}
+
+function chatRow(page: Page, agentId: string) {
+  return page.getByTestId(`sidebar-workspace-row-${getServerId()}:chat:${agentId}`);
+}
+
+async function expectCreatedChatVisible(page: Page, agentId: string): Promise<void> {
+  // A promoted draft keeps its slot ID. The selected sidebar row identifies the
+  // authoritative agent while its existing main chat surface remains visible.
+  await expect(chatRow(page, agentId)).toHaveAttribute("aria-selected", "true", {
+    timeout: 15_000,
+  });
+  await expect(mainChat(page)).toHaveCount(1);
+  await expect(mainChat(page).getByTestId("agent-chat-scroll")).toBeVisible({
+    timeout: 15_000,
+  });
+}
 
 async function waitForCreatedAgentId(
   client: SeedDaemonClient,
@@ -67,10 +87,8 @@ test.describe("Workspace agent title handoff", () => {
       const agentId = await timelineGate.waitForCreatedAgent();
       await timelineGate.waitForDelayedResponse();
 
-      await expect(page.getByTestId(`workspace-tab-agent_${agentId}`).first()).toBeVisible({
-        timeout: 15_000,
-      });
-      await expect(page.getByText(prompt, { exact: true }).first()).toBeVisible();
+      await expectCreatedChatVisible(page, agentId);
+      await expect(mainChat(page).getByText(prompt, { exact: true })).toBeVisible();
       await expect(page.getByTestId("agent-history-overlay")).toHaveCount(0);
 
       const overlayAppeared = page
@@ -90,7 +108,7 @@ test.describe("Workspace agent title handoff", () => {
     }
   });
 
-  test("shows the prompt tab title and replaces it when the daemon title updates", async ({
+  test("shows the prompt chat title and replaces it when the daemon title updates", async ({
     page,
   }) => {
     test.setTimeout(120_000);
@@ -111,31 +129,35 @@ test.describe("Workspace agent title handoff", () => {
       await agentCreatedDelay.waitForCreateRequest();
       await agentCreatedDelay.waitForDelayedCreatedStatus();
 
-      await expect(page.getByRole("button", { name: promptTitle }).first()).toBeVisible({
-        timeout: 15_000,
-      });
-      await expect(
-        page.getByText(/Loading agent title|Loading\.\.\./).filter({ visible: true }),
-      ).toHaveCount(0);
-
       const agentId = await waitForCreatedAgentId(workspace.client, {
         cwd: workspace.repoPath,
         workspaceId: workspace.workspaceId,
       });
+      const row = chatRow(page, agentId);
+      await expect(row).toContainText(promptTitle, { timeout: 15_000 });
+      await expect(
+        page.getByText(/Loading agent title|Loading\.\.\./).filter({ visible: true }),
+      ).toHaveCount(0);
 
-      await expect(page.getByTestId(`workspace-tab-agent_${agentId}`)).toHaveCount(0);
+      const userMessage = mainChat(page)
+        .getByTestId("user-message")
+        .filter({ hasText: promptTitle });
+      await expect(userMessage).toBeVisible();
+      await expect(userMessage).toHaveAttribute("aria-busy", "true");
       agentCreatedDelay.release();
 
-      const agentTab = page.getByTestId(`workspace-tab-agent_${agentId}`).first();
-      await expect(agentTab).toBeVisible({ timeout: 15_000 });
+      await expectCreatedChatVisible(page, agentId);
+      await expect(userMessage).toHaveAttribute("aria-busy", "false");
       await expect
         .poll(() => fetchActiveAgentTitle(workspace.client, agentId), { timeout: 10_000 })
         .toBe(promptTitle);
-      await expect(agentTab).toContainText(promptTitle, { timeout: 15_000 });
-      await agentTab.click({ button: "right" });
-      await expect(page.getByRole("menuitem", { name: "Rename", exact: true })).toBeVisible({
-        timeout: 10_000,
-      });
+      await expect(row).toContainText(promptTitle, { timeout: 15_000 });
+      await row.click({ button: "right" });
+      const rename = page.getByTestId(
+        `sidebar-workspace-menu-rename-${getServerId()}:chat:${agentId}`,
+      );
+      await expect(rename).toBeVisible({ timeout: 10_000 });
+      await expect(rename).toContainText("Rename");
       await page.keyboard.press("Escape");
       await expect(
         page.getByText(/Loading agent title|Loading\.\.\./).filter({ visible: true }),
@@ -145,7 +167,7 @@ test.describe("Workspace agent title handoff", () => {
       await expect
         .poll(() => fetchActiveAgentTitle(workspace.client, agentId), { timeout: 10_000 })
         .toBe(generatedTitle);
-      await expect(page.getByRole("button", { name: generatedTitle }).first()).toBeVisible({
+      await expect(row).toContainText(generatedTitle, {
         timeout: 15_000,
       });
     } finally {

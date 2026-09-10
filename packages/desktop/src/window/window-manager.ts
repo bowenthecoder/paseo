@@ -10,7 +10,12 @@ import {
   shell,
 } from "electron";
 
-import type { WindowState, WindowStateStore } from "../settings/window-state.js";
+import {
+  clampWindowStateToWorkAreas,
+  type WindowState,
+  type WindowStateStore,
+  type WorkArea,
+} from "../settings/window-state.js";
 import type { DesktopWindowChromeMode } from "./chrome.js";
 
 const WINDOW_STATE_SAVE_DEBOUNCE_MS = 400;
@@ -87,11 +92,17 @@ export const DEFAULT_WINDOW_HEIGHT = 800;
  */
 export function resolveWindowBounds(
   state: WindowState | null,
+  workAreas?: WorkArea[],
 ): Pick<Electron.BrowserWindowConstructorOptions, "width" | "height" | "x" | "y"> {
-  const width = state?.width ?? DEFAULT_WINDOW_WIDTH;
-  const height = state?.height ?? DEFAULT_WINDOW_HEIGHT;
-  if (state?.x !== undefined && state?.y !== undefined) {
-    return { width, height, x: state.x, y: state.y };
+  const requested = state ?? {
+    width: DEFAULT_WINDOW_WIDTH,
+    height: DEFAULT_WINDOW_HEIGHT,
+    isMaximized: false,
+  };
+  const fitted = workAreas ? clampWindowStateToWorkAreas(requested, workAreas) : requested;
+  const { width, height } = fitted;
+  if (fitted.x !== undefined && fitted.y !== undefined) {
+    return { width, height, x: fitted.x, y: fitted.y };
   }
   return { width, height };
 }

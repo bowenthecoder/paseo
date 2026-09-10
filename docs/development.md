@@ -131,6 +131,12 @@ desktop-only environment inherited by terminals opened inside Paseo from couplin
 a new worktree instance to the parent desktop instance's profile or single-instance
 lock.
 
+`PASEO_ELECTRON_USER_DATA_DIR` isolates the desktop profile, not the daemon. For a
+separate verification app, also set an isolated `PASEO_HOME` and listen address.
+If you intentionally attach a preview to an existing daemon, disable built-in daemon
+management in that preview and enable keep-running after quit. Quit only stops a
+supervisor spawned by that desktop process while daemon management remains enabled.
+
 The desktop workspace script `exec`s the dev runner so the terminal owns the runner
 PID. Terminal shutdown reaches the runner as `SIGHUP`; the runner stops Metro and
 asks Electron to quit through its normal app lifecycle. Do not add an npm wrapper or

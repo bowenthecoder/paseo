@@ -6,6 +6,7 @@ import { buildTerminalsQueryKey } from "@/screens/workspace/terminals/state";
 import { daemonConfigQueryKey } from "@/data/daemon-config";
 import { daemonPairingOfferQueryKey } from "@/data/daemon-pairing";
 import { providersSnapshotQueryKey } from "@/data/providers-snapshot";
+import { providerUsageQueryKey, subscriptionUsageQueryKey } from "@/provider-usage/query-cache";
 import {
   checkoutDiffPushRoute,
   invalidateServerDataQueriesAfterReconnect,
@@ -146,6 +147,43 @@ function providerUpdate(generatedAt: string): ProvidersSnapshotUpdateMessage {
 }
 
 describe("server data push router", () => {
+  it("removes previous-account usage when provider configuration changes, preserving other hosts", () => {
+    const queryClient = new QueryClient();
+    const fake = createFakeClient();
+    const serverId = "account-host";
+    const config = { ...daemonConfig, providers: { codex: { env: { CODEX_HOME: "/profile-a" } } } };
+    queryClient.setQueryData(daemonConfigQueryKey(serverId), config);
+    for (const key of [providerUsageQueryKey, subscriptionUsageQueryKey]) {
+      queryClient.setQueryData(key(serverId), { account: "A", used: 90 });
+      queryClient.setQueryData(key("other-host"), { account: "other", used: 30 });
+    }
+    const unmount = mountServerDataPushRouter({ client: fake.client, queryClient, serverId });
+    fake.emit({
+      type: "status",
+      payload: {
+        status: "daemon_config_changed",
+        config: { ...config, appendSystemPrompt: "Unrelated setting" },
+      },
+    });
+    expect(queryClient.getQueryData(subscriptionUsageQueryKey(serverId))).toEqual({
+      account: "A",
+      used: 90,
+    });
+    fake.emit({
+      type: "status",
+      payload: {
+        status: "daemon_config_changed",
+        config: { ...config, providers: { codex: { env: { CODEX_HOME: "/profile-b" } } } },
+      },
+    });
+    for (const key of [providerUsageQueryKey, subscriptionUsageQueryKey]) {
+      expect(queryClient.getQueryData(key(serverId))).toBeUndefined();
+      expect(queryClient.getQueryData(key("other-host"))).toEqual({ account: "other", used: 30 });
+    }
+    unmount();
+    queryClient.clear();
+  });
+
   it("routes provider snapshot and daemon config payloads until detached", async () => {
     const queryClient = new QueryClient();
     const fake = createFakeClient();
@@ -252,6 +290,66 @@ describe("server data push router", () => {
     expect(fake.unsubscribeCheckoutDiffCalls).toEqual([subscriptionId]);
 
     unmount();
+  });
+
+  it("keeps a visible diff subscribed when a retained tree shares its query", () => {
+    const queryClient = new QueryClient();
+    const fake = createFakeClient();
+    const serverId = "server-1";
+    const cwd = "/repo";
+    const compare = { mode: "uncommitted" as const, ignoreWhitespace: false };
+    const queryKey = checkoutDiffQueryKey(serverId, cwd, compare.mode, undefined, false);
+    const subscriptionId = `checkoutDiff:${JSON.stringify(queryKey)}`;
+    const options = (enabled: boolean) =>
+      ({
+        queryKey,
+        queryFn: skipToken,
+        enabled,
+        gcTime: Infinity,
+        staleTime: Infinity,
+        meta: checkoutDiffPushRoute({ enabled, serverId, subscriptionId, cwd, compare }),
+      }) as const;
+    const diff = new QueryObserver(queryClient, options(true));
+    const unsubscribeDiff = diff.subscribe(() => undefined);
+    const unmount = mountServerDataPushRouter({ client: fake.client, queryClient, serverId });
+    const tree = new QueryObserver(queryClient, options(false));
+    const unsubscribeTree = tree.subscribe(() => undefined);
+
+    try {
+      expect(fake.subscribeCheckoutDiffCalls).toEqual([{ cwd, compare, subscriptionId }]);
+      expect(fake.unsubscribeCheckoutDiffCalls).toEqual([]);
+
+      fake.emit({
+        type: "checkout_diff_update",
+        payload: { subscriptionId, cwd, files: [], error: null },
+      });
+      expect(diff.getCurrentResult().data).toEqual({
+        cwd,
+        files: [],
+        error: null,
+        requestId: `subscription:${subscriptionId}`,
+      });
+
+      // Hiding the last active view releases the subscription even while both
+      // views remain mounted. Revealing the tree starts it again exactly once.
+      diff.setOptions(options(false));
+      expect(fake.unsubscribeCheckoutDiffCalls).toEqual([subscriptionId]);
+      tree.setOptions(options(true));
+      expect(fake.subscribeCheckoutDiffCalls).toEqual([
+        { cwd, compare, subscriptionId },
+        { cwd, compare, subscriptionId },
+      ]);
+      diff.setOptions(options(false));
+      expect(fake.unsubscribeCheckoutDiffCalls).toEqual([subscriptionId]);
+
+      unsubscribeTree();
+      expect(fake.unsubscribeCheckoutDiffCalls).toEqual([subscriptionId, subscriptionId]);
+    } finally {
+      unsubscribeTree();
+      unsubscribeDiff();
+      unmount();
+      queryClient.clear();
+    }
   });
 
   it("does not retry failed subscriptions on unrelated cache events", async () => {

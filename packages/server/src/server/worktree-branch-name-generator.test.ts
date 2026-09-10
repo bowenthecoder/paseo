@@ -24,10 +24,10 @@ The branch must be a valid git ref: lowercase letters, numbers, hyphens, and sla
 The branch is generated directly from the prompt — it is NEVER derived from or slugified from the title.
 
 Title style:
-An actionable task label: requested operation + concrete target + strongest distinguishing anchor (sentence case, max 80 characters).
-Preserve explicit identifiers such as PR or issue numbers, file paths, packages, components, commands, and quoted names when they distinguish the task.
-Aim for about 4 words, but never drop a part needed to understand or distinguish the task.
-Example: "Refactor PR #2638 Playwright specs".
+A concise chat title summarizing the main task (sentence case, 2–6 words, max 48 characters).
+Keep the main action and subject. Include an identifier only when it is essential to distinguish this chat.
+Omit greetings, requests such as "I want you to", secondary instructions, and implementation details. Summarize the intent instead of quoting the first sentence.
+Examples: "Fix sidebar spacing", "Investigate order sync", "Add Grok effort controls".
 
 Branch style:
 A short task-shaped slug preserving the operation, target, and explicit identifier when present.
@@ -274,7 +274,7 @@ describe("generateBranchNameFromFirstAgentContext", () => {
 
     expect(prompt).toContain("Branch style:\nUse the prefix mb/.");
     expect(prompt).not.toContain("A short task-shaped slug");
-    expect(prompt).toContain("Aim for about 4 words");
+    expect(prompt).toContain("2–6 words, max 48 characters");
   });
 
   test("the contract is never overridable by user instructions", async () => {

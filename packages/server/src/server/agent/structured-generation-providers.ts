@@ -81,6 +81,17 @@ export async function resolveStructuredGenerationProviders(
     providers.push(currentSelection);
   }
 
+  // Trimmed model lists can hide every default candidate; any enabled provider that lists a
+  // model can still write a title rather than leaving the chat on its raw prompt.
+  if (providers.length === 0) {
+    const fallback =
+      modelEntries.find((entry) => /^(claude|codex)/.test(entry.provider)) ?? modelEntries[0];
+    const model = fallback ? selectDefaultModel(fallback.models ?? []) : null;
+    if (fallback && model) {
+      providers.push({ provider: fallback.provider, model: model.id });
+    }
+  }
+
   return dedupeProviders(providers);
 }
 

@@ -37,7 +37,15 @@ export const GenericACPProviderParamsSchema = z
 
 type GenericACPProviderParams = z.infer<typeof GenericACPProviderParamsSchema>;
 
-interface GenericACPAgentClientOptions {
+export interface GenericACPAgentClientOptions {
+  notificationAdapterFactory?: ConstructorParameters<
+    typeof ACPAgentClient
+  >[0]["notificationAdapterFactory"];
+  modelTransformer?: ConstructorParameters<typeof ACPAgentClient>[0]["modelTransformer"];
+  sessionResponseTransformer?: ConstructorParameters<
+    typeof ACPAgentClient
+  >[0]["sessionResponseTransformer"];
+  thinkingOptionWriter?: ConstructorParameters<typeof ACPAgentClient>[0]["thinkingOptionWriter"];
   logger: Logger;
   command: [string, ...string[]];
   env?: Record<string, string>;
@@ -78,6 +86,10 @@ export class GenericACPAgentClient extends ACPAgentClient {
       extensionCommandsParser: options.extensionCommandsParser,
       catalogModelResolver: options.catalogModelResolver,
       now: options.now,
+      modelTransformer: options.modelTransformer,
+      sessionResponseTransformer: options.sessionResponseTransformer,
+      thinkingOptionWriter: options.thinkingOptionWriter,
+      notificationAdapterFactory: options.notificationAdapterFactory,
     });
 
     this.command = options.command;

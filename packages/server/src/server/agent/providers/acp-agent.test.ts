@@ -28,6 +28,7 @@ import {
   resolveACPModeSelection,
   resolveACPModelSelection,
   summarizeACPRequestError,
+  mapToolSnapshotToTimeline,
 } from "./acp-agent.js";
 import type { ProcessTerminator, TreeKillTarget } from "../../../utils/tree-kill.js";
 import {
@@ -42,6 +43,7 @@ import {
   writeCopilotProviderMode,
 } from "./copilot-acp-agent.js";
 import { GenericACPAgentClient } from "./generic-acp-agent.js";
+import { GrokSubagentAdapter } from "./grok-subagents.js";
 import { parseKiroExtensionCommands } from "./kiro-acp-agent.js";
 import { transformPiModels } from "./pi/agent.js";
 import type { AgentStreamEvent } from "../agent-sdk-types.js";
@@ -1121,6 +1123,150 @@ describe("ACPAgentSession Zed parity", () => {
       type: "thinking_option_changed",
       provider: "claude-acp",
       thinkingOptionId: "high",
+    });
+  });
+
+  test("answers Grok's plan approval extension through a plan permission", async () => {
+    const session = createSessionWithConfig({ provider: "grok" });
+    const events: AgentStreamEvent[] = [];
+    asInternals<ACPSessionInternals>(session).sessionId = "session-1";
+    session.subscribe((event) => {
+      events.push(event);
+    });
+
+    const approval = session.extMethod("_x.ai/exit_plan_mode", {
+      sessionId: "session-1",
+      toolCallId: "call-7",
+      planContent: "# Plan\n1. Add CONTRIBUTING.md",
+    });
+    await Promise.resolve();
+
+    const requested = events.find((event) => event.type === "permission_requested");
+    expect(requested).toMatchObject({
+      type: "permission_requested",
+      request: {
+        kind: "plan",
+        name: "exit_plan_mode",
+        metadata: { planText: "# Plan\n1. Add CONTRIBUTING.md", toolCallId: "call-7" },
+        actions: [
+          { id: "reject", behavior: "deny" },
+          { id: "abandon", behavior: "deny" },
+          { id: "approve", behavior: "allow" },
+        ],
+      },
+    });
+    if (requested?.type !== "permission_requested") {
+      throw new Error("Expected plan approval request");
+    }
+    expect(session.getPendingPermissions().map((request) => request.id)).toEqual([
+      requested.request.id,
+    ]);
+
+    await session.respondToPermission(requested.request.id, {
+      behavior: "allow",
+      selectedActionId: "approve",
+    });
+    await expect(approval).resolves.toEqual({ outcome: "approved", feedback: null });
+    expect(session.getPendingPermissions()).toEqual([]);
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "permission_resolved", requestId: requested.request.id }),
+    );
+  });
+
+  test("reads the plan file when Grok sends no plan content and relays feedback", async () => {
+    const session = createSessionWithConfig({ provider: "grok" });
+    const internals = asInternals<ACPSessionInternals & { planFileReader: unknown }>(session);
+    internals.sessionId = "session-2";
+    const reads: Array<{ cwd: string; sessionId: string }> = [];
+    internals.planFileReader = async (input: { cwd: string; sessionId: string }) => {
+      reads.push(input);
+      return "# Plan from disk";
+    };
+    const events: AgentStreamEvent[] = [];
+    session.subscribe((event) => {
+      events.push(event);
+    });
+
+    const approval = session.extMethod("_x.ai/exit_plan_mode", {
+      sessionId: "session-2",
+      toolCallId: "call-8",
+      planContent: null,
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(reads).toEqual([{ cwd: "/tmp/paseo-acp-test", sessionId: "session-2" }]);
+    const requested = events.find((event) => event.type === "permission_requested");
+    if (requested?.type !== "permission_requested") {
+      throw new Error("Expected plan approval request");
+    }
+    expect(requested.request.metadata?.planText).toBe("# Plan from disk");
+
+    await session.respondToPermission(requested.request.id, {
+      behavior: "deny",
+      selectedActionId: "reject",
+      message: "Add a rollback step.",
+    });
+    await expect(approval).resolves.toEqual({
+      outcome: "rejected",
+      feedback: "Add a rollback step.",
+    });
+  });
+
+  test("abandoning a plan and interrupting settle Grok's approval as declined", async () => {
+    const session = createSessionWithConfig({ provider: "grok" });
+    asInternals<ACPSessionInternals>(session).sessionId = "session-3";
+    const events: AgentStreamEvent[] = [];
+    session.subscribe((event) => {
+      events.push(event);
+    });
+
+    const abandoned = session.extMethod("_x.ai/exit_plan_mode", {
+      sessionId: "session-3",
+      planContent: "# Plan",
+    });
+    await Promise.resolve();
+    const first = events.find((event) => event.type === "permission_requested");
+    if (first?.type !== "permission_requested") {
+      throw new Error("Expected plan approval request");
+    }
+    await session.respondToPermission(first.request.id, {
+      behavior: "deny",
+      selectedActionId: "abandon",
+    });
+    await expect(abandoned).resolves.toEqual({ outcome: "abandoned", feedback: null });
+
+    const interrupted = session.extMethod("x.ai/exit_plan_mode", {
+      sessionId: "session-3",
+      planContent: "# Plan 2",
+    });
+    await Promise.resolve();
+    await session.close();
+    await expect(interrupted).resolves.toEqual({ outcome: "rejected", feedback: null });
+  });
+
+  test("unknown extension methods answer method not found", async () => {
+    const session = createSessionWithConfig({ provider: "grok" });
+    await expect(session.extMethod("_x.ai/mystery", {})).rejects.toMatchObject({
+      code: -32601,
+    });
+  });
+
+  test("names an ACP tool of kind other from its title", () => {
+    const item = mapToolSnapshotToTimeline({
+      toolCallId: "tool-9",
+      title: 'Search tools: "paseo chrome evaluate"',
+      kind: "other",
+      status: "completed",
+      content: [{ type: "content", content: { type: "text", text: "3 matches" } }],
+      locations: [],
+      rawInput: null,
+      rawOutput: null,
+    });
+    expect(item.name).toBe("Search tools");
+    expect(item.metadata).toMatchObject({
+      kind: "other",
+      title: 'Search tools: "paseo chrome evaluate"',
     });
   });
 
@@ -2762,6 +2908,36 @@ describe("ACPAgentSession", () => {
     ]);
   });
 
+  test("streams ACP context usage and preserves it when a turn returns token usage", async () => {
+    const session = createSession();
+    asInternals<ACPSessionInternals>(session).sessionId = "session-1";
+    const events: AgentStreamEvent[] = [];
+    session.subscribe((event) => events.push(event));
+    await session.sessionUpdate({
+      sessionId: "session-1",
+      update: { sessionUpdate: "usage_update", size: 500000, used: 22043 },
+    });
+    expect(events.at(-1)).toMatchObject({
+      type: "usage_updated",
+      usage: { contextWindowMaxTokens: 500000, contextWindowUsedTokens: 22043 },
+    });
+    asInternals<ACPSessionInternals>(session).connection = {
+      prompt: vi.fn().mockResolvedValue({
+        stopReason: "end_turn",
+        usage: { inputTokens: 22043, outputTokens: 5 },
+      }),
+    };
+    await session.run("hello");
+    expect(events.findLast((event) => event.type === "turn_completed")).toMatchObject({
+      usage: {
+        contextWindowMaxTokens: 500000,
+        contextWindowUsedTokens: 22043,
+        inputTokens: 22043,
+        outputTokens: 5,
+      },
+    });
+  });
+
   test("startTurn returns before the ACP prompt settles and completes later via subscribers", async () => {
     const session = createSession();
     const events: Array<{ type: string; turnId?: string }> = [];
@@ -3773,6 +3949,7 @@ describe("ACP session/load invariant — cwd and mcpServers always passed", () =
     handle: AgentPersistenceHandle;
     loadSession?: ReturnType<typeof vi.fn>;
     unstableResumeSession?: ReturnType<typeof vi.fn>;
+    notificationAdapterFactory?: () => GrokSubagentAdapter;
   }) {
     const loadSession =
       args.loadSession ??
@@ -3823,6 +4000,7 @@ describe("ACP session/load invariant — cwd and mcpServers always passed", () =
           ...args.capabilities,
         },
         handle: args.handle,
+        notificationAdapterFactory: args.notificationAdapterFactory,
       },
     );
 
@@ -3885,6 +4063,58 @@ describe("ACP session/load invariant — cwd and mcpServers always passed", () =
         },
       },
     ]);
+  });
+
+  test("preserves native subagent replay alongside its separate child transcript", async () => {
+    let session!: ACPAgentSession;
+    const loadSession = async () => {
+      await session.extNotification("_x.ai/session_notification", {
+        sessionId: "session-1",
+        update: {
+          sessionUpdate: "subagent_spawned",
+          subagent_id: "child",
+          parent_session_id: "session-1",
+          child_session_id: "child",
+          subagent_type: "explore",
+          description: "Find the answer",
+        },
+      });
+      await session.sessionUpdate({
+        sessionId: "child",
+        update: {
+          sessionUpdate: "agent_message_chunk",
+          messageId: "child-answer",
+          content: { type: "text", text: "Found it" },
+        },
+      });
+      return { sessionId: "session-1", modes: null, models: null, configOptions: [] };
+    };
+    ({ session } = makeTestSession({
+      capabilities: { loadSession: true },
+      handle: { sessionId: "session-1", provider: "claude-acp" },
+      loadSession,
+      notificationAdapterFactory: () => new GrokSubagentAdapter(),
+    }));
+    await session.initializeResumedSession();
+    const events: AgentStreamEvent[] = [];
+    for await (const event of session.streamHistory()) events.push(event);
+    expect(events).toMatchObject([
+      {
+        type: "provider_subagent",
+        event: { type: "upsert", id: "child", title: "Find the answer", status: "running" },
+      },
+      {
+        type: "provider_subagent",
+        event: {
+          type: "timeline",
+          id: "child",
+          item: { type: "assistant_message", messageId: "child-answer", text: "Found it" },
+        },
+      },
+    ]);
+    const repeated: AgentStreamEvent[] = [];
+    for await (const event of session.streamHistory()) repeated.push(event);
+    expect(repeated).toEqual([]);
   });
 
   test("coalesces an ID-less text and image user message during loadSession replay", async () => {

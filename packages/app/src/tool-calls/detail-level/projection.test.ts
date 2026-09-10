@@ -130,7 +130,7 @@ describe("tool call detail-level projection", () => {
 
     expect(group).toMatchObject({
       isLoading: true,
-      summary: { commandCount: 1 },
+      summary: { commandCount: 0, runningToolCount: 1 },
     });
   });
 
@@ -182,7 +182,7 @@ describe("tool call detail-level projection", () => {
     expect(result.groupsByHostId.get("1")).toMatchObject({
       run: { latest: calls[3], isSealed: false },
       isLoading: true,
-      summary: { commandCount: 4 },
+      summary: { commandCount: 0, runningToolCount: 4 },
     });
   });
 
@@ -233,12 +233,28 @@ describe("tool call detail-level projection", () => {
       run: expect.any(Object),
       isLoading: false,
       summary: {
-        editedFileCount: 1,
+        edits: { total: 1, failed: 1 },
+        creates: { total: 0, failed: 0 },
+        commands: { total: 1, failed: 0 },
+        reads: { total: 2, failed: 0 },
+        searches: { total: 0, failed: 0 },
+        agents: { total: 0, failed: 0 },
+        others: { total: 0, failed: 0 },
+        paseoCalls: { total: 0, failed: 0 },
+        editedFileCount: 0,
+        createdFileCount: 0,
         commandCount: 1,
         readFileCount: 2,
+        readFileNames: ["a.ts", "b.ts"],
         searchCount: 0,
+        agentCount: 0,
         otherToolCount: 0,
         paseoCallCount: 0,
+        failedToolCount: 1,
+        canceledToolCount: 0,
+        runningToolCount: 0,
+        additions: 0,
+        deletions: 0,
       },
     });
   });
@@ -263,8 +279,37 @@ describe("tool call detail-level projection", () => {
         editedFileCount: 0,
         commandCount: 0,
         readFileCount: 2,
+        readFileNames: ["a.ts", "beta.ts"],
         searchCount: 1,
+        searches: { total: 1, failed: 1 },
         otherToolCount: 2,
+        failedToolCount: 1,
+      },
+    });
+  });
+
+  it("keeps failed and canceled activity visible without counting it as successful work", () => {
+    const result = project({
+      level: "overview",
+      head: [
+        toolCall("1", { type: "shell", command: "npm test" }, { status: "failed" }),
+        toolCall("2", { type: "edit", filePath: "/repo/a.ts" }, { status: "canceled" }),
+        toolCall("3", { type: "read", filePath: "/repo/a.ts" }),
+        toolCall("4", { type: "shell", command: "npm run lint" }, { status: "running" }),
+      ],
+      isTurnActive: true,
+    });
+    expect(result.groupsByHostId.get("1")).toMatchObject({
+      isLoading: true,
+      summary: {
+        failedToolCount: 1,
+        canceledToolCount: 1,
+        runningToolCount: 1,
+        editedFileCount: 0,
+        // A failed command still counts as a command; the failure rides inside its category.
+        commandCount: 1,
+        commands: { total: 1, failed: 1 },
+        readFileCount: 1,
       },
     });
   });
@@ -283,7 +328,10 @@ describe("tool call detail-level projection", () => {
 
     expect(result.groupsByHostId.get("1")).toMatchObject({
       summary: {
-        editedFileCount: 2,
+        editedFileCount: 1,
+        createdFileCount: 1,
+        edits: { total: 2, failed: 0 },
+        creates: { total: 1, failed: 0 },
         commandCount: 2,
         readFileCount: 1,
         otherToolCount: 0,

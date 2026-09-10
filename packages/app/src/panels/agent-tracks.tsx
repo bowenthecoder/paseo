@@ -3,9 +3,8 @@ import { WorkspaceDiffStatPill } from "@/composer/diff-stat-pill";
 import { useWorkspaceHasDiffStat } from "@/composer/workspace-diff-stat";
 import { AgentTaskList } from "@/composer/task-list";
 import { ComposerTrackBar } from "@/composer/tracks";
-import { supportsDesktopPaneSplits, useIsCompactFormFactor } from "@/constants/layout";
+import { useIsCompactFormFactor } from "@/constants/layout";
 import { usePaneContext } from "@/panels/pane-context";
-import { useSettings } from "@/hooks/use-settings";
 import { PluginComposerPills } from "@/plugins";
 import { useSessionStore } from "@/stores/session-store";
 import {
@@ -16,9 +15,7 @@ import {
 } from "@/subagents";
 import { SubagentsTrack } from "@/subagents/track";
 import type { TodoEntry } from "@/types/stream";
-import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
-import { openPreferredWorkspaceTarget } from "@/workspace-tabs/open-beside";
 import { openComposerChanges } from "@/workspace-tabs/open-supporting-view";
 
 /**
@@ -49,58 +46,35 @@ export const AgentTracks = memo(function AgentTracks({
   onArchiveFinished: () => void;
   hasPluginComposerPills: boolean;
 }): ReactElement | null {
-  const { tabId, openTab } = usePaneContext();
+  const { host, openTab, layoutWorkspaceId } = usePaneContext();
   const hasWorkspaceDiffStat = useWorkspaceHasDiffStat(serverId, workspaceId);
   const isCompact = useIsCompactFormFactor();
-  const canSplit = supportsDesktopPaneSplits() && !isCompact;
-  const openInSidePane = useSettings((settings) => settings.openInSidePane);
   const workspaceKey = buildWorkspaceTabPersistenceKey({ serverId, workspaceId });
   const canDetachSubagents = useSessionStore(
     (state) => state.sessions[serverId]?.serverInfo?.features?.agentDetach === true,
   );
   const archiveSubagent = useArchiveSubagent({ serverId });
   const detachSubagent = useDetachSubagent({ serverId });
+  const handleOpenSubagentsPanel = useCallback(() => {
+    openTab({ kind: "subagents", parentAgentId: agentId });
+  }, [agentId, openTab]);
   const handleOpenSubagent = useCallback(
     (subagentId: string) => {
-      const session = useSessionStore.getState().sessions[serverId];
-      const agent = session?.agents.get(subagentId) ?? session?.agentDetails.get(subagentId);
-      if (agent?.workspaceId && agent.workspaceId !== workspaceId) {
-        navigateToAgent({ serverId, agentId: subagentId });
-        return;
-      }
-      if (canSplit && workspaceKey) {
-        openPreferredWorkspaceTarget({
-          isCompact,
-          workspaceKey,
-          target: { kind: "agent", agentId: subagentId },
-          source: "subagents",
-          preferences: openInSidePane,
-          parentTabId: tabId,
-        });
-        return;
-      }
-      navigateToAgent({ serverId, agentId: subagentId });
+      openTab({ kind: "agent", agentId: subagentId });
     },
-    [canSplit, isCompact, openInSidePane, serverId, tabId, workspaceId, workspaceKey],
+    [openTab],
   );
   const handleOpenProviderSubagent = useCallback(
     (parentAgentId: string, subagentId: string) => {
-      if (canSplit && workspaceKey) {
-        openPreferredWorkspaceTarget({
-          isCompact,
-          workspaceKey,
-          target: { kind: "provider_subagent", parentAgentId, subagentId },
-          source: "subagents",
-          preferences: openInSidePane,
-          parentTabId: tabId,
-        });
-        return;
-      }
       openTab({ kind: "provider_subagent", parentAgentId, subagentId });
     },
-    [canSplit, isCompact, openInSidePane, openTab, tabId, workspaceKey],
+    [openTab],
   );
   const handleOpenChanges = useCallback(() => {
+    if (host === "explorer" || (layoutWorkspaceId && layoutWorkspaceId !== workspaceId)) {
+      openTab({ kind: "working_diff" });
+      return;
+    }
     if (!workspaceKey) {
       return;
     }
@@ -108,9 +82,8 @@ export const AgentTracks = memo(function AgentTracks({
       isCompact,
       workspaceKey,
       checkout: { serverId, cwd, isGit: true },
-      preferences: openInSidePane,
     });
-  }, [cwd, isCompact, openInSidePane, serverId, workspaceKey]);
+  }, [cwd, host, isCompact, layoutWorkspaceId, openTab, serverId, workspaceId, workspaceKey]);
 
   if (
     !hasWorkspaceDiffStat &&
@@ -128,7 +101,6 @@ export const AgentTracks = memo(function AgentTracks({
     <ComposerTrackBar>
       <AgentTaskList tasks={tasks} />
       <SubagentsTrack
-        serverId={serverId}
         rows={subagentRows}
         onOpenSubagent={handleOpenSubagent}
         onOpenProviderSubagent={handleOpenProviderSubagent}
@@ -136,6 +108,7 @@ export const AgentTracks = memo(function AgentTracks({
         onArchiveFinished={onArchiveFinished}
         archiveFinishedStatus={archiveFinishedStatus}
         onDetachSubagent={canDetachSubagents ? detachSubagent : undefined}
+        onOpenPanel={handleOpenSubagentsPanel}
       />
       <PluginComposerPills
         serverId={serverId}

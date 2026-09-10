@@ -68,8 +68,6 @@ export const ar: TranslationResources = {
       agents: "الوكلاء",
       newAgent: "وكيل جديد",
       open: "فتح {{name}}",
-      openInSidePane: "فتح {{name}} في اللوحة الجانبية",
-      openInFocusedPane: "فتح {{name}} في الجزء النشط",
       addProject: "إضافة مشروع",
       home: "بيت",
       groupByProject: "تجميع حسب المشروع",
@@ -107,6 +105,8 @@ export const ar: TranslationResources = {
       sendMessage: "أرسل رسالة",
       queue: "طابور",
       send: "يرسل",
+      holdQueue: "طابور",
+      holdQueueMessage: "إضافة الرسالة إلى قائمة الانتظار دون إرسالها",
     },
     cancel: {
       cancelingAgent: "وكيل الإلغاء",
@@ -135,6 +135,9 @@ export const ar: TranslationResources = {
       dropFilesHere: "Drop files here",
       editQueuedMessage: "تحرير الرسالة في قائمة الانتظار",
       sendQueuedMessageNow: "إرسال رسالة في قائمة الانتظار الآن",
+      removeQueuedMessage: "إزالة الرسالة من قائمة الانتظار",
+      heldQueuedMessage: "محتجزة",
+      sendAllHeldMessages: "إرسال الكل",
       openImage: "فتح مرفق الصورة",
       removeImage: "إزالة مرفق الصورة",
       removeFile: "Remove file attachment",
@@ -160,6 +163,7 @@ export const ar: TranslationResources = {
     clientCommands: {
       archiveAgent: "أرشفة الوكيل الحالي",
       freshDraft: "أرشفة هذا الوكيل وابدأ مسودة جديدة",
+      planMode: "تشغيل وضع التخطيط أو إيقافه لهذا الوكيل",
     },
     github: {
       searching: "جارٍ البحث...",
@@ -429,7 +433,6 @@ export const ar: TranslationResources = {
     fileActions: {
       openFile: "افتح الملف",
       openIn: "فتح في {{target}}",
-      openToSide: "فتح إلى الجانب",
       copyPath: "نسخ المسار",
       copyRelativePath: "نسخ المسار النسبي",
       revealIn: "إظهار في {{target}}",
@@ -475,6 +478,10 @@ export const ar: TranslationResources = {
         refreshing: "تحديث الملفات",
         hideHiddenFiles: "إخفاء الملفات المخفية",
         showHiddenFiles: "إظهار الملفات المخفية",
+        parentFolder: "المجلد الأصل",
+        homeFolder: "المجلد الرئيسي",
+        deviceRoot: "جذر الجهاز",
+        workingFolder: "مجلد العمل",
       },
       empty: {
         noFiles: "لا توجد ملفات",
@@ -600,12 +607,6 @@ export const ar: TranslationResources = {
         copyTerminalId: "نسخ معرف المحطة",
         copyFilePath: "Copy file path",
         rename: "إعادة تسمية",
-        closeAbove: "إغلاق علامات التبويب أعلاه",
-        closeBelow: "إغلاق علامات التبويب أدناه",
-        closeLeft: "بالقرب من اليسار",
-        closeRight: "قريب من اليمين",
-        closeOthers: "أغلق علامات التبويب الأخرى",
-        moveToMain: "Move to main panel",
         reloadAgent: "إعادة تحميل الوكيل",
         reloadAgentTooltip: "قم بإعادة تحميل الوكيل لتحديث المهارات أو MCPs أو حالة تسجيل الدخول.",
         close: "يغلق",
@@ -613,18 +614,12 @@ export const ar: TranslationResources = {
         renameAgent: "إعادة تسمية الوكيل",
       },
       actions: {
-        newTab: "علامة تبويب جديدة",
         newAgent: "وكيل جديد",
         newTerminal: "محطة جديدة",
         preparingTerminal: "إعداد علامة التبويب المحطة الطرفية",
         preparingTerminalTooltip: "جارٍ تحضير المحطة...",
         newBrowser: "متصفح جديد",
-        maximizePane: "تكبير الجزء",
-        restorePane: "استعادة الجزء",
-        closePane: "إغلاق الجزء",
         exitFocusMode: "إنهاء وضع التركيز",
-        splitRight: "تقسيم الجزء الأيمن",
-        splitDown: "تقسيم الجزء لأسفل",
         changes: "التغييرات",
         files: "الملفات",
         pullRequest: "طلب السحب",
@@ -656,9 +651,6 @@ export const ar: TranslationResources = {
         unsavedMessage:
           "تحتوي علامة التبويب هذه على تغييرات غير محفوظة. سيؤدي إغلاقها إلى تجاهل المسودة.",
         closeWithoutSaving: "إغلاق بدون حفظ",
-        closePaneTitle: "إغلاق اللوحة؟",
-        bulkUnsaved:
-          "تحتوي {{count}} علامة تبويب على تغييرات غير محفوظة. سيؤدي الإغلاق إلى تجاهل المسودات.",
         close: "يغلق",
         cancel: "يلغي",
         archive: "أرشيف",
@@ -667,23 +659,16 @@ export const ar: TranslationResources = {
         archiveRunningAgentTitle: "وكيل تشغيل الأرشيف؟",
         archiveRunningAgentMessage:
           "هذا الوكيل لا يزال قيد التشغيل. ستؤدي أرشفته إلى إيقاف الوكيل وإغلاق علامة التبويب.",
-        closeTabsLeftTitle: "هل تريد إغلاق علامات التبويب على اليسار؟",
-        closeTabsRightTitle: "هل تريد إغلاق علامات التبويب على اليمين؟",
-        closeOtherTabsTitle: "هل تريد إغلاق علامات التبويب الأخرى؟",
-        bulk: {
-          all: "سيؤدي هذا إلى أرشفة وكيل (وكلاء){{agents}}، وإغلاق محطة (محطات){{terminals}}، وإغلاق علامة (علامات) تبويب{{tabs}}. سيتم إيقاف أي عملية جارية في محطة مغلقة على الفور.",
-          agentsAndTerminals:
-            "سيؤدي هذا إلى أرشفة وكيل (وكلاء){{agents}}وإغلاق محطة (محطات){{terminals}}. سيتم إيقاف أي عملية جارية في محطة مغلقة على الفور.",
-          terminalsAndTabs:
-            "سيؤدي هذا إلى إغلاق محطة (محطات){{terminals}}وإغلاق علامة تبويب (علامات تبويب){{tabs}}. سيتم إيقاف أي عملية جارية في محطة مغلقة على الفور.",
-          agentsAndTabs:
-            "سيؤدي هذا إلى أرشفة وكيل (وكلاء){{agents}}وإغلاق علامة (علامات) تبويب{{tabs}}.",
-          terminals:
-            "سيؤدي هذا إلى إغلاق محطة (محطات){{terminals}}. سيتم إيقاف أي عملية جارية في محطة مغلقة على الفور.",
-          tabs: "سيؤدي هذا إلى إغلاق علامة التبويب (علامات التبويب){{tabs}}.",
-          agents: "سيؤدي هذا إلى أرشفة وكيل (وكلاء){{agents}}.",
-        },
       },
+    },
+    chat: {
+      empty: {
+        title: "لا توجد محادثة مفتوحة",
+        action: "محادثة جديدة",
+      },
+    },
+    sidePanel: {
+      close: "إغلاق اللوحة الجانبية",
     },
     header: {
       actions: {
@@ -695,6 +680,8 @@ export const ar: TranslationResources = {
         copyPath: "نسخ مسار مساحة العمل",
         copyBranchName: "انسخ اسم الفرع",
         showSetup: "إظهار الإعداد",
+        toggleTerminal: "الطرفية",
+        toggleBrowser: "المتصفح",
       },
       toasts: {
         workspacePathUnavailable: "مسار Workspace غير متاح بعد",
@@ -1748,10 +1735,17 @@ export const ar: TranslationResources = {
     backdrop: "خلفية القائمة",
   },
   subagents: {
+    viewChild: "عرض",
+    loadFailed: "تعذر تحميل هذه المهمة.",
+    connectToLoad: "اتصل بهذا المضيف لتحميل المهمة.",
+    tasksTitle: "المهام",
+    empty: "لا توجد وكلاء فرعية لعرضها.",
+    pillLabelWorkingOne: "مهمة واحدة قيد التشغيل",
+    contextTokens: "{{tokens}} رمز · السياق",
     title: "الوكلاء الفرعيون",
     pillLabelOne: "وكيل فرعي واحد",
     pillLabelMany: "{{count}} وكلاء فرعيين",
-    pillLabelWorking: "{{count}} قيد التشغيل",
+    pillLabelWorking: "{{count}} مهام قيد التشغيل",
     pillLabelFailed: "{{count}} فشلت",
     pillLabelNeedsInputOne: "واحد يحتاج إدخالاً",
     pillLabelNeedsInputMany: "{{count}} تحتاج إدخالاً",
@@ -1831,6 +1825,18 @@ export const ar: TranslationResources = {
     output: "الإخراج",
   },
   toolCallGroup: {
+    runningTools: {
+      one: "{{count}} أداة قيد التشغيل",
+      other: "{{count}} أدوات قيد التشغيل",
+    },
+    failedTools: {
+      one: "فشلت {{count}} أداة",
+      other: "فشلت {{count}} أدوات",
+    },
+    canceledTools: {
+      one: "أُلغيت {{count}} أداة",
+      other: "أُلغيت {{count}} أدوات",
+    },
     editedFiles: {
       one: "حرّر {{count}} ملفًا",
       other: "حرّر {{count}} ملفات",
@@ -1839,6 +1845,11 @@ export const ar: TranslationResources = {
       one: "شغّل {{count}} أمرًا",
       other: "شغّل {{count}} أوامر",
     },
+    createdFiles: {
+      one: "أنشأ ملفًا",
+      other: "أنشأ {{count}} ملفات",
+    },
+    readFile: "قرأ {{name}}",
     readFiles: {
       one: "قرأ {{count}} ملفًا",
       other: "قرأ {{count}} ملفات",
@@ -1846,6 +1857,10 @@ export const ar: TranslationResources = {
     searches: {
       one: "بحث {{count}} مرة",
       other: "بحث {{count}} مرات",
+    },
+    subagents: {
+      one: "شغّل وكيلًا فرعيًا واحدًا",
+      other: "شغّل {{count}} وكلاء فرعيين",
     },
     otherTools: {
       one: "استخدم {{count}} أداة أخرى",
@@ -1855,6 +1870,8 @@ export const ar: TranslationResources = {
       one: "استدعى Paseo {{count}} مرة",
       other: "استدعى Paseo {{count}} مرات",
     },
+    failedSuffix: "({{count}} فشل)",
+    separator: "، ",
     and: "و",
   },
   renameModal: {
@@ -1907,7 +1924,6 @@ export const ar: TranslationResources = {
     sections: {
       general: "عام",
       appearance: "مظهر",
-      layout: en.settings.sections.layout,
       editor: "المحرر",
       shortcuts: "الاختصارات",
       integrations: "التكامل",
@@ -1916,7 +1932,6 @@ export const ar: TranslationResources = {
       diagnostics: "التشخيص",
       about: "عن",
     },
-    layout: en.settings.layout,
     editor: {
       title: "المحرر",
       vimKeybindings: "اختصارات Vim",
@@ -2169,7 +2184,7 @@ export const ar: TranslationResources = {
       sections: {
         general: "عام",
         workspaces: "المشاريع ومساحات العمل",
-        tabsPanes: "علامات التبويب والأجزاء",
+        chat: "محادثة",
         layout: "التخطيط",
         agentInput: "إدخال Agent",
       },
@@ -2178,26 +2193,12 @@ export const ar: TranslationResources = {
         newWorkspace: "مساحة عمل جديدة",
         newWorktree: "شجرة عمل جديدة",
         archiveWorkspace: "أرشفة مساحة العمل",
-        newTab: "علامة تبويب جديدة",
         closeCurrentTab: "إغلاق علامة التبويب الحالية",
         jumpToWorkspace: "انتقل إلى مساحة العمل",
-        jumpToTab: "انتقل إلى علامة التبويب",
         previousWorkspace: "مساحة العمل السابقة",
         nextWorkspace: "مساحة العمل التالية",
-        previousTab: "علامة التبويب السابقة",
-        nextTab: "علامة التبويب التالية",
-        splitPaneRight: "تقسيم الجزء الأيمن",
-        splitPaneDown: "تقسيم الجزء لأسفل",
-        focusPaneLeft: "جزء التركيز على اليسار",
-        focusPaneRight: "جزء التركيز إلى اليمين",
-        focusPaneUp: "جزء التركيز لأعلى",
-        focusPaneDown: "جزء التركيز لأسفل",
-        moveTabLeft: "نقل علامة التبويب إلى اليسار",
-        moveTabRight: "نقل علامة التبويب إلى اليمين",
-        moveTabUp: "حرك علامة التبويب لأعلى",
-        moveTabDown: "حرك علامة التبويب لأسفل",
-        closePane: "إغلاق الجزء",
         newTerminal: "محطة جديدة",
+        closeSidePanel: "إغلاق اللوحة الجانبية",
         searchFiles: "البحث في الملفات",
         toggleCommandCenter: "تبديل مركز القيادة",
         showKeyboardShortcuts: "إظهار اختصارات لوحة المفاتيح",

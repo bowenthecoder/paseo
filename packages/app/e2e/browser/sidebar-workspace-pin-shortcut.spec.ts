@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
 import {
   expectNewWorkspaceProjectSelected,
@@ -156,6 +157,7 @@ test.describe("Pin workspace shortcut", () => {
       const gate = await installPinRpcGate(page);
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await openWorkspace(page, workspace.workspaceId);
 
       await test.step("sends one RPC for each pin transition", async () => {
@@ -187,6 +189,7 @@ test.describe("Pin workspace shortcut", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await openWorkspace(page, workspace.workspaceId);
       await collapseProjectSection(page, workspace);
 
@@ -208,6 +211,7 @@ test.describe("Pin workspace shortcut", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await openWorkspace(page, workspace.workspaceId);
 
       await page.keyboard.press(PIN_SHORTCUT);
@@ -229,6 +233,7 @@ test.describe("Pin workspace shortcut", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await openWorkspace(page, workspace.workspaceId);
       await switchToStatusGrouping(page);
       await collapseStatusGroupContaining(page, workspace.workspaceId);
@@ -255,6 +260,7 @@ test.describe("Pin workspace shortcut", () => {
       const gate = await installPinRpcGate(page, { rejectFirst: 1 });
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await openWorkspace(page, workspace.workspaceId);
 
       await page.keyboard.press(PIN_SHORTCUT);

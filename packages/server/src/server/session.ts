@@ -122,6 +122,8 @@ import {
   type TimelineProjectionEntry,
   type TimelineProjectionMode,
 } from "./agent/timeline-projection.js";
+import { MAX_TIMELINE_PAGE_BYTES, budgetTimelinePage } from "./agent/timeline-page-budget.js";
+import { shrinkTimelineEntry } from "./agent/timeline-entry-budget.js";
 import { buildAgentForkContextAttachment } from "./agent/activity-curator.js";
 import { buildAgentPrompt } from "./agent/prompt-attachments.js";
 import type { StructuredGenerationDaemonConfig } from "./agent/structured-generation-providers.js";
@@ -694,6 +696,7 @@ export class Session {
   private readonly daemonConfigStore: DaemonConfigStore;
   private readonly pushNotifications: PushNotifications;
   private readonly pluginRuntime: SessionOptions["pluginRuntime"];
+  private readonly providerUsageService: ProviderUsageService;
   private readonly orchestrationSkills: SessionOptions["orchestrationSkills"];
   private unsubscribeAgentEvents: (() => void) | null = null;
   private unsubscribeProjectMutations: (() => void) | null = null;
@@ -831,6 +834,7 @@ export class Session {
     this.projectIcons = new ProjectIconReader(paseoHome);
     this.worktreesRoot = worktreesRoot;
     this.pluginRuntime = pluginRuntime;
+    this.providerUsageService = providerUsageService;
     this.orchestrationSkills = orchestrationSkills;
     this.unsubscribePluginChanges = this.subscribeToPluginChanges(pluginRuntime);
     this.sessionLogger = logger.child({
@@ -2157,6 +2161,21 @@ export class Session {
       return this.pluginRuntime
         .invokePluginRpc(msg.pluginId, msg.method, msg.input)
         .then((output) => {
+          if (
+            msg.pluginId === "subscriptions" &&
+            msg.method === "subscriptions.login-status" &&
+            output !== null &&
+            typeof output === "object" &&
+            "state" in output &&
+            output.state === "done" &&
+            msg.input !== null &&
+            typeof msg.input === "object" &&
+            "sessionId" in msg.input &&
+            typeof msg.input.sessionId === "string" &&
+            msg.input.sessionId.length > 0
+          ) {
+            this.providerUsageService.invalidateForCredentialChange(msg.input.sessionId);
+          }
           this.emit({
             type: "plugin.rpc.invoke.response",
             payload: { requestId: msg.requestId, output },
@@ -7188,17 +7207,61 @@ export class Session {
         ...(cursor ? { cursor } : {}),
         pageLimit,
       });
+      const payloadEntries = selectedTimeline.entries.map((entry) => {
+        const payloadEntry = {
+          provider: snapshot.provider,
+          item: entry.item,
+          timestamp: entry.timestamp,
+          seqStart: entry.seqStart,
+          seqEnd: entry.seqEnd,
+          sourceSeqRanges: entry.sourceSeqRanges,
+          turnId: undefined as string | undefined,
+          collapsed: (
+            source
+              ? this.supportsForSource(CLIENT_CAPS.reasoningMergeEnum, source)
+              : this.supports(CLIENT_CAPS.reasoningMergeEnum)
+          )
+            ? entry.collapsed
+            : entry.collapsed.filter((value) => value !== "reasoning_merge"),
+        };
+        payloadEntry.turnId = entry.turnId;
+        return payloadEntry;
+      });
+      // One page is one socket frame; keep it under the frame bound however many
+      // rows were requested, and let the cursors carry the rest.
+      const budgeted = budgetTimelinePage({
+        direction: fetchedControlTimeline.reset ? "tail" : direction,
+        entries: payloadEntries,
+        startSeq: selectedTimeline.startSeq,
+        endSeq: selectedTimeline.endSeq,
+        hasOlder: selectedTimeline.hasOlder,
+        hasNewer: selectedTimeline.hasNewer,
+        shrinkEntry: shrinkTimelineEntry,
+      });
+      if (budgeted.droppedEntries > 0 || budgeted.truncatedEntries > 0) {
+        this.sessionLogger.warn(
+          {
+            agentId: msg.agentId,
+            direction,
+            requestedLimit: pageLimit,
+            selectedEntries: payloadEntries.length,
+            sentEntries: budgeted.entries.length,
+            droppedEntries: budgeted.droppedEntries,
+            truncatedEntries: budgeted.truncatedEntries,
+            pageBytes: budgeted.bytes,
+            maxPageBytes: MAX_TIMELINE_PAGE_BYTES,
+          },
+          "timeline_page_trimmed",
+        );
+      }
       const startCursor =
-        selectedTimeline.startSeq !== null
-          ? { epoch: selectedTimeline.timeline.epoch, seq: selectedTimeline.startSeq }
+        budgeted.startSeq !== null
+          ? { epoch: selectedTimeline.timeline.epoch, seq: budgeted.startSeq }
           : null;
       const endCursor =
-        selectedTimeline.endSeq !== null
-          ? { epoch: selectedTimeline.timeline.epoch, seq: selectedTimeline.endSeq }
+        budgeted.endSeq !== null
+          ? { epoch: selectedTimeline.timeline.epoch, seq: budgeted.endSeq }
           : null;
-      const entries = selectedTimeline.entries.filter((entry) =>
-        this.supportsTimelineItem(entry.item, source),
-      );
 
       this.emitForSource(
         {
@@ -7216,29 +7279,10 @@ export class Session {
             window: selectedTimeline.timeline.window,
             startCursor,
             endCursor,
-            hasOlder: selectedTimeline.hasOlder,
-            hasNewer: selectedTimeline.hasNewer,
+            hasOlder: budgeted.hasOlder,
+            hasNewer: budgeted.hasNewer,
             ...(msg.mergeWindow === true ? { mergeWindow: true } : {}),
-            entries: entries.map((entry) => {
-              const payloadEntry = {
-                provider: snapshot.provider,
-                item: entry.item,
-                timestamp: entry.timestamp,
-                seqStart: entry.seqStart,
-                seqEnd: entry.seqEnd,
-                sourceSeqRanges: entry.sourceSeqRanges,
-                turnId: undefined as string | undefined,
-                collapsed: (
-                  source
-                    ? this.supportsForSource(CLIENT_CAPS.reasoningMergeEnum, source)
-                    : this.supports(CLIENT_CAPS.reasoningMergeEnum)
-                )
-                  ? entry.collapsed
-                  : entry.collapsed.filter((value) => value !== "reasoning_merge"),
-              };
-              payloadEntry.turnId = entry.turnId;
-              return payloadEntry;
-            }),
+            entries: budgeted.entries,
             error: null,
           },
         },
@@ -7397,7 +7441,40 @@ export class Session {
           limit: msg.limit ?? (direction === "after" ? 0 : 200),
         },
       );
-      const rows = timeline.rows.filter((row) => this.supportsTimelineItem(row.item, source));
+      const rows = timeline.rows
+        .filter((row) => this.supportsTimelineItem(row.item, source))
+        .map((row) => ({
+          item: row.item,
+          timestamp: row.timestamp,
+          seq: row.seq,
+          seqStart: row.seq,
+          seqEnd: row.seq,
+        }));
+      const budgeted = budgetTimelinePage({
+        direction: timeline.reset ? "tail" : direction,
+        entries: rows,
+        startSeq: rows[0]?.seq ?? null,
+        endSeq: rows.at(-1)?.seq ?? null,
+        hasOlder: timeline.hasOlder,
+        hasNewer: timeline.hasNewer,
+        shrinkEntry: shrinkTimelineEntry,
+      });
+      if (budgeted.droppedEntries > 0 || budgeted.truncatedEntries > 0) {
+        this.sessionLogger.warn(
+          {
+            parentAgentId: msg.parentAgentId,
+            subagentId: msg.subagentId,
+            direction,
+            selectedRows: rows.length,
+            sentRows: budgeted.entries.length,
+            droppedRows: budgeted.droppedEntries,
+            truncatedRows: budgeted.truncatedEntries,
+            pageBytes: budgeted.bytes,
+            maxPageBytes: MAX_TIMELINE_PAGE_BYTES,
+          },
+          "subagent_timeline_page_trimmed",
+        );
+      }
       this.emitForSource(
         {
           type: "agent.provider_subagents.timeline.get.response",
@@ -7412,13 +7489,9 @@ export class Session {
             staleCursor: timeline.staleCursor,
             gap: timeline.gap,
             window: timeline.window,
-            hasOlder: timeline.hasOlder,
-            hasNewer: timeline.hasNewer,
-            rows: rows.map((row) => ({
-              item: row.item,
-              timestamp: row.timestamp,
-              seq: row.seq,
-            })),
+            hasOlder: budgeted.hasOlder,
+            hasNewer: budgeted.hasNewer,
+            rows: budgeted.entries.map(({ item, timestamp, seq }) => ({ item, timestamp, seq })),
             error: null,
           },
         },

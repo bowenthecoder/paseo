@@ -12,6 +12,7 @@ import { createTestLogger } from "../../test-utils/test-logger.js";
 import { createAgentMcpServer } from "./mcp-server.js";
 import { AgentManager, type ManagedAgent } from "./agent-manager.js";
 import { AgentStorage, type StoredAgentRecord } from "./agent-storage.js";
+import { resolveFirstAgentPromptTitle } from "./create-agent-title.js";
 import { createTestAgentClients } from "../test-utils/fake-agent-client.js";
 import type { AgentMode, AgentProvider, ProviderSnapshotEntry } from "./agent-sdk-types.js";
 import type { ProviderSnapshotManager } from "./provider-snapshot-manager.js";
@@ -2286,10 +2287,11 @@ describe("create_agent MCP tool", () => {
             cwd,
             kind: "directory",
             displayName: "workspace",
-            title: firstAgentContext?.prompt ?? null,
+            title: resolveFirstAgentPromptTitle(firstAgentContext),
             createdAt: "2026-07-03T00:00:00.000Z",
             updatedAt: "2026-07-03T00:00:00.000Z",
           });
+          expect(workspace.title).toBe("Name a directory workspace from the");
           workspaceRecords.set(workspace.workspaceId, workspace);
           if (firstAgentContext) {
             workspaceAutoName.scheduleForDirectory({
@@ -5812,12 +5814,13 @@ describe("agent snapshot MCP serialization", () => {
       id: "archived-activity-agent",
       currentModeId: "default",
     } as ManagedAgent;
-    spies.agentManager.getAgent
-      .mockReturnValueOnce(null)
-      .mockReturnValue(snapshot)
-      .mockReturnValue(snapshot);
+    let resumedAgent: ManagedAgent | null = null;
+    spies.agentManager.getAgent.mockImplementation(() => resumedAgent);
     spies.agentStorage.get.mockResolvedValue(record);
-    spies.agentManager.resumeAgentFromPersistence.mockResolvedValue(snapshot);
+    spies.agentManager.resumeAgentFromPersistence.mockImplementation(async () => {
+      resumedAgent = snapshot;
+      return snapshot;
+    });
     spies.agentManager.getTimeline.mockReturnValue([
       {
         kind: "status",

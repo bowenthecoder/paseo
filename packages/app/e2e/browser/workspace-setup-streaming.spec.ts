@@ -3,11 +3,11 @@ import { createTempGitRepo } from "../support/helpers/workspace";
 import {
   closeSetupTab,
   waitForWorkspaceTabsVisible,
-  expectFailedSetupTabSeededInMainPane,
+  expectFailedSetupSeededInSidePanel,
   expectSetupTabNotSeeded,
   expectNoTerminalTabs,
-  clickFirstTerminalTab,
-  expectFirstTerminalTabContains,
+  selectFirstTerminalView,
+  expectFirstTerminalViewContains,
 } from "../support/helpers/workspace-tabs";
 import { clickNewChat } from "../support/helpers/launcher";
 import { expectComposerVisible } from "../support/helpers/composer";
@@ -61,8 +61,7 @@ test.describe("Workspace setup streaming", () => {
         cwd: repo.path,
         worktreeSlug: `setup-open-${Date.now()}`,
       });
-      await openHomeWithProject(page, repo.path);
-      await navigateToWorkspaceViaSidebar(page, workspace.id);
+      await gotoWorkspace(page, workspace.id);
 
       await expectSetupTabNotSeeded(page, workspace.id);
     } finally {
@@ -71,7 +70,7 @@ test.describe("Workspace setup streaming", () => {
     }
   });
 
-  test("runs setup through the sidebar and leaves the workspace usable", async ({ page }) => {
+  test("completed setup leaves the workspace chat and files usable", async ({ page }) => {
     const client = await connectWorkspaceSetupClient();
     const repo = await createTempGitRepo("setup-ui-flow-", {
       paseoConfig: {
@@ -100,8 +99,7 @@ test.describe("Workspace setup streaming", () => {
       });
       await completed;
 
-      await openHomeWithProject(page, repo.path);
-      await navigateToWorkspaceViaSidebar(page, workspace.id);
+      await gotoWorkspace(page, workspace.id);
 
       await expectSetupTabNotSeeded(page, workspace.id);
       await expectSetupPanel(page);
@@ -192,7 +190,7 @@ test.describe("Workspace setup streaming", () => {
       await openHomeWithProject(page, repo.path);
       await navigateToWorkspaceViaSidebar(page, workspace.id);
       await waitForWorkspaceTabsVisible(page);
-      await expectFailedSetupTabSeededInMainPane(page, workspace.id);
+      await expectFailedSetupSeededInSidePanel(page, workspace.id);
 
       await closeSetupTab(page, workspace.id);
       await leaveWorkspaceViaHistory(page);
@@ -265,18 +263,17 @@ test.describe("Workspace setup streaming", () => {
       });
       await completed;
 
-      await openHomeWithProject(page, repo.path);
-      await navigateToWorkspaceViaSidebar(page, workspace.id);
+      await gotoWorkspace(page, workspace.id);
 
       await waitForWorkspaceTabsVisible(page);
       await expectNoTerminalTabs(page);
       await openWorkspaceScriptsMenu(page);
       await startWorkspaceScriptFromMenu(page, "web");
       await closeWorkspaceScriptsMenu(page);
-      await clickFirstTerminalTab(page);
+      await selectFirstTerminalView(page);
       await expectTerminalSurfaceVisible(page, { timeout: 10_000 });
       await waitForTerminalAttached(page);
-      await expectFirstTerminalTabContains(page, "web");
+      await expectFirstTerminalViewContains(page, "web");
     } finally {
       await client.close();
       await repo.cleanup();

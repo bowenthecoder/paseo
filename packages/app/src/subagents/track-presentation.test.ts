@@ -42,8 +42,8 @@ describe("buildSubagentPillPresentation", () => {
 
   it("counts the children that are working, not the fan-out", () => {
     expect(pill([row({ id: "a" }), row({ id: "b", status: "running" })])).toEqual({
-      segments: [{ bucket: "running", text: "1 working" }],
-      accessibilityLabel: "1 working",
+      segments: [{ bucket: "running", text: "1 running task" }],
+      accessibilityLabel: "1 running task",
     });
   });
 
@@ -55,8 +55,8 @@ describe("buildSubagentPillPresentation", () => {
         row({ id: "c" }),
       ]),
     ).toEqual({
-      segments: [{ bucket: "running", text: "2 working" }],
-      accessibilityLabel: "2 working",
+      segments: [{ bucket: "running", text: "2 running tasks" }],
+      accessibilityLabel: "2 running tasks",
     });
   });
 
@@ -70,9 +70,9 @@ describe("buildSubagentPillPresentation", () => {
     ).toEqual({
       segments: [
         { bucket: "failed", text: "2 failed" },
-        { bucket: "running", text: "1 working" },
+        { bucket: "running", text: "1 running task" },
       ],
-      accessibilityLabel: "2 failed, 1 working",
+      accessibilityLabel: "2 failed, 1 running task",
     });
   });
 

@@ -8,7 +8,7 @@ import {
   openSettingsHostSection,
 } from "../support/helpers/settings";
 import { seedWorkspace } from "../support/helpers/seed-client";
-import { switchWorkspaceViaSidebar } from "../support/helpers/workspace-ui";
+import { selectChatInSidebar } from "../support/helpers/sidebar";
 
 test.describe("Settings host selection", () => {
   test.describe.configure({ timeout: 180_000 });
@@ -22,6 +22,14 @@ test.describe("Settings host selection", () => {
     });
 
     try {
+      const remoteChat = await remoteWorkspace.client.createAgent({
+        provider: "mock",
+        cwd: remoteWorkspace.workspaceDirectory,
+        workspaceId: remoteWorkspace.workspaceId,
+        title: "Remote settings context",
+        model: "e2e-fast-stream",
+        modeId: "load-test",
+      });
       // The default local profile remains in the registry, but its daemon is offline.
       await page.routeWebSocket(wsRoutePatternForPort(getE2EDaemonPort()), async (ws) => {
         await ws.close({ code: 1008, reason: "The local daemon is disconnected." });
@@ -35,10 +43,10 @@ test.describe("Settings host selection", () => {
       });
 
       await clickSettingsBackToWorkspace(page);
-      await switchWorkspaceViaSidebar({
-        page,
+      await selectChatInSidebar(page, {
         serverId: remoteDaemon.serverId,
         workspaceId: remoteWorkspace.workspaceId,
+        agentId: remoteChat.id,
       });
 
       await openSettings(page);

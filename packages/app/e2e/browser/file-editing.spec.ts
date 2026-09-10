@@ -9,8 +9,6 @@ import {
 import { installDaemonWebSocketGate } from "../support/helpers/daemon-websocket-gate";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
 
-const APP_SETTINGS_KEY = "@paseo:app-settings";
-
 const RED_PIXEL = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII=",
   "base64",
@@ -134,9 +132,8 @@ test.describe("CodeMirror workspace file editing", () => {
       await expect(editor(page)).toContainText("plain source");
       await expect.poll(() => page.locator(".cm-line").count()).toBeLessThan(200);
 
-      await page.getByTestId(`workspace-tab-agent_${session.agentId}`).first().click();
-      await expect(page.getByTestId("message-input-root")).toBeVisible();
-      await page.getByTestId("workspace-tab-file_plain.txt").first().click();
+      // The chat stays beside the file rather than behind it.
+      await expect(page.getByTestId("message-input-root").filter({ visible: true })).toBeVisible();
       await expect(page.getByTestId("file-source-editor")).toBeVisible();
     } finally {
       await session.cleanup();
@@ -164,9 +161,7 @@ test.describe("CodeMirror workspace file editing", () => {
         "This file is too large to display",
       );
 
-      await page.getByTestId(`workspace-tab-agent_${session.agentId}`).first().click();
-      await expect(page.getByTestId("message-input-root")).toBeVisible();
-      await page.getByTestId("workspace-tab-file_too-large.txt").first().click();
+      await expect(page.getByTestId("message-input-root").filter({ visible: true })).toBeVisible();
       await expect(page.getByTestId("file-source-too-large")).toBeVisible();
     } finally {
       await session.cleanup();
@@ -191,7 +186,7 @@ test.describe("CodeMirror workspace file editing", () => {
       await expect(fileLink).toBeVisible({ timeout: 15_000 });
       await fileLink.click();
 
-      await expectFileTabOpen(page, "target.ts");
+      await expectFileTabOpen(page, path.join(session.cwd, "target.ts"));
       await expect(page.getByTestId("file-source-editor")).toBeVisible();
       await expect(page.getByLabel("Line 42, column 1")).toBeVisible();
       await expect(
@@ -203,10 +198,6 @@ test.describe("CodeMirror workspace file editing", () => {
       await sourceEditor.press("ControlOrMeta+Home");
       await expect(page.getByLabel(/^Line 1, column \d+$/)).toBeVisible();
 
-      await page
-        .getByTestId(`workspace-tab-agent_${session.agentId}`)
-        .filter({ visible: true })
-        .click();
       await expect(fileLink).toBeVisible();
       await fileLink.click();
 
@@ -219,13 +210,7 @@ test.describe("CodeMirror workspace file editing", () => {
     }
   });
 
-  test("clicking the editor focuses its pane beside an agent", async ({ page }) => {
-    await page.addInitScript((settingsKey) => {
-      localStorage.setItem(
-        settingsKey,
-        JSON.stringify({ openInSidePane: { explorerFiles: true } }),
-      );
-    }, APP_SETTINGS_KEY);
+  test("clicking the editor keeps the chat beside it", async ({ page }) => {
     const target = "target.ts:42";
     const session = await seedAgentWithFileLink({
       target,
@@ -241,18 +226,19 @@ test.describe("CodeMirror workspace file editing", () => {
       await openAgentRoute(page, session);
 
       await openWorkspaceFile(page, "target.ts");
-      await expect(page.getByTestId("workspace-tabs-row").filter({ visible: true })).toHaveCount(2);
+      await expect(page.getByTestId("workspace-chat-pane").filter({ visible: true })).toHaveCount(
+        1,
+      );
+      await expect(page.getByTestId("workspace-side-panel").filter({ visible: true })).toHaveCount(
+        1,
+      );
 
-      await page
-        .getByTestId(`workspace-tab-agent_${session.agentId}`)
-        .filter({ visible: true })
-        .click();
       await editor(page).click();
       await page.keyboard.press("Alt+Shift+W");
 
-      await expect(page.getByTestId("workspace-tab-file_target.ts")).not.toBeVisible();
+      await expect(page.getByTestId("workspace-panel-file_target.ts")).not.toBeVisible();
       await expect(
-        page.getByTestId(`workspace-tab-agent_${session.agentId}`).filter({ visible: true }),
+        page.getByTestId(`workspace-panel-agent_${session.agentId}`).filter({ visible: true }),
       ).toBeVisible();
     } finally {
       await session.cleanup();
@@ -275,7 +261,7 @@ test.describe("CodeMirror workspace file editing", () => {
       await openAgentRoute(page, session);
       await page.getByText(target, { exact: true }).click();
 
-      await expectFileTabOpen(page, "plan.html");
+      await expectFileTabOpen(page, path.join(session.cwd, "plan.html"));
       await expect(page.getByTestId("file-source-editor")).toBeVisible();
       await expect(page.getByLabel("Line 2, column 1")).toBeVisible();
       await expect(page.getByTestId("file-html-preview")).toHaveCount(0);
@@ -307,9 +293,9 @@ test.describe("CodeMirror workspace file editing", () => {
     await openFileFromExplorer(page, "visuals.md");
     await expectFileTabOpen(page, relativePath);
 
-    const fileTab = page.getByTestId(`workspace-tab-file_${relativePath}`).first();
+    const fileTab = page.getByTestId(`workspace-side-panel-view-file_${relativePath}`).first();
     await fileTab.hover();
-    await expect(page.getByTestId(`workspace-tab-tooltip-file_${relativePath}`)).toHaveText(
+    await expect(page.getByTestId(`workspace-side-panel-tooltip-file_${relativePath}`)).toHaveText(
       relativePath,
     );
     await expect(page.getByTestId("file-panel-bar")).not.toContainText("visuals.md");
@@ -354,11 +340,11 @@ test.describe("CodeMirror workspace file editing", () => {
     await openFileFromExplorer(page, relativePath);
     await expectFileTabOpen(page, relativePath);
 
-    await page.getByTestId(`workspace-tab-file_${relativePath}`).first().hover();
+    await page.getByTestId(`workspace-side-panel-view-file_${relativePath}`).first().hover();
 
     await expect(
       page
-        .getByTestId(`workspace-tab-tooltip-file_${relativePath}`)
+        .getByTestId(`workspace-side-panel-tooltip-file_${relativePath}`)
         .getByText(relativePath, { exact: true }),
     ).toHaveCSS("font-family", "monospace");
   });
@@ -415,10 +401,12 @@ test.describe("CodeMirror workspace file editing", () => {
     await expect(page.getByLabel(/lines/)).toBeVisible();
 
     await replaceEditorText(page, "const autosaved = 2;\n");
-    await expect(page.getByTestId("workspace-tab-modified-file_source.ts")).toBeVisible();
+    await expect(page.getByTestId("workspace-side-panel-modified-file_source.ts")).toBeVisible();
     await expect(page.getByLabel("Editor status dirty")).toBeVisible();
     await expect(page.getByLabel("Editor status clean")).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByTestId("workspace-tab-modified-file_source.ts")).not.toBeVisible();
+    await expect(
+      page.getByTestId("workspace-side-panel-modified-file_source.ts"),
+    ).not.toBeVisible();
     await expect.poll(() => readFile(sourcePath, "utf8")).toBe("const autosaved = 2;\n");
 
     await replaceEditorText(page, "const immediate = 3;\n");
@@ -490,7 +478,7 @@ test.describe("CodeMirror workspace file editing", () => {
     await replaceEditorText(page, "const local = 2;\n");
     await writeFile(sourcePath, "const external = 3;\n", "utf8");
     await expect(page.getByTestId("file-conflict-alert")).toBeVisible();
-    await expect(page.getByTestId("workspace-tab-modified-file_draft.ts")).toBeVisible();
+    await expect(page.getByTestId("workspace-side-panel-modified-file_draft.ts")).toBeVisible();
 
     let closePrompt = "";
     page.once("dialog", async (dialog) => {
@@ -498,7 +486,7 @@ test.describe("CodeMirror workspace file editing", () => {
       await dialog.dismiss();
     });
     await page
-      .getByTestId("workspace-tab-file_draft.ts")
+      .getByTestId("workspace-panel-file_draft.ts")
       .filter({ visible: true })
       .first()
       .click({ button: "right" });
@@ -506,7 +494,7 @@ test.describe("CodeMirror workspace file editing", () => {
     expect(closePrompt).toContain("Closing it will discard the draft.");
 
     await expect(page.getByTestId("file-source-editor")).toBeVisible();
-    await expect(page.getByTestId("workspace-tab-modified-file_draft.ts")).toBeVisible();
+    await expect(page.getByTestId("workspace-side-panel-modified-file_draft.ts")).toBeVisible();
   });
 
   test("refreshes Markdown and images while preserving Preview and Source behavior", async ({

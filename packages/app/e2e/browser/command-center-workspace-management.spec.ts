@@ -1,6 +1,7 @@
 import type { Locator } from "@playwright/test";
 import { test, expect, type Page } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
 import { seedWorkspace, type SeededWorkspace } from "../support/helpers/seed-client";
 import { getServerId } from "../support/helpers/server-id";
@@ -113,6 +114,7 @@ test.describe("Command center workspace management", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await openWorkspace(page, workspace.workspaceId);
       await collapseProjectSection(page, workspace);
 
@@ -147,6 +149,7 @@ test.describe("Command center workspace management", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await openWorkspace(page, workspace.workspaceId);
 
       await runCommand(page, "copy path", "Copy workspace path");
@@ -165,6 +168,7 @@ test.describe("Command center workspace management", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await openWorkspace(page, workspace.workspaceId);
 
       await runCommand(page, "pin", "Pin to top");
@@ -188,6 +192,7 @@ test.describe("Command center workspace management", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await openWorkspace(page, workspace.workspaceId);
 
       // All three are listed while a workspace route owns the handlers.
@@ -224,6 +229,7 @@ test.describe("Command center workspace management", () => {
       });
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await openWorkspace(page, workspace.workspaceId);
 
       const panel = await openCommandCenter(page);
@@ -253,6 +259,7 @@ test.describe("Command center workspace management", () => {
       });
 
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await openWorkspace(page, workspace.workspaceId);
 
       const panel = await openCommandCenter(page);

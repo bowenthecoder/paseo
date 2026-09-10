@@ -289,10 +289,10 @@ describe("ClaudeTaskProtocolSource", () => {
     expect(source.isActive).toBe(false);
   });
 
-  it("ignores a backgrounded shell command", () => {
+  it("lists a backgrounded shell command as a running task until it settles", () => {
     const source = new ClaudeTaskProtocolSource();
-    // Real wire shape: a backgrounded Bash announces with a tool_use_id but no subagent_type,
-    // so filtering on the id alone would put `sleep 20` in the subagents track.
+    // Real wire shape: a backgrounded Bash announces with a tool_use_id but no subagent_type.
+    // It is not a subagent, so it never counts towards isActive, but the chat is waiting on it.
     expect(
       source.observe(
         taskStarted({
@@ -303,8 +303,76 @@ describe("ClaudeTaskProtocolSource", () => {
           description: "Sleep 20 seconds in background",
         }),
       ),
-    ).toEqual([]);
+    ).toEqual([
+      {
+        kind: "declared",
+        id: "toolu_01MgVdcGPYnqE8cJQuccFtkU",
+        title: "Sleep 20 seconds in background",
+        toolCallId: "toolu_01MgVdcGPYnqE8cJQuccFtkU",
+      },
+      { kind: "subtitle", id: "toolu_01MgVdcGPYnqE8cJQuccFtkU", subtitle: "background command" },
+      {
+        kind: "timeline",
+        id: "toolu_01MgVdcGPYnqE8cJQuccFtkU",
+        item: { type: "user_message", text: "Sleep 20 seconds in background" },
+      },
+    ]);
     expect(source.isActive).toBe(false);
+    expect(source.isDeclaredTask("b51skux0z")).toBe(false);
+    expect(source.observe(taskNotification("completed", "b51skux0z"))).toEqual([
+      { kind: "remove", id: "toolu_01MgVdcGPYnqE8cJQuccFtkU" },
+    ]);
+    expect(source.observe(taskNotification("completed", "b51skux0z"))).toEqual([]);
+  });
+
+  it("keeps a foreground shell command out of the list until Claude backgrounds it", () => {
+    const source = new ClaudeTaskProtocolSource();
+    expect(
+      source.observe(
+        taskStarted({
+          task_id: "fg1",
+          tool_use_id: "toolu_fg",
+          task_type: "local_bash",
+          subagent_type: undefined,
+          description: "Run the test suite",
+          is_backgrounded: false,
+        }),
+      ),
+    ).toEqual([]);
+    const backgrounded = {
+      type: "system",
+      subtype: "task_updated",
+      task_id: "fg1",
+      patch: { is_backgrounded: true },
+    } as unknown as SDKMessage;
+    expect(source.observe(backgrounded).map((observation) => observation.kind)).toEqual([
+      "declared",
+      "subtitle",
+      "timeline",
+    ]);
+    expect(source.failRunningTasks()).toEqual([{ kind: "remove", id: "toolu_fg" }]);
+  });
+
+  it("does not announce a command backgrounded in the same patch that finishes it", () => {
+    const source = new ClaudeTaskProtocolSource();
+    source.observe(
+      taskStarted({
+        task_id: "finished-shell",
+        tool_use_id: "toolu_finished",
+        task_type: "local_bash",
+        subagent_type: undefined,
+        is_backgrounded: false,
+      }),
+    );
+    expect(
+      source.observe({
+        type: "system",
+        subtype: "task_updated",
+        task_id: "finished-shell",
+        patch: { is_backgrounded: true, status: "completed" },
+      } as unknown as SDKMessage),
+    ).toEqual([]);
+    expect(source.failRunningTasks()).toEqual([]);
   });
 
   it("declares a workflow as a provider subagent with a provider-owned Workflow label", () => {
@@ -448,11 +516,10 @@ describe("ClaudeTaskProtocolSource", () => {
     expect(source.observe(taskUpdated("completed", "unknown-task"))).toEqual([]);
   });
 
-  it("does not readmit a filtered task through its notification", () => {
+  it("settles a background command through its notification without creating a subagent", () => {
     const source = new ClaudeTaskProtocolSource();
-    // A backgrounded shell is filtered at declaration, but it still gets a task_notification
-    // carrying a tool_use_id. Routing status off that id would recreate the descriptor with a
-    // status and no identity — a nameless row in the subagents track.
+    // The shell row is removed by its notification; the notification never becomes a status
+    // for a declared subagent, so no nameless row can appear in the subagents track.
     source.observe(
       taskStarted({
         task_id: "b51skux0z",
@@ -461,8 +528,20 @@ describe("ClaudeTaskProtocolSource", () => {
         subagent_type: undefined,
       }),
     );
-
-    expect(source.observe(taskNotification("completed", "b51skux0z"))).toEqual([]);
+    expect(source.observe(taskNotification("completed", "b51skux0z"))).toEqual([
+      { kind: "remove", id: "toolu_01MgVdcGPYnqE8cJQuccFtkU" },
+    ]);
+    // A command that stayed in the foreground never had a row, so its notification is silent.
+    source.observe(
+      taskStarted({
+        task_id: "fg2",
+        tool_use_id: "toolu_fg2",
+        task_type: "local_bash",
+        subagent_type: undefined,
+        is_backgrounded: false,
+      }),
+    );
+    expect(source.observe(taskNotification("completed", "fg2"))).toEqual([]);
   });
 
   it("drops a notification for a task it never declared", () => {

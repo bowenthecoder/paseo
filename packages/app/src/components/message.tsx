@@ -1,4 +1,5 @@
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { Button } from "@/components/ui/button";
 import { TaskListRow } from "@/components/task-list-row";
 import {
   View,
@@ -80,6 +81,7 @@ import { isRenderProfileEnabled } from "@/utils/render-profiler";
 import { getAgentAttachmentPillContent } from "@/attachments/attachment-pill-content";
 import { PlanCard } from "./plan-card";
 import { useToolCallSheet } from "./tool-call-sheet";
+import { useSubagentLinkForToolCall } from "@/subagents/use-subagent-link";
 import { ToolCallDetailsContent } from "./tool-call-details";
 import {
   AssistantInlineCodePathLink,
@@ -776,7 +778,6 @@ export const assistantMessageStylesheet = StyleSheet.create((theme) => ({
   },
   imageFrame: {
     width: "100%",
-    minHeight: 160,
     marginHorizontal: -theme.spacing[1],
   },
   imageSurface: {
@@ -794,34 +795,26 @@ export const assistantMessageStylesheet = StyleSheet.create((theme) => ({
     right: 0,
     bottom: 0,
     left: 0,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-  },
-  imageState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: theme.spacing[4],
-    paddingVertical: theme.spacing[6],
     gap: theme.spacing[2],
   },
-  imageErrorText: {
+  imageState: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+  },
+  imageStateText: {
+    flexShrink: 1,
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.base,
-    textAlign: "center",
+    fontFamily: theme.fontFamily.ui,
+    fontSize: theme.fontSize.sm,
   },
 }));
 
-const ASSISTANT_IMAGE_MIN_HEIGHT = 160;
+const ASSISTANT_IMAGE_PLACEHOLDER_HEIGHT = 32;
 
-function AssistantMarkdownImage({
-  source,
-  occurrenceKey,
-  alt,
-  hasLeadingContent,
-  client,
-  workspaceRoot,
-  serverId,
-}: {
+interface AssistantMarkdownImageProps {
   source: string;
   occurrenceKey: string;
   alt?: string;
@@ -829,6 +822,31 @@ function AssistantMarkdownImage({
   client?: DaemonClient | null;
   workspaceRoot?: string;
   serverId?: string;
+}
+
+function AssistantMarkdownImage(props: AssistantMarkdownImageProps) {
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt((current) => current + 1), []);
+  return (
+    <AssistantMarkdownImageAttempt
+      {...props}
+      key={`${props.source}:${props.occurrenceKey}:attempt:${attempt}`}
+      onRetry={retry}
+    />
+  );
+}
+
+function AssistantMarkdownImageAttempt({
+  source,
+  occurrenceKey,
+  alt,
+  hasLeadingContent,
+  client,
+  workspaceRoot,
+  serverId,
+  onRetry,
+}: AssistantMarkdownImageProps & {
+  onRetry: () => void;
 }) {
   const { t } = useTranslation();
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -849,7 +867,7 @@ function AssistantMarkdownImage({
     serverId,
   });
   const binding = image.status === "failed" ? null : image.binding;
-  const aspectRatio = image.status === "failed" ? null : image.aspectRatio;
+  const aspectRatio = image.aspectRatio;
   const imageUri = binding?.uri ?? "";
   const imageSource = useMemo(() => ({ uri: imageUri }), [imageUri]);
   const frameStyle = useMemo<StyleProp<ViewStyle>>(
@@ -860,7 +878,7 @@ function AssistantMarkdownImage({
     if (aspectRatio) {
       return { aspectRatio };
     }
-    return { height: ASSISTANT_IMAGE_MIN_HEIGHT };
+    return { height: ASSISTANT_IMAGE_PLACEHOLDER_HEIGHT };
   }, [aspectRatio]);
   const surfaceStyle = useMemo<StyleProp<ViewStyle>>(
     () => [assistantMessageStylesheet.imageSurface, imageSizeStyle],
@@ -879,24 +897,32 @@ function AssistantMarkdownImage({
     () => [
       assistantMessageStylesheet.imageFrame,
       containerStyle,
-      { height: ASSISTANT_IMAGE_MIN_HEIGHT },
+      imageSizeStyle,
       assistantMessageStylesheet.imageState,
     ],
-    [containerStyle],
+    [containerStyle, imageSizeStyle],
   );
 
   if (image.status === "failed") {
     return (
-      <View style={stateFrameStyle}>
-        <Text style={assistantMessageStylesheet.imageErrorText}>{image.message}</Text>
+      <View testID="assistant-image-error" style={stateFrameStyle}>
+        <Text numberOfLines={1} style={assistantMessageStylesheet.imageStateText}>
+          {t("message.attachments.imageUnavailable")}
+        </Text>
+        <Button size="xs" variant="ghost" hitSlop={8} onPress={onRetry}>
+          {t("common.actions.retry")}
+        </Button>
       </View>
     );
   }
 
   if (!binding) {
     return (
-      <View style={stateFrameStyle}>
+      <View testID="assistant-image-loading" style={stateFrameStyle}>
         <ThemedLoadingSpinner size="small" uniProps={foregroundMutedColorMapping} />
+        <Text numberOfLines={1} style={assistantMessageStylesheet.imageStateText}>
+          {t("common.loading")}
+        </Text>
       </View>
     );
   }
@@ -924,8 +950,15 @@ function AssistantMarkdownImage({
             onError={binding.onError}
           />
           {image.status === "loading" ? (
-            <View pointerEvents="none" style={assistantMessageStylesheet.imageLoadingOverlay}>
+            <View
+              testID="assistant-image-loading"
+              pointerEvents="none"
+              style={assistantMessageStylesheet.imageLoadingOverlay}
+            >
               <ThemedLoadingSpinner size="small" uniProps={foregroundMutedColorMapping} />
+              <Text numberOfLines={1} style={assistantMessageStylesheet.imageStateText}>
+                {t("common.loading")}
+              </Text>
             </View>
           ) : null}
         </View>
@@ -1177,6 +1210,17 @@ const expandableBadgeStylesheet = StyleSheet.create((theme) => ({
     padding: theme.spacing[1],
     borderRadius: theme.borderRadius.md,
     flexShrink: 0,
+  },
+  linkedViewButton: {
+    marginLeft: theme.spacing[2],
+    paddingHorizontal: theme.spacing[1],
+    borderRadius: theme.borderRadius.md,
+    flexShrink: 0,
+  },
+  linkedViewText: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.medium,
   },
   openFileButtonPlaceholderIcon: {
     width: 14,
@@ -2304,6 +2348,8 @@ interface ExpandableBadgeProps {
   style?: StyleProp<ViewStyle>;
   onToggle?: () => void;
   onOpenFile?: () => void;
+  /** A view this card can open beside the chat, such as the child a Task launched. */
+  linkedView?: ExpandableBadgeLinkedView;
   onDetailHoverChange?: (hovered: boolean) => void;
   renderDetails?: () => ReactNode;
   isLoading?: boolean;
@@ -2311,6 +2357,12 @@ interface ExpandableBadgeProps {
   isLastInSequence?: boolean;
   disableOuterSpacing?: boolean;
   borderlessWhenExpanded?: boolean;
+  testID?: string;
+}
+
+export interface ExpandableBadgeLinkedView {
+  label: string;
+  onPress: () => void;
   testID?: string;
 }
 
@@ -2402,6 +2454,8 @@ interface ExpandableBadgeLabelRowProps {
   onOpenFilePress: (event: GestureResponderEvent) => void;
   onOpenFileHoverIn: () => void;
   onOpenFileHoverOut: () => void;
+  linkedView?: ExpandableBadgeLinkedView;
+  onLinkedViewPress: (event: GestureResponderEvent) => void;
 }
 
 function ExpandableBadgeLabelRow({
@@ -2428,6 +2482,8 @@ function ExpandableBadgeLabelRow({
   onOpenFilePress,
   onOpenFileHoverIn,
   onOpenFileHoverOut,
+  linkedView,
+  onLinkedViewPress,
 }: ExpandableBadgeLabelRowProps) {
   const { t } = useTranslation();
   return (
@@ -2463,6 +2519,20 @@ function ExpandableBadgeLabelRow({
             size={14}
             uniProps={isOpenFileHovered ? foregroundColorMapping : foregroundMutedColorMapping}
           />
+        </Pressable>
+      ) : null}
+      {linkedView ? (
+        <Pressable
+          onPress={onLinkedViewPress}
+          accessibilityRole="button"
+          accessibilityLabel={linkedView.label}
+          testID={linkedView.testID ?? "tool-call-linked-view"}
+          style={expandableBadgeStylesheet.linkedViewButton}
+          hitSlop={6}
+        >
+          <Text style={expandableBadgeStylesheet.linkedViewText} numberOfLines={1}>
+            {linkedView.label}
+          </Text>
         </Pressable>
       ) : null}
       {isWebShimmer ? (
@@ -2667,6 +2737,7 @@ export const ExpandableBadge = memo(function ExpandableBadge({
   isExpanded,
   onToggle,
   onOpenFile,
+  linkedView,
   onDetailHoverChange,
   renderDetails,
   isLoading = false,
@@ -2706,6 +2777,13 @@ export const ExpandableBadge = memo(function ExpandableBadge({
   );
   const handleOpenFileHoverIn = useCallback(() => setIsOpenFileHovered(true), []);
   const handleOpenFileHoverOut = useCallback(() => setIsOpenFileHovered(false), []);
+  const handleLinkedViewPress = useCallback(
+    (event: GestureResponderEvent) => {
+      event.stopPropagation?.();
+      linkedView?.onPress();
+    },
+    [linkedView],
+  );
 
   const nativeGradientIdRef = useRef(
     `shimmer-gradient-${Math.random().toString(36).substring(2, 9)}`,
@@ -2967,6 +3045,8 @@ export const ExpandableBadge = memo(function ExpandableBadge({
             onOpenFilePress={handleOpenFilePress}
             onOpenFileHoverIn={handleOpenFileHoverIn}
             onOpenFileHoverOut={handleOpenFileHoverOut}
+            linkedView={linkedView}
+            onLinkedViewPress={handleLinkedViewPress}
           />
         </View>
       </Pressable>
@@ -2998,6 +3078,7 @@ function areExpandableBadgePropsEqual(previous: ExpandableBadgeProps, next: Expa
   if (previous.testID !== next.testID) return false;
   if (previous.onToggle !== next.onToggle) return false;
   if (previous.onOpenFile !== next.onOpenFile) return false;
+  if (previous.linkedView !== next.linkedView) return false;
   if (previous.onDetailHoverChange !== next.onDetailHoverChange) return false;
   if (previous.renderDetails !== next.renderDetails) return false;
   return true;
@@ -3005,6 +3086,8 @@ function areExpandableBadgePropsEqual(previous: ExpandableBadgeProps, next: Expa
 
 interface ToolCallProps {
   toolName: string;
+  /** The provider's id for this call; a Task card uses it to find the child it launched. */
+  toolCallId?: string;
   args?: unknown;
   result?: unknown;
   error?: unknown;
@@ -3024,6 +3107,7 @@ interface ToolCallProps {
 
 export const ToolCall = memo(function ToolCall({
   toolName,
+  toolCallId,
   args,
   result,
   error,
@@ -3041,6 +3125,7 @@ export const ToolCall = memo(function ToolCall({
   maxDetailHeight = 400,
 }: ToolCallProps) {
   const { openToolCall } = useToolCallSheet();
+  const linkedView = useSubagentLinkForToolCall(toolCallId);
   const [isExpanded, setIsExpanded] = useState(defaultExpanded ?? false);
 
   const isMobile = useIsCompactFormFactor();
@@ -3172,8 +3257,10 @@ export const ToolCall = memo(function ToolCall({
       secondaryLabel={presentation.summary}
       icon={presentation.icon}
       isExpanded={shouldRenderInline && isExpanded}
-      onToggle={presentation.canOpenDetails ? handleToggle : undefined}
+      // A Task card with nothing to expand opens the child it launched, like a Tasks row.
+      onToggle={presentation.canOpenDetails ? handleToggle : linkedView?.onPress}
       onOpenFile={handleOpenFile}
+      linkedView={linkedView}
       renderDetails={presentation.canOpenDetails && shouldRenderInline ? renderDetails : undefined}
       isLoading={status === "running" || status === "executing"}
       isError={status === "failed"}
@@ -3186,6 +3273,7 @@ export const ToolCall = memo(function ToolCall({
 
 function areToolCallPropsEqual(previous: ToolCallProps, next: ToolCallProps) {
   if (previous.toolName !== next.toolName) return false;
+  if (previous.toolCallId !== next.toolCallId) return false;
   if (previous.args !== next.args) return false;
   if (previous.result !== next.result) return false;
   if (previous.error !== next.error) return false;

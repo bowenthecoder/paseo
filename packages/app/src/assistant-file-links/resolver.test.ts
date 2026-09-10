@@ -52,6 +52,33 @@ const unavailableSuggestions: GetDirectorySuggestions = async () => {
 };
 
 describe("classifyForResolution", () => {
+  it("decodes an explicit Markdown link but preserves an inline-code literal percent filename", () => {
+    const href = "/tmp/report%2520copy.md:12";
+    expect(classifyForResolution({ href }, CONTEXT)).toMatchObject({
+      kind: "resolved",
+      value: { kind: "file", target: { path: "/tmp/report%20copy.md", lineStart: 12 } },
+    });
+    expect(
+      classifyForResolution({ href, text: href, sourceType: "inline-code" }, CONTEXT),
+    ).toMatchObject({
+      kind: "resolved",
+      value: { kind: "file", target: { path: "/tmp/report%2520copy.md", lineStart: 12 } },
+    });
+  });
+
+  it("uses the decoded basename for workspace lookup and leaves external links unchanged", () => {
+    expect(classifyForResolution({ href: "my%20notes.md#L12" }, CONTEXT)).toMatchObject({
+      kind: "needsLookup",
+      ambiguousQuery: "my notes.md",
+      target: { path: "/Users/test/project/my notes.md", lineStart: 12 },
+    });
+    const href = "https://example.com/report%20copy.md?raw=%2520#L12";
+    expect(classifyForResolution({ href }, CONTEXT)).toEqual({
+      kind: "resolved",
+      value: { kind: "external", url: href },
+    });
+  });
+
   it("returns the directFile target synchronously", () => {
     const result = classifyForResolution({ href: "src/components/message.tsx#L33" }, CONTEXT);
 

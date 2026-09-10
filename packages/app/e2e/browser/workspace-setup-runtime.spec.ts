@@ -1,14 +1,12 @@
 import { existsSync } from "node:fs";
 import { expect, test } from "../support/fixtures";
 import { createTempGitRepo } from "../support/helpers/workspace";
-import { clickNewTerminal } from "../support/helpers/launcher";
+import { clickNewTerminal, gotoWorkspace } from "../support/helpers/launcher";
 import { expectTerminalSurfaceVisible } from "../support/helpers/terminal-perf";
 import {
   connectWorkspaceSetupClient,
   createWorkspaceThroughDaemon,
   findWorktreeWorkspaceForProject,
-  navigateToWorkspaceViaSidebar,
-  openHomeWithProject,
   seedProjectForWorkspaceSetup,
 } from "../support/helpers/workspace-setup";
 
@@ -33,8 +31,7 @@ test.describe("Workspace setup runtime authority", () => {
       expect(wsInfo.workspaceDirectory).not.toBe(repo.path);
       expect(existsSync(wsInfo.workspaceDirectory)).toBe(true);
 
-      await openHomeWithProject(page, repo.path);
-      await navigateToWorkspaceViaSidebar(page, workspaceId);
+      await gotoWorkspace(page, workspaceId);
       await expect(page).toHaveURL(/\/workspace\//, { timeout: 30_000 });
     } finally {
       await client.close();
@@ -64,11 +61,9 @@ test.describe("Workspace setup runtime authority", () => {
       const workspaceDir = result.workspace.workspaceDirectory;
       const workspaceId = result.workspace.id;
 
-      // Navigate to the worktree workspace via sidebar click (direct URL
-      // navigation for freshly created worktree workspaces can race with
-      // Expo Router hydration, so we use the sidebar which is authoritative).
-      await openHomeWithProject(page, repo.path);
-      await navigateToWorkspaceViaSidebar(page, workspaceId);
+      // Empty workspaces have no automatic chat row; the route hydrates the
+      // created worktree before the normal header terminal action is used.
+      await gotoWorkspace(page, workspaceId);
 
       await clickNewTerminal(page);
       await expectTerminalSurfaceVisible(page);

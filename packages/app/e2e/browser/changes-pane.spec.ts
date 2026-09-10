@@ -366,7 +366,7 @@ test("changes file actions open below the right-click without a reserved kebab",
   await page.getByTestId("diff-file-0-open-file").click();
 
   await expect(page.getByTestId("workspace-file-pane")).toBeVisible();
-  await expect(page.getByTestId("workspace-tab-file_src/use-mounted-tab-set.ts")).toBeVisible();
+  await expect(page.getByTestId("workspace-panel-file_src/use-mounted-tab-set.ts")).toBeVisible();
 });
 
 test("canvas file headers select without toggling for context menu and long press", async ({
@@ -883,9 +883,7 @@ test("canvas diff stays sharp while its workspace pane is resized", async ({ pag
 
   const canvas = page.getByTestId("git-diff-canvas");
   const root = page.getByTestId("git-diff-canvas-root");
-  const handle = page
-    .getByTestId("workspace-explorer-sidebar-resize-handle")
-    .getByRole("separator");
+  const handle = page.getByTestId("workspace-side-panel-resize-handle").getByRole("separator");
   await expect(handle).toBeVisible();
   await expect
     .poll(async () => {
@@ -1014,7 +1012,7 @@ test("autofocusing an inline review keeps the Changes tab focused", async ({ pag
   await useUnwrappedDiffLines(page);
   await openWorkspaceChanges(page, workspace);
 
-  const changesTab = page.getByTestId("workspace-tab-working_diff").filter({ visible: true });
+  const changesTab = page.getByTestId("workspace-panel-working_diff").filter({ visible: true });
   const focusedBackground = await changesTab.evaluate(
     (element) => getComputedStyle(element).backgroundColor,
   );
@@ -1691,7 +1689,7 @@ async function openSelectionWorkspaceChanges(page: Page, workspace: DirtyWorkspa
 }
 
 async function openChangesInVisibleExplorer(page: Page): Promise<void> {
-  const explorer = page.getByTestId("workspace-explorer-sidebar");
+  const explorer = page.getByTestId("workspace-side-panel");
   await expect(explorer).toBeVisible({ timeout: 30_000 });
   const changesTab = explorer.getByRole("button", { name: /Working tree diff/i }).first();
   await changesTab.click();
@@ -1766,12 +1764,27 @@ async function changeCodeTypographyFromSettings(
   await page.getByTestId("sidebar-settings").click();
   await expect(page).toHaveURL(new RegExp(`${buildSettingsSectionRoute("general")}|/settings$`));
   await page.getByRole("button", { name: "Appearance" }).click();
-  await page.getByLabel("Code font family").fill(typography.fontFamily);
-  await page.getByLabel("Code font family").press("Enter");
-  await page.getByLabel("Code font size").fill(String(typography.fontSize));
-  await page.getByLabel("Code font size").press("Enter");
-  await expect(page.getByLabel("Code font family")).toHaveValue(typography.fontFamily);
-  await expect(page.getByLabel("Code font size")).toHaveValue(String(typography.fontSize));
+  const familyInput = page.getByLabel("Code font family");
+  const sizeInput = page.getByLabel("Code font size");
+  await familyInput.fill(typography.fontFamily);
+  await familyInput.press("Enter");
+  // Enter schedules a blur; finish this commit before editing another appearance field.
+  await expect(familyInput).not.toBeFocused();
+  await expect
+    .poll(() =>
+      page.evaluate((settingsKey) => {
+        const raw = localStorage.getItem(settingsKey);
+        if (!raw) return null;
+        return (JSON.parse(raw) as { monoFontFamily?: string }).monoFontFamily ?? null;
+      }, APP_SETTINGS_KEY),
+    )
+    .toBe(typography.fontFamily);
+  await sizeInput.fill(String(typography.fontSize));
+  await expect(sizeInput).toHaveValue(String(typography.fontSize));
+  await sizeInput.press("Enter");
+  await expect(sizeInput).not.toBeFocused();
+  await expect(familyInput).toHaveValue(typography.fontFamily);
+  await expect(sizeInput).toHaveValue(String(typography.fontSize));
   await expectStoredCodeFontSize(page, typography.fontSize);
 }
 

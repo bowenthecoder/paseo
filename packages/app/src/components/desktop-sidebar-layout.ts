@@ -1,5 +1,6 @@
 import { SETTINGS_DESKTOP_SPLIT_MIN_WIDTH } from "@/constants/layout";
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/stores/panel-store";
+import type { SplitNode } from "@/stores/workspace-layout-store";
 
 const MIN_DESKTOP_CENTER_WIDTH = 400;
 
@@ -62,8 +63,31 @@ export function resolveDesktopSidebarWidth(input: {
   });
 }
 
-export function resolveDesktopAppContentMinimum(input: { isSettingsRoute: boolean }): number {
-  return input.isSettingsRoute ? SETTINGS_DESKTOP_SPLIT_MIN_WIDTH : 0;
+export function resolveDesktopAppContentMinimum(input: {
+  isSettingsRoute: boolean;
+  workspaceMinimumWidth?: number;
+}): number {
+  return input.isSettingsRoute
+    ? SETTINGS_DESKTOP_SPLIT_MIN_WIDTH
+    : (input.workspaceMinimumWidth ?? MIN_DESKTOP_CENTER_WIDTH);
+}
+
+/** Width needed by the visible split tree; stacked panes share the same width. */
+export function resolveWorkspaceContentMinimum(
+  node: SplitNode | undefined,
+  explorerPaneId: string = "explorer",
+): number {
+  if (!node) return MIN_DESKTOP_CENTER_WIDTH;
+  if (node.kind === "pane") {
+    if (node.pane.hidden === true) return 0;
+    return node.pane.id === explorerPaneId ? 240 : MIN_DESKTOP_CENTER_WIDTH;
+  }
+  const widths = node.group.children.map((child) =>
+    resolveWorkspaceContentMinimum(child, explorerPaneId),
+  );
+  return node.group.direction === "horizontal"
+    ? widths.reduce((sum, width) => sum + width, 0)
+    : Math.max(0, ...widths);
 }
 
 export function canDesktopAppSidebarShare(input: {

@@ -102,6 +102,24 @@ export function refreshProviderSubagents(
   return request;
 }
 
+/**
+ * The child a parent's tool call launched, if its provider announced one. Claude's Task/Agent
+ * children carry the launching tool call id; a child whose id is the tool call id also matches.
+ */
+export function findProviderSubagentForToolCall(
+  descriptors: ReadonlyMap<string, ProviderSubagentDescriptorPayload>,
+  serverId: string,
+  parentAgentId: string,
+  toolCallId: string,
+): ProviderSubagentDescriptorPayload | null {
+  const prefix = parentPrefix(serverId, parentAgentId);
+  for (const [key, descriptor] of descriptors) {
+    if (!key.startsWith(prefix)) continue;
+    if (descriptor.toolCallId === toolCallId || descriptor.id === toolCallId) return descriptor;
+  }
+  return null;
+}
+
 function parentPrefix(serverId: string, parentAgentId: string): string {
   return `${serverId}\0${parentAgentId}\0`;
 }
@@ -161,23 +179,45 @@ function buildTimelineState(
   };
 }
 
-function buildTimelineResponseRows(
+function buildTimelineResponseWindow(
   existing: ProviderSubagentTimelineState | undefined,
   payload: Extract<
     SessionOutboundMessage,
     { type: "agent.provider_subagents.timeline.get.response" }
   >["payload"],
   provider: ProviderSubagentDescriptorPayload["provider"],
-): ProviderSubagentTimelineState["rows"] {
+): Pick<ProviderSubagentTimelineState, "rows" | "hasOlder"> {
   const rows = new Map<number, ProviderSubagentTimelineRow>();
+  let hasOlder = payload.hasOlder;
   for (const row of payload.rows) {
     rows.set(row.seq, { provider, item: row.item, timestamp: row.timestamp });
   }
   if (payload.reset || existing?.epoch !== payload.epoch) {
-    return rows;
+    return { rows, hasOlder };
   }
   if (payload.direction !== "tail") {
-    return new Map([...existing.rows, ...rows]);
+    return { rows: new Map([...existing.rows, ...rows]), hasOlder };
+  }
+
+  // A retained task refreshes its tail when shown again. Keep older pages only
+  // when they connect to that tail; a gap must still replace the cached window.
+  if (payload.hasOlder && !payload.gap && !payload.staleCursor && rows.size > 0) {
+    const firstReturnedSeq = Math.min(...rows.keys());
+    let previousSeq = firstReturnedSeq - 1;
+    while (previousSeq >= payload.window.minSeq) {
+      const row = existing.rows.get(previousSeq);
+      if (!row) break;
+      rows.set(previousSeq, row);
+      previousSeq -= 1;
+    }
+    const firstExistingSeq = existing.rows.size ? Math.min(...existing.rows.keys()) : null;
+    if (
+      previousSeq < firstReturnedSeq - 1 &&
+      firstExistingSeq !== null &&
+      previousSeq + 1 === firstExistingSeq
+    ) {
+      hasOlder = existing.hasOlder;
+    }
   }
 
   let nextSeq = payload.rows.length
@@ -189,7 +229,7 @@ function buildTimelineResponseRows(
     rows.set(seq, row);
     nextSeq += 1;
   }
-  return rows;
+  return { rows, hasOlder };
 }
 
 export const useProviderSubagentStore = create<ProviderSubagentState>((set) => ({
@@ -316,10 +356,10 @@ export const useProviderSubagentStore = create<ProviderSubagentState>((set) => (
     set((state) => {
       const key = providerSubagentKey(serverId, payload.parentAgentId, payload.subagentId);
       const existing = state.timelines.get(key);
-      const rows = buildTimelineResponseRows(existing, payload, provider);
+      const { rows, hasOlder } = buildTimelineResponseWindow(existing, payload, provider);
       const descriptor = state.descriptors.get(key);
       const timelines = new Map(state.timelines);
-      timelines.set(key, buildTimelineState(rows, payload.epoch, descriptor, payload.hasOlder));
+      timelines.set(key, buildTimelineState(rows, payload.epoch, descriptor, hasOlder));
       return { timelines };
     });
   },

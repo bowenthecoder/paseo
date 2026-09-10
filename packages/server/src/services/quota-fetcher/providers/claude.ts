@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
-import { existsSync, promises as fs } from "node:fs";
+import { createHash } from "node:crypto";
 import { homedir, userInfo } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import type { Logger } from "pino";
 import { z } from "zod";
@@ -12,7 +12,12 @@ import type {
 } from "../../../server/messages.js";
 import type { ProviderApiFetch, ProviderUsageFetcher } from "../provider.js";
 import {
-  ApiNumberSchema,
+  expandCredentialHome,
+  readCredentialFile,
+  type CredentialFileReader,
+} from "../credential-file.js";
+import {
+  ReportedNullableNumberSchema,
   fetchProviderApi,
   toneFromUsedPct,
   unavailableUsage,
@@ -36,7 +41,7 @@ const ClaudeCredentialsSchema = z.object({
 });
 
 const ClaudeUsageWindowSchema = z.object({
-  utilization: ApiNumberSchema,
+  utilization: ReportedNullableNumberSchema,
   resets_at: z.string().nullish(),
 });
 
@@ -50,7 +55,7 @@ const ClaudeScopeLabelSchema = z
 
 const ClaudeLimitSchema = z.object({
   kind: z.string(),
-  percent: ApiNumberSchema.nullish(),
+  percent: ReportedNullableNumberSchema,
   resets_at: z.string().nullish(),
   scope: z.object({ model: ClaudeScopeLabelSchema, surface: ClaudeScopeLabelSchema }).nullish(),
 });
@@ -86,6 +91,7 @@ interface ClaudeQuotaProviderOptions {
   claudeKeychainReader?: () => Promise<unknown | null>;
   platform?: typeof process.platform;
   fetch?: ProviderApiFetch;
+  credentialFileReader?: CredentialFileReader;
 }
 
 function buildClaudePlan(
@@ -316,11 +322,18 @@ async function runSecurityCommand(args: string[]): Promise<string | null> {
 export async function readClaudeKeychainCredentials(
   run: ClaudeKeychainCommandRunner = runSecurityCommand,
   account: string = claudeKeychainAccount(),
+  home?: string,
 ): Promise<unknown | null> {
-  const lookups = [
-    ["find-generic-password", "-a", account, "-w", "-s", CLAUDE_KEYCHAIN_SERVICE],
-    ["find-generic-password", "-w", "-s", CLAUDE_KEYCHAIN_SERVICE],
-  ];
+  const services = home
+    ? [
+        `${CLAUDE_KEYCHAIN_SERVICE}-${createHash("sha256").update(home).digest("hex").slice(0, 8)}`,
+        ...(resolve(home) === resolve(join(homedir(), ".claude")) ? [CLAUDE_KEYCHAIN_SERVICE] : []),
+      ]
+    : [CLAUDE_KEYCHAIN_SERVICE];
+  const lookups = services.flatMap((service) => [
+    ["find-generic-password", "-a", account, "-w", "-s", service],
+    ["find-generic-password", "-w", "-s", service],
+  ]);
 
   for (const args of lookups) {
     const raw = await run(args);
@@ -346,14 +359,19 @@ export class ClaudeQuotaProvider implements ProviderUsageFetcher {
   private readonly readKeychainCredentials: () => Promise<unknown | null>;
   private readonly platform: typeof process.platform;
   private readonly fetchApi: ProviderApiFetch;
+  private readonly credentialFileReader: CredentialFileReader;
 
   constructor(options: ClaudeQuotaProviderOptions) {
     this.logger = options.logger.child({ module: "claude-quota-provider" });
-    this.claudeHome =
-      options.claudeHome || process.env["CLAUDE_HOME"] || join(homedir(), ".claude");
-    this.readKeychainCredentials = options.claudeKeychainReader ?? readClaudeKeychainCredentials;
+    this.claudeHome = expandCredentialHome(
+      options.claudeHome || process.env["CLAUDE_CONFIG_DIR"] || join(homedir(), ".claude"),
+    );
+    this.readKeychainCredentials =
+      options.claudeKeychainReader ??
+      (() => readClaudeKeychainCredentials(undefined, undefined, this.claudeHome));
     this.platform = options.platform ?? process.platform;
     this.fetchApi = options.fetch ?? fetch;
+    this.credentialFileReader = options.credentialFileReader ?? readCredentialFile;
   }
 
   async fetchUsage(): Promise<ProviderUsage> {
@@ -443,14 +461,8 @@ export class ClaudeQuotaProvider implements ProviderUsageFetcher {
   }
 
   private async readCredentialFile(path: string): Promise<ClaudeCredentialRecord | null> {
-    if (!existsSync(path)) return null;
-    try {
-      return this.toCredentialRecord(
-        ClaudeCredentialsSchema.parse(JSON.parse(await fs.readFile(path, "utf8"))),
-      );
-    } catch {
-      return null;
-    }
+    const parsed = ClaudeCredentialsSchema.safeParse(await this.credentialFileReader(path));
+    return parsed.success ? this.toCredentialRecord(parsed.data) : null;
   }
 
   private async readKeychainCredential(): Promise<ClaudeCredentialRecord | null> {

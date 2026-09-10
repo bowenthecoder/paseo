@@ -152,6 +152,83 @@ describe("background Claude subagents", () => {
     });
   });
 
+  test.each([true, false])(
+    "a background shell keeps its waiting row without creating a synthetic Task card (starts backgrounded=%s)",
+    async (startsBackgrounded) => {
+      queryFactory.mockImplementation(() =>
+        buildQueryMock([
+          {
+            type: "system",
+            subtype: "init",
+            session_id: "shell-session",
+            permissionMode: "default",
+          },
+          {
+            type: "system",
+            subtype: "task_started",
+            task_id: "shell-task",
+            tool_use_id: "toolu_shell",
+            task_type: "local_bash",
+            description: "Sleep 25 seconds",
+            is_backgrounded: startsBackgrounded,
+          },
+          ...(!startsBackgrounded
+            ? [
+                {
+                  type: "system",
+                  subtype: "task_updated",
+                  task_id: "shell-task",
+                  patch: { is_backgrounded: true },
+                },
+              ]
+            : []),
+          {
+            type: "system",
+            subtype: "task_notification",
+            task_id: "shell-task",
+            tool_use_id: "toolu_shell",
+            status: "completed",
+            summary: "Sleep completed",
+            output_file: "/tmp/test-shell.output",
+          },
+          { type: "result", subtype: "success", usage: {}, total_cost_usd: 0 },
+        ]),
+      );
+      const session = await new ClaudeAgentClient({
+        logger: createTestLogger(),
+        queryFactory,
+        resolveBinary: async () => "/test/claude/bin",
+      }).createSession({ provider: "claude", cwd: process.cwd() });
+      try {
+        const events = await collectUntilTerminal(
+          streamSession(session, "run a background command"),
+        );
+        const taskEvents = events.flatMap((event) =>
+          event.type === "provider_subagent" ? [event.event] : [],
+        );
+        expect(taskEvents).toContainEqual(
+          expect.objectContaining({ type: "upsert", id: "toolu_shell", status: "running" }),
+        );
+        expect(taskEvents).toContainEqual(
+          expect.objectContaining({
+            type: "upsert",
+            id: "toolu_shell",
+            subtitle: "background command",
+          }),
+        );
+        expect(taskEvents).toContainEqual({ type: "remove", id: "toolu_shell" });
+        const parentTools = events.flatMap((event) =>
+          event.type === "timeline" && event.item.type === "tool_call" ? [event.item] : [],
+        );
+        expect(parentTools.some((item) => item.detail.type === "sub_agent")).toBe(false);
+        expect(parentTools.some((item) => item.status === "running")).toBe(false);
+        expect(parentTools).toContainEqual(expect.objectContaining({ status: "completed" }));
+      } finally {
+        await session.close();
+      }
+    },
+  );
+
   test("exposes a workflow through the same provider-subagent stream as its child frames", async () => {
     const workflowOutputPath = writeWorkflowOutput();
     queryFactory.mockImplementation(() =>

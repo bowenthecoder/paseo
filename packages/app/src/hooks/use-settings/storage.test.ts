@@ -42,6 +42,27 @@ function makeDeps(
 }
 
 describe("loadAppSettingsFromStorage", () => {
+  // COMPAT(singleChatLayout): a blob written before the single-chat refactor still carries the
+  // split-layout destination preferences. They must parse and be dropped, not fail the whole read
+  // and reset every other setting to its default.
+  it("drops legacy split-layout destinations while keeping the rest of the blob", async () => {
+    const result = await loadAppSettingsFromStorage(
+      makeDeps({
+        storage: createInMemoryKeyValueStorage({
+          [APP_SETTINGS_KEY]: JSON.stringify({
+            theme: "dark",
+            openInSidePane: { chatFiles: false, explorerFiles: false },
+            pullRequestOpenLocation: "side",
+          }),
+        }),
+      }),
+    );
+
+    expect(result.theme).toBe("dark");
+    expect(result).not.toHaveProperty("openInSidePane");
+    expect(result).not.toHaveProperty("pullRequestOpenLocation");
+  });
+
   it("preserves a persisted steer send behavior", async () => {
     const deps = makeDeps({
       storage: createInMemoryKeyValueStorage({
@@ -235,37 +256,6 @@ describe("loadAppSettingsFromStorage", () => {
     const result = await loadAppSettingsFromStorage(deps);
 
     expect(result.sidebarNavItems).toEqual([]);
-  });
-
-  it("collapses legacy diff destinations into the former Explorer choice", async () => {
-    const deps = makeDeps({
-      storage: createInMemoryKeyValueStorage({
-        [APP_SETTINGS_KEY]: JSON.stringify({
-          openInSidePane: { explorerChanges: true, changesLinks: false },
-        }),
-      }),
-    });
-
-    const result = await loadAppSettingsFromStorage(deps);
-
-    expect(result.openInSidePane.diffs).toBe(true);
-    expect(result.openInSidePane).not.toHaveProperty("explorerChanges");
-    expect(result.openInSidePane).not.toHaveProperty("changesLinks");
-  });
-
-  it("defaults PRs to Explorer and preserves the legacy side choice", async () => {
-    const defaults = await loadAppSettingsFromStorage(makeDeps());
-    const legacySide = await loadAppSettingsFromStorage(
-      makeDeps({
-        storage: createInMemoryKeyValueStorage({
-          [APP_SETTINGS_KEY]: JSON.stringify({ openInSidePane: { pullRequests: true } }),
-        }),
-      }),
-    );
-
-    expect(defaults.pullRequestOpenLocation).toBe("explorer");
-    expect(legacySide.pullRequestOpenLocation).toBe("side");
-    expect(legacySide.openInSidePane).not.toHaveProperty("pullRequests");
   });
 
   it("uses the native terminal renderer by default", async () => {
@@ -686,7 +676,7 @@ describe("appearance settings", () => {
     expect(result.contentFontSize).toBe(DEFAULT_UI_BASE_FONT_SIZE);
     expect(result.codeFontSize).toBe(DEFAULT_CODE_FONT_SIZE);
     expect(result.syntaxTheme).toBe("one");
-    expect(result.toolCallDetailLevel).toBe("detailed");
+    expect(result.toolCallDetailLevel).toBe("overview");
   });
 
   it("migrates the enabled compact tool call preference to overview", async () => {
@@ -706,7 +696,7 @@ describe("appearance settings", () => {
       }),
     });
 
-    expect((await loadAppSettingsFromStorage(deps)).toolCallDetailLevel).toBe("detailed");
+    expect((await loadAppSettingsFromStorage(deps)).toolCallDetailLevel).toBe("overview");
   });
 
   it("migrates a switched-off checks row item to the hidden checks display", async () => {

@@ -68,8 +68,6 @@ export const es: TranslationResources = {
       agents: "Agentes",
       newAgent: "Nuevo agente",
       open: "Abrir {{name}}",
-      openInSidePane: "Abrir {{name}} en el panel lateral",
-      openInFocusedPane: "Abrir {{name}} en el panel enfocado",
       addProject: "Agregar proyecto",
       home: "Hogar",
       groupByProject: "Agrupar por proyecto",
@@ -107,6 +105,8 @@ export const es: TranslationResources = {
       sendMessage: "enviar mensaje",
       queue: "Cola",
       send: "Enviar",
+      holdQueue: "Cola",
+      holdQueueMessage: "Poner el mensaje en cola sin enviarlo",
     },
     cancel: {
       cancelingAgent: "Agente de cancelación",
@@ -135,6 +135,9 @@ export const es: TranslationResources = {
       dropFilesHere: "Drop files here",
       editQueuedMessage: "Editar mensaje en cola",
       sendQueuedMessageNow: "Enviar mensaje en cola ahora",
+      removeQueuedMessage: "Quitar mensaje de la cola",
+      heldQueuedMessage: "En espera",
+      sendAllHeldMessages: "Enviar todo",
       openImage: "Abrir imagen adjunta",
       removeImage: "Quitar imagen adjunta",
       removeFile: "Remove file attachment",
@@ -160,6 +163,7 @@ export const es: TranslationResources = {
     clientCommands: {
       archiveAgent: "Archivar el agente actual",
       freshDraft: "Archive este agente y comience un nuevo borrador",
+      planMode: "Activar o desactivar el modo plan para este agente",
     },
     github: {
       searching: "Búsqueda...",
@@ -433,7 +437,6 @@ export const es: TranslationResources = {
     fileActions: {
       openFile: "Abrir archivo",
       openIn: "Abrir en {{target}}",
-      openToSide: "Abrir al lado",
       copyPath: "Copiar ruta",
       copyRelativePath: "Copiar ruta relativa",
       revealIn: "Mostrar en {{target}}",
@@ -479,6 +482,10 @@ export const es: TranslationResources = {
         refreshing: "Actualizar archivos",
         hideHiddenFiles: "Ocultar archivos ocultos",
         showHiddenFiles: "Mostrar archivos ocultos",
+        parentFolder: "Carpeta superior",
+        homeFolder: "Carpeta personal",
+        deviceRoot: "Raíz del dispositivo",
+        workingFolder: "Carpeta de trabajo",
       },
       empty: {
         noFiles: "Sin archivos",
@@ -604,12 +611,6 @@ export const es: TranslationResources = {
         copyTerminalId: "Copiar ID del terminal",
         copyFilePath: "Copy file path",
         rename: "Rebautizar",
-        closeAbove: "Cerrar pestañas arriba",
-        closeBelow: "Cerrar pestañas a continuación",
-        closeLeft: "Cerrar pestañas a la izquierda",
-        closeRight: "Cerrar pestañas a la derecha",
-        closeOthers: "Cerrar otras pestañas",
-        moveToMain: "Mover al panel principal",
         reloadAgent: "Recargar agente",
         reloadAgentTooltip:
           "Vuelva a cargar el agente para actualizar habilidades, MCP o estado de inicio de sesión.",
@@ -618,18 +619,12 @@ export const es: TranslationResources = {
         renameAgent: "Cambiar nombre del agente",
       },
       actions: {
-        newTab: "Nueva pestaña",
         newAgent: "Nuevo agente",
         newTerminal: "Nueva terminal",
         preparingTerminal: "Preparando la pestaña del terminal",
         preparingTerminalTooltip: "Preparando terminal...",
         newBrowser: "Nuevo navegador",
-        maximizePane: "Maximizar panel",
-        restorePane: "Restaurar panel",
-        closePane: "Cerrar panel",
         exitFocusMode: "Salir del modo de concentración",
-        splitRight: "Panel dividido a la derecha",
-        splitDown: "Dividir panel hacia abajo",
         changes: "Cambios",
         files: "Archivos",
         pullRequest: "Solicitud de extracción",
@@ -661,9 +656,6 @@ export const es: TranslationResources = {
         unsavedMessage:
           "Esta pestaña tiene cambios sin guardar. Al cerrarla se descartará el borrador.",
         closeWithoutSaving: "Cerrar sin guardar",
-        closePaneTitle: "¿Cerrar panel?",
-        bulkUnsaved:
-          "{{count}} pestaña(s) tienen cambios sin guardar. Al cerrar se descartarán esos borradores.",
         close: "Cerrar",
         cancel: "Cancelar",
         archive: "Archivo",
@@ -673,22 +665,16 @@ export const es: TranslationResources = {
         archiveRunningAgentTitle: "¿Agente de ejecución de archivos?",
         archiveRunningAgentMessage:
           "Este agente todavía está ejecutándose. Archivarlo detendrá al agente y cerrará la pestaña.",
-        closeTabsLeftTitle: "¿Cerrar pestañas a la izquierda?",
-        closeTabsRightTitle: "¿Cerrar pestañas a la derecha?",
-        closeOtherTabsTitle: "¿Cerrar otras pestañas?",
-        bulk: {
-          all: "Esto archivará los agentes{{agents}}, cerrará los terminales{{terminals}}y cerrará las pestañas{{tabs}}. Cualquier proceso en ejecución en una terminal cerrada se detendrá inmediatamente.",
-          agentsAndTerminals:
-            "Esto archivará los agentes{{agents}}y cerrará los terminales{{terminals}}. Cualquier proceso en ejecución en una terminal cerrada se detendrá inmediatamente.",
-          terminalsAndTabs:
-            "Esto cerrará los terminales{{terminals}}y cerrará las pestañas{{tabs}}. Cualquier proceso en ejecución en una terminal cerrada se detendrá inmediatamente.",
-          agentsAndTabs: "Esto archivará los agentes{{agents}}y cerrará las pestañas{{tabs}}.",
-          terminals:
-            "Esto cerrará los terminales{{terminals}}. Cualquier proceso en ejecución en una terminal cerrada se detendrá inmediatamente.",
-          tabs: "Esto cerrará las pestañas{{tabs}}.",
-          agents: "Esto archivará los agentes{{agents}}.",
-        },
       },
+    },
+    chat: {
+      empty: {
+        title: "No hay chat abierto",
+        action: "Nuevo chat",
+      },
+    },
+    sidePanel: {
+      close: "Cerrar panel lateral",
     },
     header: {
       actions: {
@@ -700,6 +686,8 @@ export const es: TranslationResources = {
         copyPath: "Copiar ruta del espacio de trabajo",
         copyBranchName: "Copiar nombre de sucursal",
         showSetup: "Mostrar configuración",
+        toggleTerminal: "Terminal",
+        toggleBrowser: "Navegador",
       },
       toasts: {
         workspacePathUnavailable: "La rutaWorkspaceaún no está disponible",
@@ -1794,10 +1782,17 @@ export const es: TranslationResources = {
     backdrop: "Fondo del menú",
   },
   subagents: {
+    viewChild: "Ver",
+    loadFailed: "No se pudo cargar esta tarea.",
+    connectToLoad: "Conéctate a este equipo para cargar la tarea.",
+    tasksTitle: "Tareas",
+    empty: "No hay subagentes que mostrar.",
+    pillLabelWorkingOne: "1 tarea en ejecución",
+    contextTokens: "{{tokens}} tokens · contexto",
     title: "Subagentes",
     pillLabelOne: "1 subagente",
     pillLabelMany: "{{count}} subagentes",
-    pillLabelWorking: "{{count}} en ejecución",
+    pillLabelWorking: "{{count}} tareas en ejecución",
     pillLabelFailed: "{{count}} con error",
     pillLabelNeedsInputOne: "1 necesita datos",
     pillLabelNeedsInputMany: "{{count}} necesitan datos",
@@ -1877,6 +1872,18 @@ export const es: TranslationResources = {
     output: "Producción",
   },
   toolCallGroup: {
+    runningTools: {
+      one: "{{count}} herramienta en ejecución",
+      other: "{{count}} herramientas en ejecución",
+    },
+    failedTools: {
+      one: "falló {{count}} herramienta",
+      other: "fallaron {{count}} herramientas",
+    },
+    canceledTools: {
+      one: "se canceló {{count}} herramienta",
+      other: "se cancelaron {{count}} herramientas",
+    },
     editedFiles: {
       one: "editó {{count}} archivo",
       other: "editó {{count}} archivos",
@@ -1885,6 +1892,11 @@ export const es: TranslationResources = {
       one: "ejecutó {{count}} comando",
       other: "ejecutó {{count}} comandos",
     },
+    createdFiles: {
+      one: "creó un archivo",
+      other: "creó {{count}} archivos",
+    },
+    readFile: "leyó {{name}}",
     readFiles: {
       one: "leyó {{count}} archivo",
       other: "leyó {{count}} archivos",
@@ -1892,6 +1904,10 @@ export const es: TranslationResources = {
     searches: {
       one: "buscó {{count}} vez",
       other: "buscó {{count}} veces",
+    },
+    subagents: {
+      one: "lanzó un subagente",
+      other: "lanzó {{count}} subagentes",
     },
     otherTools: {
       one: "usó {{count}} herramienta adicional",
@@ -1901,6 +1917,8 @@ export const es: TranslationResources = {
       one: "llamó a Paseo {{count}} vez",
       other: "llamó a Paseo {{count}} veces",
     },
+    failedSuffix: "({{count}} con error)",
+    separator: ", ",
     and: "y",
   },
   renameModal: {
@@ -1953,7 +1971,6 @@ export const es: TranslationResources = {
     sections: {
       general: "General",
       appearance: "Apariencia",
-      layout: en.settings.sections.layout,
       editor: "Editor",
       shortcuts: "Atajos",
       integrations: "Integraciones",
@@ -1962,7 +1979,6 @@ export const es: TranslationResources = {
       diagnostics: "Diagnóstico",
       about: "Acerca de",
     },
-    layout: en.settings.layout,
     editor: {
       title: "Editor",
       vimKeybindings: "Atajos de Vim",
@@ -2221,7 +2237,7 @@ export const es: TranslationResources = {
       sections: {
         general: "General",
         workspaces: "Proyectos y espacios de trabajo",
-        tabsPanes: "Pestañas y paneles",
+        chat: "Chat",
         layout: "Diseño",
         agentInput: "EntradaAgent",
       },
@@ -2230,26 +2246,12 @@ export const es: TranslationResources = {
         newWorkspace: "Nuevo espacio de trabajo",
         newWorktree: "Nuevo árbol de trabajo",
         archiveWorkspace: "Archivar espacio de trabajo",
-        newTab: "Nueva pestaña",
         closeCurrentTab: "Cerrar pestaña actual",
         jumpToWorkspace: "Saltar al espacio de trabajo",
-        jumpToTab: "Saltar a la pestaña",
         previousWorkspace: "Espacio de trabajo anterior",
         nextWorkspace: "Siguiente espacio de trabajo",
-        previousTab: "Pestaña anterior",
-        nextTab: "Pestaña siguiente",
-        splitPaneRight: "Panel dividido a la derecha",
-        splitPaneDown: "Dividir panel hacia abajo",
-        focusPaneLeft: "Panel de enfoque a la izquierda",
-        focusPaneRight: "Panel de enfoque a la derecha",
-        focusPaneUp: "Panel de enfoque arriba",
-        focusPaneDown: "Panel de enfoque hacia abajo",
-        moveTabLeft: "Mover pestaña hacia la izquierda",
-        moveTabRight: "Mover pestaña a la derecha",
-        moveTabUp: "Mover pestaña hacia arriba",
-        moveTabDown: "Mover pestaña hacia abajo",
-        closePane: "Cerrar panel",
         newTerminal: "Nueva terminal",
+        closeSidePanel: "Cerrar panel lateral",
         searchFiles: "Buscar archivos",
         toggleCommandCenter: "Alternar centro de comando",
         showKeyboardShortcuts: "Mostrar atajos de teclado",

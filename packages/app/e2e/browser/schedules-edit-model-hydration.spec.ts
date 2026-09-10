@@ -1,5 +1,4 @@
 import { expect, test } from "../support/fixtures";
-import { gotoAppShell } from "../support/helpers/app";
 import {
   addFakeScheduleHostAndReload,
   buildFakeScheduleHostWorkspace,
@@ -9,7 +8,6 @@ import {
 } from "../support/helpers/schedule-fake-host";
 import { seedWorkspace, type SeededWorkspace } from "../support/helpers/seed-client";
 import { expectSettled, expectStableHeight } from "../support/helpers/settled";
-import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
 import { buildSchedulesRoute } from "../../src/utils/host-routes";
 
 interface ScheduleSeedClient {
@@ -174,8 +172,6 @@ test.describe("Schedules", () => {
       ],
     });
 
-    await gotoAppShell(page);
-    await waitForSidebarHydration(page);
     await page.goto(buildSchedulesRoute());
     await addFakeScheduleHostAndReload({
       page,

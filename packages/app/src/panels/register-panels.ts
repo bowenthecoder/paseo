@@ -12,9 +12,10 @@ import { registerPanel } from "@/panels/panel-registry";
 import { setupPanelRegistration } from "@/panels/setup-panel";
 import { terminalPanelRegistration } from "@/panels/terminal-panel";
 import { providerSubagentPanelRegistration } from "@/panels/provider-subagent-panel";
+import { subagentsPanelRegistration } from "@/panels/subagents-panel";
 import { pullRequestPanelRegistration } from "@/panels/pull-request-panel";
 import { pluginPanelRegistration } from "@/plugins/workspace-panels/panel";
-import { newTabPanelRegistration } from "@/panels/new-tab-panel";
+import { emptyChatPanelRegistration } from "@/panels/empty-chat-panel";
 
 let panelsRegistered = false;
 
@@ -23,9 +24,10 @@ export function ensurePanelsRegistered(): void {
     return;
   }
   registerPanel(draftPanelRegistration);
-  registerPanel(newTabPanelRegistration);
+  registerPanel(emptyChatPanelRegistration);
   registerPanel(agentPanelRegistration);
   registerPanel(providerSubagentPanelRegistration);
+  registerPanel(subagentsPanelRegistration);
   registerPanel(setupPanelRegistration);
   registerPanel(terminalPanelRegistration);
   registerPanel(browserPanelRegistration);

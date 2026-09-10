@@ -950,6 +950,15 @@ function DesktopAgentControlsContent(props: DesktopAgentControlsContentProps) {
     () => ({ title: t("agentControls.features.title") }),
     [t],
   );
+  const pickerEffort = useMemo(
+    () => ({
+      options: thinkingOptions ?? [],
+      selectedId: selectedThinkingOptionId ?? "",
+      onSelect: handleThinkingSelect,
+      disabled: disabled || !canSelectThinking,
+    }),
+    [thinkingOptions, selectedThinkingOptionId, handleThinkingSelect, disabled, canSelectThinking],
+  );
   const handleOpenFeatures = useCallback(() => handleOpenSheet("features"), [handleOpenSheet]);
   return (
     <>
@@ -986,6 +995,7 @@ function DesktopAgentControlsContent(props: DesktopAgentControlsContentProps) {
             <View style={styles.modelControl}>
               <CombinedModelSelector
                 providers={modelSelectorProviders}
+                effort={pickerEffort}
                 selectedProvider={provider}
                 selectedModel={selectedModelId ?? ""}
                 onSelect={handleDesktopModelSelect}

@@ -68,8 +68,6 @@ export const ja: TranslationResources = {
       agents: "エージェント",
       newAgent: "新しいエージェント",
       open: "{{name}}を開く",
-      openInSidePane: "{{name}}をサイドパネルで開く",
-      openInFocusedPane: "{{name}}をフォーカス中のペインで開く",
       addProject: "プロジェクトを追加",
       home: "ホーム",
       groupByProject: "プロジェクトでグループ化",
@@ -107,6 +105,8 @@ export const ja: TranslationResources = {
       sendMessage: "メッセージを送信",
       queue: "キュー",
       send: "送信",
+      holdQueue: "キュー",
+      holdQueueMessage: "送信せずにメッセージをキューに追加",
     },
     cancel: {
       cancelingAgent: "エージェントをキャンセル中",
@@ -135,6 +135,9 @@ export const ja: TranslationResources = {
       dropFilesHere: "ここにファイルをドロップ",
       editQueuedMessage: "キューに入れたメッセージを編集",
       sendQueuedMessageNow: "キューに入れたメッセージを今すぐ送信",
+      removeQueuedMessage: "キューに入れたメッセージを削除",
+      heldQueuedMessage: "保留中",
+      sendAllHeldMessages: "すべて送信",
       openImage: "画像添付ファイルを開く",
       removeImage: "画像添付ファイルを削除",
       removeFile: "ファイル添付ファイルを削除",
@@ -160,6 +163,7 @@ export const ja: TranslationResources = {
     clientCommands: {
       archiveAgent: "現在のエージェントをアーカイブ",
       freshDraft: "このエージェントをアーカイブして新しい下書きを開始",
+      planMode: "このエージェントのプランモードを切り替える",
     },
     github: {
       searching: "検索中...",
@@ -433,7 +437,6 @@ export const ja: TranslationResources = {
     fileActions: {
       openFile: "ファイルを開く",
       openIn: "{{target}}で開く",
-      openToSide: "横に開く",
       copyPath: "パスをコピー",
       copyRelativePath: "相対パスをコピー",
       revealIn: "{{target}}で表示",
@@ -479,6 +482,10 @@ export const ja: TranslationResources = {
         refreshing: "ファイルを更新中",
         hideHiddenFiles: "隠しファイルを非表示",
         showHiddenFiles: "隠しファイルを表示",
+        parentFolder: "親フォルダー",
+        homeFolder: "ホームフォルダー",
+        deviceRoot: "デバイスのルート",
+        workingFolder: "作業フォルダー",
       },
       empty: {
         noFiles: "ファイルなし",
@@ -604,12 +611,6 @@ export const ja: TranslationResources = {
         copyTerminalId: "ターミナルIDをコピー",
         copyFilePath: "ファイルパスをコピー",
         rename: "名前を変更",
-        closeAbove: "上のタブを閉じる",
-        closeBelow: "下のタブを閉じる",
-        closeLeft: "左のタブを閉じる",
-        closeRight: "右のタブを閉じる",
-        closeOthers: "他のタブを閉じる",
-        moveToMain: "メインパネルへ移動",
         reloadAgent: "エージェントを再読み込み",
         reloadAgentTooltip:
           "スキル、MCP、ログイン状態を更新するためにエージェントを再読み込みします。",
@@ -618,18 +619,12 @@ export const ja: TranslationResources = {
         renameAgent: "エージェントの名前を変更",
       },
       actions: {
-        newTab: "新しいタブ",
         newAgent: "新しいエージェント",
         newTerminal: "新しいターミナル",
         preparingTerminal: "ターミナルタブを準備中",
         preparingTerminalTooltip: "ターミナルを準備中...",
         newBrowser: "新しいブラウザ",
-        maximizePane: "ペインを最大化",
-        restorePane: "ペインを元に戻す",
-        closePane: "ペインを閉じる",
         exitFocusMode: "フォーカスモードを終了",
-        splitRight: "右にペインを分割",
-        splitDown: "下にペインを分割",
         changes: "変更",
         files: "ファイル",
         pullRequest: "プルリクエスト",
@@ -660,8 +655,6 @@ export const ja: TranslationResources = {
         unsavedTitle: "未保存の変更",
         unsavedMessage: "このタブには未保存の変更があります。閉じると下書きが破棄されます。",
         closeWithoutSaving: "保存せずに閉じる",
-        closePaneTitle: "ペインを閉じますか？",
-        bulkUnsaved: "{{count}} 個のタブに未保存の変更があります。閉じると下書きが破棄されます。",
         close: "閉じる",
         cancel: "キャンセル",
         archive: "アーカイブ",
@@ -670,22 +663,16 @@ export const ja: TranslationResources = {
         archiveRunningAgentTitle: "実行中のエージェントをアーカイブしますか？",
         archiveRunningAgentMessage:
           "このエージェントはまだ実行中です。アーカイブするとエージェントが停止してタブが閉じられます。",
-        closeTabsLeftTitle: "左のタブを閉じますか？",
-        closeTabsRightTitle: "右のタブを閉じますか？",
-        closeOtherTabsTitle: "他のタブを閉じますか？",
-        bulk: {
-          all: "{{agents}}件のエージェントをアーカイブし、{{terminals}}件のターミナルを閉じ、{{tabs}}件のタブを閉じます。閉じたターミナルで実行中のプロセスはすぐに停止されます。",
-          agentsAndTerminals:
-            "{{agents}}件のエージェントをアーカイブし、{{terminals}}件のターミナルを閉じます。閉じたターミナルで実行中のプロセスはすぐに停止されます。",
-          terminalsAndTabs:
-            "{{terminals}}件のターミナルを閉じ、{{tabs}}件のタブを閉じます。閉じたターミナルで実行中のプロセスはすぐに停止されます。",
-          agentsAndTabs: "{{agents}}件のエージェントをアーカイブし、{{tabs}}件のタブを閉じます。",
-          terminals:
-            "{{terminals}}件のターミナルを閉じます。閉じたターミナルで実行中のプロセスはすぐに停止されます。",
-          tabs: "{{tabs}}件のタブを閉じます。",
-          agents: "{{agents}}件のエージェントをアーカイブします。",
-        },
       },
+    },
+    chat: {
+      empty: {
+        title: "開いているチャットはありません",
+        action: "新しいチャット",
+      },
+    },
+    sidePanel: {
+      close: "サイドパネルを閉じる",
     },
     header: {
       actions: {
@@ -697,6 +684,8 @@ export const ja: TranslationResources = {
         copyPath: "ワークスペースパスをコピー",
         copyBranchName: "ブランチ名をコピー",
         showSetup: "セットアップを表示",
+        toggleTerminal: "ターミナル",
+        toggleBrowser: "ブラウザ",
       },
       toasts: {
         workspacePathUnavailable: "ワークスペースパスはまだ利用できません",
@@ -1765,10 +1754,17 @@ export const ja: TranslationResources = {
     backdrop: "メニューの背景",
   },
   subagents: {
+    viewChild: "表示",
+    loadFailed: "このタスクを読み込めませんでした。",
+    connectToLoad: "タスクを読み込むには、このホストに接続してください。",
+    tasksTitle: "タスク",
+    empty: "表示するサブエージェントはありません。",
+    pillLabelWorkingOne: "1 件のタスクを実行中",
+    contextTokens: "{{tokens}} トークン · コンテキスト",
     title: "サブエージェント",
     pillLabelOne: "サブエージェント 1 件",
     pillLabelMany: "サブエージェント {{count}} 件",
-    pillLabelWorking: "{{count}} 件実行中",
+    pillLabelWorking: "{{count}} 件のタスクを実行中",
     pillLabelFailed: "{{count}} 件失敗",
     pillLabelNeedsInputOne: "1 件が入力待ち",
     pillLabelNeedsInputMany: "{{count}} 件が入力待ち",
@@ -1849,6 +1845,18 @@ export const ja: TranslationResources = {
     output: "出力",
   },
   toolCallGroup: {
+    runningTools: {
+      one: "ツール{{count}}件を実行中",
+      other: "ツール{{count}}件を実行中",
+    },
+    failedTools: {
+      one: "ツール{{count}}件が失敗",
+      other: "ツール{{count}}件が失敗",
+    },
+    canceledTools: {
+      one: "ツール{{count}}件をキャンセル",
+      other: "ツール{{count}}件をキャンセル",
+    },
     editedFiles: {
       one: "{{count}}個のファイルを編集",
       other: "{{count}}個のファイルを編集",
@@ -1857,6 +1865,11 @@ export const ja: TranslationResources = {
       one: "{{count}}個のコマンドを実行",
       other: "{{count}}個のコマンドを実行",
     },
+    createdFiles: {
+      one: "ファイルを1件作成",
+      other: "ファイルを{{count}}件作成",
+    },
+    readFile: "{{name}} を読み取り",
     readFiles: {
       one: "{{count}}個のファイルを読み取り",
       other: "{{count}}個のファイルを読み取り",
@@ -1864,6 +1877,10 @@ export const ja: TranslationResources = {
     searches: {
       one: "{{count}}回検索",
       other: "{{count}}回検索",
+    },
+    subagents: {
+      one: "サブエージェントを1つ起動",
+      other: "サブエージェントを{{count}}つ起動",
     },
     otherTools: {
       one: "その他のツールを{{count}}回使用",
@@ -1873,6 +1890,8 @@ export const ja: TranslationResources = {
       one: "Paseoを{{count}}回呼び出し",
       other: "Paseoを{{count}}回呼び出し",
     },
+    failedSuffix: "({{count}}件失敗)",
+    separator: "、",
     and: "および",
   },
   renameModal: {
@@ -1925,7 +1944,6 @@ export const ja: TranslationResources = {
     sections: {
       general: "一般",
       appearance: "外観",
-      layout: en.settings.sections.layout,
       editor: "エディター",
       shortcuts: "ショートカット",
       integrations: "連携",
@@ -1934,7 +1952,6 @@ export const ja: TranslationResources = {
       diagnostics: "診断",
       about: "アプリ情報",
     },
-    layout: en.settings.layout,
     editor: {
       title: "エディター",
       vimKeybindings: "Vim キーバインド",
@@ -2187,7 +2204,7 @@ export const ja: TranslationResources = {
       sections: {
         general: "一般",
         workspaces: "プロジェクト＆ワークスペース",
-        tabsPanes: "タブ＆ペイン",
+        chat: "チャット",
         layout: "レイアウト",
         agentInput: "エージェント入力",
       },
@@ -2196,26 +2213,12 @@ export const ja: TranslationResources = {
         newWorkspace: "新しいワークスペース",
         newWorktree: "新しいワークツリー",
         archiveWorkspace: "ワークスペースをアーカイブ",
-        newTab: "新しいタブ",
         closeCurrentTab: "現在のタブを閉じる",
         jumpToWorkspace: "ワークスペースにジャンプ",
-        jumpToTab: "タブにジャンプ",
         previousWorkspace: "前のワークスペース",
         nextWorkspace: "次のワークスペース",
-        previousTab: "前のタブ",
-        nextTab: "次のタブ",
-        splitPaneRight: "右にペインを分割",
-        splitPaneDown: "下にペインを分割",
-        focusPaneLeft: "左のペインにフォーカス",
-        focusPaneRight: "右のペインにフォーカス",
-        focusPaneUp: "上のペインにフォーカス",
-        focusPaneDown: "下のペインにフォーカス",
-        moveTabLeft: "タブを左に移動",
-        moveTabRight: "タブを右に移動",
-        moveTabUp: "タブを上に移動",
-        moveTabDown: "タブを下に移動",
-        closePane: "ペインを閉じる",
         newTerminal: "新しいターミナル",
+        closeSidePanel: "サイドパネルを閉じる",
         searchFiles: "ファイルを検索",
         toggleCommandCenter: "コマンドセンターを切り替え",
         showKeyboardShortcuts: "キーボードショートカットを表示",

@@ -1,4 +1,3 @@
-import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
@@ -65,7 +64,8 @@ import {
   reconcileReconnectToastState,
   type ReconnectToastState,
 } from "@/panels/reconnect-toast-state";
-import { usePaneContext, usePaneFocus } from "@/panels/pane-context";
+import { PaneProvider, usePaneContext, usePaneFocus } from "@/panels/pane-context";
+import { createAgentPaneContext } from "@/panels/agent-pane-context";
 import { definePanel, type PanelDescriptor } from "@/panels/panel-registry";
 import { RenderProfile } from "@/utils/render-profiler";
 import { useHasPluginComposerPills } from "@/plugins";
@@ -86,7 +86,8 @@ import {
 import { WorkspaceDraftAgentTab } from "@/composer/draft/workspace-tab";
 import { AgentTracks, hasAgentTracks } from "@/panels/agent-tracks";
 import { useCreateFlowStore } from "@/stores/create-flow-store";
-import { buildDraftStoreKey, generateDraftId } from "@/stores/draft-keys";
+import { buildDraftStoreKey } from "@/stores/draft-keys";
+import { navigateToWorkspace } from "@/stores/navigation-active-workspace-store";
 import {
   selectAgentTimelineState,
   selectAgentTurnPresentation,
@@ -96,7 +97,6 @@ import {
 import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
 import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
 import { openWorkspaceChanges } from "@/workspace-tabs/open-supporting-view";
-import { useSettings } from "@/hooks/use-settings";
 import type { Theme } from "@/styles/theme";
 import type { PendingPermission } from "@/types/shared";
 import type { StreamItem, TodoEntry } from "@/types/stream";
@@ -107,7 +107,9 @@ import { derivePendingPermissionKey, normalizeAgentSnapshot } from "@/utils/agen
 import { applyLegacyDaemonWorkspaceOwnership } from "@/workspace/legacy-daemon-workspaces";
 import type { WorkspaceFileOpenRequest } from "@/workspace/file-open";
 import { deriveSidebarStateBucket } from "@/utils/sidebar-agent-state";
-import { buildDraftAgentSetup, type ClientSlashCommand } from "@/client-slash-commands";
+import type { ClientSlashCommand } from "@/client-slash-commands";
+import { executeAgentClientCommand } from "@/client-slash-commands/execute";
+import { useToast } from "@/contexts/toast-context";
 
 interface ChatAgentStateShape {
   serverId: string | null;
@@ -311,7 +313,11 @@ function storeFetchedAgentDetail(input: {
   const store = useSessionStore.getState();
 
   if (shouldStoreFetchedAgentInActiveDirectory(hydrated)) {
-    getHostRuntimeStore().acceptAgentSnapshot(input.serverId, hydrated);
+    store.setAgents(input.serverId, (previous) => {
+      const next = new Map(previous);
+      next.set(hydrated.id, hydrated);
+      return next;
+    });
   } else {
     store.setAgentDetails(input.serverId, (previous) => {
       const next = new Map(previous);
@@ -359,7 +365,7 @@ function useAgentPanelDescriptor(
   );
   const provider = descriptorState.provider;
   const label = resolveWorkspaceAgentTabLabel(descriptorState.title);
-  const icon = getProviderIcon(provider, context.serverId);
+  const icon = getProviderIcon(provider);
 
   return {
     label: label ?? "",
@@ -379,18 +385,33 @@ function useAgentPanelDescriptor(
 }
 
 function AgentPanel() {
-  const { serverId, workspaceId, target, openFileInWorkspace } = usePaneContext();
+  const context = usePaneContext();
+  const { serverId, target } = context;
   const { isInteractive } = usePaneFocus();
   invariant(target.kind === "agent", "AgentPanel requires agent target");
+  const childDirectory = useSessionStore(
+    useShallow((state) => {
+      const session = state.sessions[serverId];
+      const agent =
+        session?.agents.get(target.agentId) ?? session?.agentDetails.get(target.agentId);
+      return agent ? { workspaceId: agent.workspaceId, cwd: agent.cwd } : null;
+    }),
+  );
+  const effectiveContext = useMemo(
+    () => createAgentPaneContext(context, childDirectory),
+    [childDirectory, context],
+  );
 
   return (
-    <AgentPanelContent
-      serverId={serverId}
-      workspaceId={workspaceId}
-      agentId={target.agentId}
-      isPaneFocused={isInteractive}
-      onOpenWorkspaceFile={openFileInWorkspace}
-    />
+    <PaneProvider value={effectiveContext}>
+      <AgentPanelContent
+        serverId={serverId}
+        workspaceId={effectiveContext.workspaceId}
+        agentId={target.agentId}
+        isPaneFocused={isInteractive}
+        onOpenWorkspaceFile={effectiveContext.openFileInWorkspace}
+      />
+    </PaneProvider>
   );
 }
 
@@ -411,10 +432,19 @@ function DraftPanel() {
     (agentSnapshot: Parameters<typeof normalizeAgentSnapshot>[0]) => {
       const normalized = normalizeAgentSnapshot(agentSnapshot, serverId);
       const agent = applyLegacyDaemonWorkspaceOwnership({ serverId, agent: normalized });
-      getHostRuntimeStore().acceptAgentSnapshot(serverId, agent);
-      retargetCurrentTab({ kind: "agent", agentId: agentSnapshot.id });
+      const converted = useWorkspaceLayoutStore
+        .getState()
+        .convertDraftToAgent(`${serverId}:${workspaceId}`, tabId, agentSnapshot.id);
+      if (!converted) {
+        retargetCurrentTab({ kind: "agent", agentId: agentSnapshot.id });
+      }
+      useSessionStore.getState().setAgents(serverId, (prev) => {
+        const next = new Map(prev);
+        next.set(agentSnapshot.id, agent);
+        return next;
+      });
     },
-    [retargetCurrentTab, serverId],
+    [retargetCurrentTab, serverId, tabId, workspaceId],
   );
 
   return (
@@ -603,6 +633,7 @@ function AgentPanelBody({
   onOpenWorkspaceFile?: (request: WorkspaceFileOpenRequest) => void;
 }) {
   const { t } = useTranslation();
+  const { layoutWorkspaceId } = usePaneContext();
   const { isArchivingAgent: _isArchivingAgent } = useArchiveAgent();
   const hasSession = useSessionStore((state) => Boolean(state.sessions[serverId]));
   const projectPlacement = useStoreWithEqualityFn(
@@ -626,7 +657,10 @@ function AgentPanelBody({
   const [lookupState, setLookupState] = useState<AgentLookupState>({ tag: "idle" });
   const lookupAttemptTokenRef = useRef(0);
   const retryAgentLookup = useCallback(() => setLookupState({ tag: "idle" }), []);
-  const workspaceKey = buildWorkspaceTabPersistenceKey({ serverId, workspaceId });
+  const workspaceKey = buildWorkspaceTabPersistenceKey({
+    serverId,
+    workspaceId: layoutWorkspaceId ?? workspaceId,
+  });
   const resolvePendingAgent = useWorkspaceLayoutStore((state) => state.resolvePendingAgent);
 
   useEffect(() => {
@@ -1383,7 +1417,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
       setText={agentInputDraft.replaceText}
       onRewindComplete={handleRewindComplete}
     >
-      <View style={styles.root} collapsable={false}>
+      <View style={styles.root}>
         <DockedChatSurface disabled={isArchivingCurrentAgent}>
           {contentContainer}
 
@@ -1626,12 +1660,11 @@ function ActiveAgentComposer({
     { initialIsBelow: isCompactFormFactor },
   );
   const paneContext = usePaneContext();
-  const openInSidePane = useSettings((settings) => settings.openInSidePane);
-  const { workspaceId, tabId, retargetCurrentTab } = paneContext;
+  const { workspaceId } = paneContext;
   const { archiveAgent } = useArchiveAgent();
-  const closeWorkspaceTab = useWorkspaceLayoutStore((state) => state.closeTab);
-  const hideWorkspaceAgent = useWorkspaceLayoutStore((state) => state.hideAgent);
-  const unpinWorkspaceAgent = useWorkspaceLayoutStore((state) => state.unpinAgent);
+  const runtimeClient = useHostRuntimeClient(serverId);
+  const toast = useToast();
+  const { t } = useTranslation();
   const workspaceAttachmentScopeKey = useWorkspaceAttachmentScopeKey({
     serverId,
     cwd,
@@ -1646,14 +1679,20 @@ function ActiveAgentComposer({
       if (attachment.kind !== "review") {
         return;
       }
+      if (
+        paneContext.host === "explorer" ||
+        (paneContext.layoutWorkspaceId && paneContext.layoutWorkspaceId !== workspaceId)
+      ) {
+        paneContext.openTab({ kind: "working_diff" });
+        return;
+      }
       openWorkspaceChanges({
         isCompact: isCompactFormFactor,
         workspaceKey: buildWorkspaceTabPersistenceKey({ serverId, workspaceId }),
         checkout: { serverId, cwd, isGit: true },
-        preferences: openInSidePane,
       });
     },
-    [cwd, isCompactFormFactor, openInSidePane, serverId, workspaceId],
+    [cwd, isCompactFormFactor, paneContext, serverId, workspaceId],
   );
 
   const handleClientSlashCommand = useCallback(
@@ -1663,35 +1702,25 @@ function ActiveAgentComposer({
         throw new Error("Agent not found");
       }
 
-      const workspaceKey = buildWorkspaceTabPersistenceKey({ serverId, workspaceId });
-      if (workspaceKey) {
-        unpinWorkspaceAgent(workspaceKey, agentId);
-        hideWorkspaceAgent(workspaceKey, agentId);
-      }
-
-      if (command.kind === "replace-agent-with-draft") {
-        retargetCurrentTab({
-          kind: "draft",
-          draftId: generateDraftId(),
-          setup: buildDraftAgentSetup(agent),
-        });
-      } else if (workspaceKey) {
-        closeWorkspaceTab(workspaceKey, tabId);
-      }
-
-      await archiveAgent({ serverId, agentId });
+      await executeAgentClientCommand({
+        serverId,
+        agent,
+        command,
+        pane: paneContext,
+        archiveAgent,
+        navigateToWorkspace,
+        setAgentMode: async (targetAgentId, modeId) => {
+          if (!runtimeClient) throw new Error(t("common.errors.daemonClientUnavailable"));
+          await runtimeClient.setAgentMode(targetAgentId, modeId);
+        },
+        setAgentFeature: async (targetAgentId, featureId, value) => {
+          if (!runtimeClient) throw new Error(t("common.errors.daemonClientUnavailable"));
+          await runtimeClient.setAgentFeature(targetAgentId, featureId, value);
+        },
+        notify: (message) => toast.show(message),
+      });
     },
-    [
-      agentId,
-      archiveAgent,
-      closeWorkspaceTab,
-      hideWorkspaceAgent,
-      retargetCurrentTab,
-      serverId,
-      tabId,
-      unpinWorkspaceAgent,
-      workspaceId,
-    ],
+    [agentId, archiveAgent, paneContext, runtimeClient, serverId, t, toast],
   );
 
   const inputAreaStyle = useMemo(
@@ -1816,8 +1845,6 @@ const styles = StyleSheet.create((theme) => ({
   root: {
     flex: 1,
     backgroundColor: theme.colors.surface0,
-    // KeyboardDock translates the chat surface while the keyboard moves; clip it at the header edge.
-    overflow: "hidden",
   },
   container: {
     flex: 1,

@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { expect, test } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
 import { seedWorkspace } from "../support/helpers/seed-client";
 import {
   expectWorkspaceAbsentFromSidebar,
@@ -14,6 +15,7 @@ test.describe("Workspace archive shortcut", () => {
 
     try {
       await gotoAppShell(page);
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await selectWorkspaceInSidebar(page, workspace.workspaceId);
 

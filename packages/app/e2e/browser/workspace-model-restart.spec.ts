@@ -24,7 +24,8 @@ import {
 import { selectSidebarStatusGrouping } from "../support/helpers/sidebar";
 import { killProcessTree, spawnTsx } from "../support/helpers/spawn-node";
 import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
-import { getVisibleWorkspaceAgentTabIds } from "../support/helpers/workspace-tabs";
+import { selectSidebarProjectGrouping } from "../support/helpers/workspace-management";
+import { getVisibleWorkspaceAgentPanelIds } from "../support/helpers/workspace-tabs";
 
 const LEGACY_AGENT_ID = "10000000-0000-4000-8000-000000000001";
 const SERVER_ID = `srv_restart_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
@@ -427,6 +428,7 @@ test.describe("Workspace model restart regressions", () => {
         });
 
       await page.goto(buildHostWorkspaceRoute(serverId, seeded.workspaceA));
+      await selectSidebarProjectGrouping(page);
       await waitForSidebarHydration(page);
       await expectWorkspaceRowDoesNotShowIndicator(page, {
         serverId,
@@ -434,8 +436,8 @@ test.describe("Workspace model restart regressions", () => {
         indicator: "running",
       });
       await expect
-        .poll(() => getVisibleWorkspaceAgentTabIds(page), { timeout: 30_000 })
-        .toContain(`workspace-tab-agent_${LEGACY_AGENT_ID}`);
+        .poll(() => getVisibleWorkspaceAgentPanelIds(page), { timeout: 30_000 })
+        .toContain(`workspace-panel-agent_${LEGACY_AGENT_ID}`);
 
       const reconciledProjectKey = (await client.listProjects()).projects.find(
         (project) => project.projectId === seeded.projectId,
@@ -502,13 +504,13 @@ test.describe("Workspace model restart regressions", () => {
         bucket: "done",
       });
       await expect
-        .poll(() => getVisibleWorkspaceAgentTabIds(page), { timeout: 30_000 })
+        .poll(() => getVisibleWorkspaceAgentPanelIds(page), { timeout: 30_000 })
         .toEqual([]);
 
       await page.goto(buildHostWorkspaceRoute(serverId, seeded.workspaceA));
       await expect
-        .poll(() => getVisibleWorkspaceAgentTabIds(page), { timeout: 30_000 })
-        .toContain(`workspace-tab-agent_${LEGACY_AGENT_ID}`);
+        .poll(() => getVisibleWorkspaceAgentPanelIds(page), { timeout: 30_000 })
+        .toContain(`workspace-panel-agent_${LEGACY_AGENT_ID}`);
     } finally {
       await client.close().catch(() => undefined);
       await daemon.close();

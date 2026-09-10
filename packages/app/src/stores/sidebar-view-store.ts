@@ -5,11 +5,11 @@ import { z } from "zod";
 import { workspaceLabelKey } from "@getpaseo/protocol/workspace-labels";
 import { createValidatedPersistStorage } from "@/storage/validated-persist-storage";
 
-export type SidebarGroupMode = "project" | "status";
+export type SidebarGroupMode = "manual" | "project" | "status";
 
 const SIDEBAR_VIEW_STORAGE_KEY = "sidebar-view";
 const LEGACY_SIDEBAR_GROUP_MODE_STORAGE_KEY = "sidebar-group-mode";
-const SIDEBAR_VIEW_STORE_VERSION = 6;
+const SIDEBAR_VIEW_STORE_VERSION = 7;
 
 /**
  * The key standing for "this workspace carries no labels at all".
@@ -79,7 +79,7 @@ interface SidebarViewPersistedState {
   labelFilter: SidebarLabelFilter;
 }
 
-const PersistedSidebarGroupModeSchema = z.enum(["project", "status", "label"]);
+const PersistedSidebarGroupModeSchema = z.enum(["manual", "project", "status", "label"]);
 const SidebarLabelFilterSchema = z.object({
   labels: z.array(z.string()),
 });
@@ -141,7 +141,8 @@ export function migrateSidebarViewState(persistedState: unknown): SidebarViewPer
   }
 
   return {
-    groupMode: state.groupMode === "status" ? "status" : "project",
+    groupMode:
+      (["manual", "status"] as const).find((mode) => mode === state.groupMode) ?? "project",
     hostFilters: readHostFilters(state),
     projectFilters: state.projectFilters ?? [],
     labelFilter: state.labelFilter
@@ -178,7 +179,7 @@ export function createSidebarViewStorage(
 export const useSidebarViewStore = create<SidebarViewStoreState>()(
   persist(
     (set) => ({
-      groupMode: "project",
+      groupMode: "manual",
       hostFilters: [],
       projectFilters: [],
       labelFilter: emptyLabelFilter(),
@@ -233,7 +234,17 @@ export const useSidebarViewStore = create<SidebarViewStoreState>()(
         projectFilters: state.projectFilters,
         labelFilter: state.labelFilter,
       }),
-      migrate: migrateSidebarViewState,
+      migrate: (state, version) => ({
+        ...migrateSidebarViewState(state),
+        ...(version < 7
+          ? {
+              groupMode: "manual" as const,
+              hostFilters: [],
+              projectFilters: [],
+              labelFilter: emptyLabelFilter(),
+            }
+          : {}),
+      }),
     },
   ),
 );

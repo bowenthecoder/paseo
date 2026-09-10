@@ -5,7 +5,7 @@ import {
   type HostProjectListItem,
 } from "@/projects/host-projects";
 
-export type ProjectSelectionSource = "initial" | "manual";
+export type ProjectSelectionSource = "initial" | "manual" | "no-folder";
 export type InitialProjectSelectionSource = "route" | "lastActive" | "fallback" | null;
 
 interface InitialProjectSelection {
@@ -21,7 +21,13 @@ interface ManualProjectSelection {
   source: "manual";
 }
 
-export type ProjectSelection = InitialProjectSelection | ManualProjectSelection;
+interface NoFolderSelection {
+  contextKey: string;
+  project: null;
+  source: "no-folder";
+}
+
+export type ProjectSelection = InitialProjectSelection | ManualProjectSelection | NoFolderSelection;
 
 export interface ProjectSelectionContext {
   contextKey: string;
@@ -104,7 +110,7 @@ function resolveSelectedProjectFromInitialInputs(
 }
 
 function refreshSelectionProject(
-  selection: ProjectSelection,
+  selection: InitialProjectSelection | ManualProjectSelection,
   project: HostProjectListItem,
 ): ProjectSelection {
   if (selection.project === project) {
@@ -206,9 +212,14 @@ export function reconcileProjectSelection(
 ): ProjectSelection {
   const initialSelection = createProjectSelection(context);
   const currentContextKey =
-    current.source === "manual" ? context.manualContextKey : context.contextKey;
+    current.source === "initial" ? context.contextKey : context.manualContextKey;
   if (current.contextKey !== currentContextKey) {
     return initialSelection;
+  }
+
+  // An explicit No folder choice survives host changes and late project hydration.
+  if (current.source === "no-folder") {
+    return current;
   }
 
   if (shouldResetHydratedInitialSelection(current, context)) {

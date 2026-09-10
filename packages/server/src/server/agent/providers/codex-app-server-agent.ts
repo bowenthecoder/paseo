@@ -5190,6 +5190,9 @@ export class CodexAppServerAgentSession implements AgentSession {
 
   private dispatchSubAgentNotification(parsed: ParsedCodexNotification, callId: string): void {
     switch (parsed.kind) {
+      case "token_usage_updated":
+        this.handleSubAgentUsageNotification(parsed);
+        return;
       case "thread_started":
         this.emitSubAgentActivityUpdate(callId, "running", { reopen: true });
         return;
@@ -5222,6 +5225,25 @@ export class CodexAppServerAgentSession implements AgentSession {
         // root timeline. Concrete legacy tools are projected above for Codex
         // versions that do not also emit canonical item lifecycle events.
         return;
+    }
+  }
+
+  private handleSubAgentUsageNotification(
+    parsed: Extract<ParsedCodexNotification, { kind: "token_usage_updated" }>,
+  ): void {
+    const usage = toObjectRecord(parsed.tokenUsage);
+    const total = toObjectRecord(usage?.total);
+    const tokens = firstPositiveFiniteNumber(total?.totalTokens, total?.total_tokens);
+    if (tokens !== undefined && parsed.threadId) {
+      this.emitEvent({
+        type: "provider_subagent",
+        provider: CODEX_PROVIDER,
+        event: {
+          type: "upsert",
+          id: parsed.threadId,
+          subtitle: `${tokens < 1000 ? Math.round(tokens) : `${Math.round(tokens / 100) / 10}k`} tokens`,
+        },
+      });
     }
   }
 

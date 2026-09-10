@@ -116,6 +116,12 @@ export function MarkdownRenderer({
     ],
   );
 
+  // Assistant messages already give each streamed block a stable identity.
+  // A text-derived part key would remount its diagram as the prefix grows.
+  if (!enableHtmlish) {
+    return <MarkdownFragment text={text} {...rendererProps} />;
+  }
+
   return <MarkdownPartList parts={parts} rendererProps={rendererProps} />;
 }
 

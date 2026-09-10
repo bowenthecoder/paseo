@@ -15,6 +15,7 @@ import { useWorkspaceArchive } from "@/workspace/use-workspace-archive";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
 import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
 import { useClearWorkspaceAttention } from "@/hooks/use-clear-workspace-attention";
+import { useSidebarWorkspacePinController } from "@/hooks/use-sidebar-workspace-pin";
 import { redirectIfArchivingActiveWorkspace } from "@/utils/sidebar-workspace-archive-redirect";
 import { isNative as platformIsNative } from "@/constants/platform";
 import { useIsCompactFormFactor } from "@/constants/layout";
@@ -388,6 +389,8 @@ function WorkspaceRowTrailingActions({
   onRename?: () => void;
 }) {
   const { t } = useTranslation();
+  const togglePin = useSidebarWorkspacePinController();
+  const onTogglePin = useCallback(() => togglePin(workspace), [togglePin, workspace]);
   const showShortcut = showShortcutBadge && shortcutNumber !== null;
   const {
     showTrailing,
@@ -426,6 +429,8 @@ function WorkspaceRowTrailingActions({
                 serverId={workspace.serverId}
                 workspaceId={workspace.workspaceId}
                 workspaceLabels={workspace.labels}
+                isPinned={Boolean(workspace.pinnedAt)}
+                onTogglePin={onTogglePin}
                 onCopyPath={onCopyPath}
                 onCopyBranchName={onCopyBranchName}
                 onRename={onRename}
@@ -471,12 +476,12 @@ const styles = StyleSheet.create((theme) => ({
     position: "relative",
   },
   workspaceRow: {
-    minHeight: 36,
-    marginBottom: theme.spacing[1],
-    paddingVertical: theme.spacing[2],
+    minHeight: { xs: 44, md: 30 },
+    marginBottom: 0,
+    paddingVertical: { xs: theme.spacing[2], md: theme.spacing[1] },
     paddingLeft: theme.spacing[2],
     paddingRight: theme.spacing[3],
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: theme.borderRadius.md,
     flexDirection: "column",
     alignItems: "stretch",
     justifyContent: "center",

@@ -23,6 +23,7 @@ import { Keyframe, runOnJS } from "react-native-reanimated";
 import { StyleSheet } from "react-native-unistyles";
 import { FloatingScrollView, FloatingSurface } from "@/components/ui/floating";
 import { isWeb } from "@/constants/platform";
+import { activateMenuShortcut, isMenuTextInput } from "./menu-shortcut";
 import type { KeyboardFocusScope } from "@/keyboard/actions";
 import {
   getOverlayRoot,
@@ -407,6 +408,14 @@ export function AnchoredSurface({
   );
 }
 
+function resolveKeyboardSurface(scope: HTMLElement | null) {
+  // Flyouts render in open-page order. The innermost page owns keyboard actions
+  // as soon as it opens, including before its focus frame leaves the parent row.
+  return Array.from(scope?.querySelectorAll<HTMLElement>('[data-menu-surface="true"]') ?? []).at(
+    -1,
+  );
+}
+
 /**
  * The full-screen layer every floating menu surface lives in: a web portal into the overlay
  * root, or a transparent Modal on native. Submenus render inside their parent's layer rather
@@ -435,7 +444,7 @@ export function MenuOverlay({
       }
 
       const target = event.target instanceof Element ? event.target : null;
-      const surface = target?.closest<HTMLElement>('[data-menu-surface="true"]');
+      const surface = resolveKeyboardSurface(webOverlayRef.current);
       if (!surface) return false;
       const items = Array.from(
         surface.querySelectorAll<HTMLElement>(
@@ -443,6 +452,9 @@ export function MenuOverlay({
         ),
       );
       if (items.length === 0) return false;
+      const editing = isMenuTextInput(target);
+      if (activateMenuShortcut(event, items, editing)) return true;
+      if (editing) return false;
       const currentIndex = items.findIndex((item) => item === document.activeElement);
       let nextIndex: number | null = null;
       if (event.key === "ArrowDown")

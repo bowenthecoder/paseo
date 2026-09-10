@@ -1,4 +1,3 @@
-import { existsSync, promises as fs } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Logger } from "pino";
@@ -10,12 +9,18 @@ import type {
 } from "../../../server/messages.js";
 import type { ProviderApiFetch, ProviderUsageFetcher } from "../provider.js";
 import {
-  ApiNumberSchema,
+  expandCredentialHome,
+  readCredentialFile,
+  type CredentialFileReader,
+} from "../credential-file.js";
+import {
+  ReportedNullableNumberSchema,
   balanceToneFromRemaining,
   toneFromUsedPct,
   fetchProviderApi,
   unavailableUsage,
   windowFromUsedPct,
+  toIsoStringOrNull,
 } from "../usage.js";
 
 const CodexAuthSchema = z.object({
@@ -28,9 +33,17 @@ const CodexAuthSchema = z.object({
     .optional(),
 });
 
+const CodexApiNumberSchema = z
+  .union([z.number(), z.string().trim().min(1)])
+  .transform((value) => Number(value))
+  .pipe(z.number().finite());
+
 const CodexWindowSchema = z.object({
-  used_percent: ApiNumberSchema.optional(),
-  reset_at: ApiNumberSchema.optional(),
+  used_percent: CodexApiNumberSchema.nullish(),
+  reset_at: CodexApiNumberSchema.nullish(),
+  limit_window_seconds: CodexApiNumberSchema.pipe(z.number().int().positive())
+    .nullish()
+    .catch(undefined),
 });
 
 const CodexUsageResponseSchema = z.object({
@@ -51,7 +64,7 @@ const CodexUsageResponseSchema = z.object({
     .object({
       has_credits: z.boolean().optional(),
       unlimited: z.boolean().optional(),
-      balance: ApiNumberSchema.optional(),
+      balance: ReportedNullableNumberSchema,
     })
     .nullish(),
 });
@@ -64,16 +77,29 @@ interface CodexQuotaProviderOptions {
   logger: Logger;
   codexHome?: string;
   fetch?: ProviderApiFetch;
+  credentialFileReader?: CredentialFileReader;
 }
 
 function codexWindow(
   window: CodexWindow | null | undefined,
-): { usedPct: number; resetsAt: string | null } | null {
+): { usedPct: number | null; resetsAt: string | null } | null {
   if (!window) return null;
   return {
-    usedPct: window.used_percent ?? 0,
-    resetsAt: window.reset_at != null ? new Date(window.reset_at * 1000).toISOString() : null,
+    usedPct: window.used_percent ?? null,
+    resetsAt: window.reset_at != null ? toIsoStringOrNull(window.reset_at * 1000) : null,
   };
+}
+
+function codexWindowLabel(window: CodexWindow | null | undefined, fallback: string): string {
+  const seconds = window?.limit_window_seconds;
+  if (typeof seconds !== "number" || !Number.isSafeInteger(seconds) || seconds <= 0)
+    return fallback;
+  if (seconds === 604_800) return "Weekly";
+  if (seconds === 86_400) return "Daily";
+  if (seconds % 86_400 === 0) return `${seconds / 86_400}-day`;
+  if (seconds % 3_600 === 0) return `${seconds / 3_600}-hour`;
+  if (seconds % 60 === 0) return `${seconds / 60}-minute`;
+  return `${seconds}-second`;
 }
 
 export class CodexQuotaProvider implements ProviderUsageFetcher {
@@ -82,10 +108,14 @@ export class CodexQuotaProvider implements ProviderUsageFetcher {
 
   private readonly codexHome: string;
   private readonly fetchApi: ProviderApiFetch;
+  private readonly credentialFileReader: CredentialFileReader;
 
   constructor(options: CodexQuotaProviderOptions) {
-    this.codexHome = options.codexHome || process.env["CODEX_HOME"] || join(homedir(), ".codex");
+    this.codexHome = expandCredentialHome(
+      options.codexHome || process.env["CODEX_HOME"] || join(homedir(), ".codex"),
+    );
     this.fetchApi = options.fetch ?? fetch;
+    this.credentialFileReader = options.credentialFileReader ?? readCredentialFile;
   }
 
   async fetchUsage(): Promise<ProviderUsage> {
@@ -116,7 +146,7 @@ export class CodexQuotaProvider implements ProviderUsageFetcher {
       windows.push(
         windowFromUsedPct({
           id: "session",
-          label: "Session",
+          label: codexWindowLabel(resp.rate_limit?.primary_window, "Primary limit"),
           utilizationPct: session.usedPct,
           resetsAt: session.resetsAt,
           tone: toneFromUsedPct(session.usedPct),
@@ -127,7 +157,7 @@ export class CodexQuotaProvider implements ProviderUsageFetcher {
       windows.push(
         windowFromUsedPct({
           id: "weekly",
-          label: "Weekly",
+          label: codexWindowLabel(resp.rate_limit?.secondary_window, "Secondary limit"),
           utilizationPct: weekly.usedPct,
           resetsAt: weekly.resetsAt,
           tone: toneFromUsedPct(weekly.usedPct),
@@ -147,7 +177,7 @@ export class CodexQuotaProvider implements ProviderUsageFetcher {
     }
 
     const balances: ProviderUsageBalance[] = [];
-    if (resp.credits?.balance !== undefined) {
+    if (typeof resp.credits?.balance === "number") {
       balances.push({
         id: "credits",
         label: "Credits",
@@ -170,21 +200,10 @@ export class CodexQuotaProvider implements ProviderUsageFetcher {
   }
 
   private async readCodexAuth(): Promise<CodexAuth | null> {
-    const candidates = [
-      ...(process.env["CODEX_HOME"] ? [join(process.env["CODEX_HOME"], "auth.json")] : []),
-      join(homedir(), ".config", "codex", "auth.json"),
-      join(this.codexHome, "auth.json"),
-    ];
-    for (const path of candidates) {
-      if (!existsSync(path)) continue;
-      try {
-        const auth = CodexAuthSchema.parse(JSON.parse(await fs.readFile(path, "utf8")));
-        if (auth.tokens?.access_token) return auth;
-      } catch {
-        continue;
-      }
-    }
-    return null;
+    const parsed = CodexAuthSchema.safeParse(
+      await this.credentialFileReader(join(this.codexHome, "auth.json")),
+    );
+    return parsed.success && parsed.data.tokens?.access_token ? parsed.data : null;
   }
 
   private async callCodexApi(

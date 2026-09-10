@@ -69,8 +69,6 @@ export const fr: TranslationResources = {
       agents: "Agents",
       newAgent: "Nouvel agent",
       open: "Ouvrir {{name}}",
-      openInSidePane: "Ouvrir {{name}} dans le panneau latéral",
-      openInFocusedPane: "Ouvrir {{name}} dans le volet actif",
       addProject: "Ajouter un projet",
       home: "Maison",
       groupByProject: "Grouper par projet",
@@ -109,6 +107,8 @@ export const fr: TranslationResources = {
       sendMessage: "Envoyer un message",
       queue: "File d'attente",
       send: "Envoyer",
+      holdQueue: "File d'attente",
+      holdQueueMessage: "Mettre le message en file d'attente sans l'envoyer",
     },
     cancel: {
       cancelingAgent: "Agent d'annulation",
@@ -137,6 +137,9 @@ export const fr: TranslationResources = {
       dropFilesHere: "Drop files here",
       editQueuedMessage: "Modifier le message en file d'attente",
       sendQueuedMessageNow: "Envoyer le message en file d'attente maintenant",
+      removeQueuedMessage: "Retirer le message de la file d'attente",
+      heldQueuedMessage: "En attente",
+      sendAllHeldMessages: "Tout envoyer",
       openImage: "Ouvrir la pièce jointe de l'image",
       removeImage: "Supprimer l'image jointe",
       removeFile: "Remove file attachment",
@@ -162,6 +165,7 @@ export const fr: TranslationResources = {
     clientCommands: {
       archiveAgent: "Archiver l'agent actuel",
       freshDraft: "Archivez cet agent et démarrez un nouveau brouillon",
+      planMode: "Activer ou désactiver le mode plan pour cet agent",
     },
     github: {
       searching: "Recherche...",
@@ -433,7 +437,6 @@ export const fr: TranslationResources = {
     fileActions: {
       openFile: "Ouvrir le fichier",
       openIn: "Ouvrir dans {{target}}",
-      openToSide: "Ouvrir sur le côté",
       copyPath: "Copier le chemin",
       copyRelativePath: "Copier le chemin relatif",
       revealIn: "Afficher dans {{target}}",
@@ -479,6 +482,10 @@ export const fr: TranslationResources = {
         refreshing: "Actualisation des fichiers",
         hideHiddenFiles: "Masquer les fichiers cachés",
         showHiddenFiles: "Afficher les fichiers cachés",
+        parentFolder: "Dossier parent",
+        homeFolder: "Dossier personnel",
+        deviceRoot: "Racine de l’appareil",
+        workingFolder: "Dossier de travail",
       },
       empty: {
         noFiles: "Aucun fichier",
@@ -604,12 +611,6 @@ export const fr: TranslationResources = {
         copyTerminalId: "Copier l'identifiant du terminal",
         copyFilePath: "Copy file path",
         rename: "Rebaptiser",
-        closeAbove: "Fermer les onglets ci-dessus",
-        closeBelow: "Fermer les onglets ci-dessous",
-        closeLeft: "Près de la gauche",
-        closeRight: "Près de la droite",
-        closeOthers: "Fermer les autres onglets",
-        moveToMain: "Déplacer vers le panneau principal",
         reloadAgent: "Agent de rechargement",
         reloadAgentTooltip:
           "Rechargez l'agent pour mettre à jour les compétences, les MCP ou le statut de connexion.",
@@ -618,18 +619,12 @@ export const fr: TranslationResources = {
         renameAgent: "Renommer l'agent",
       },
       actions: {
-        newTab: "Nouvel onglet",
         newAgent: "Nouvel agent",
         newTerminal: "Nouveau terminal",
         preparingTerminal: "Préparation de l'onglet du terminal",
         preparingTerminalTooltip: "Préparation du terminal...",
         newBrowser: "Nouveau navigateur",
-        maximizePane: "Agrandir le volet",
-        restorePane: "Restaurer le volet",
-        closePane: "Fermer le volet",
         exitFocusMode: "Quitter le mode concentration",
-        splitRight: "Volet divisé à droite",
-        splitDown: "Diviser le volet vers le bas",
         changes: "Modifications",
         files: "Fichiers",
         pullRequest: "Demande de fusion",
@@ -661,9 +656,6 @@ export const fr: TranslationResources = {
         unsavedMessage:
           "Cet onglet contient des modifications non enregistrées. Le fermer supprimera le brouillon.",
         closeWithoutSaving: "Fermer sans enregistrer",
-        closePaneTitle: "Fermer le volet?",
-        bulkUnsaved:
-          "{{count}} onglet(s) contiennent des modifications non enregistrées. Les fermer supprimera ces brouillons.",
         close: "Fermer",
         cancel: "Annuler",
         archive: "Archive",
@@ -673,22 +665,16 @@ export const fr: TranslationResources = {
         archiveRunningAgentTitle: "Archiver l'agent en cours d'exécution?",
         archiveRunningAgentMessage:
           "Cet agent est toujours en cours d'exécution. L'archiver arrêtera l'agent et fermera l'onglet.",
-        closeTabsLeftTitle: "Fermer les onglets à gauche?",
-        closeTabsRightTitle: "Fermer les onglets à droite?",
-        closeOtherTabsTitle: "Fermer les autres onglets?",
-        bulk: {
-          all: "Cela archivera les agents{{agents}}, fermera les terminaux{{terminals}}et fermera les onglets{{tabs}}. Tout processus en cours d’exécution dans un terminal fermé sera immédiatement arrêté.",
-          agentsAndTerminals:
-            "Cela archivera les agents{{agents}}et fermera les terminaux{{terminals}}. Tout processus en cours d’exécution dans un terminal fermé sera immédiatement arrêté.",
-          terminalsAndTabs:
-            "Cela fermera le(s) terminal(s){{terminals}}et fermera le(s) onglet(s){{tabs}}. Tout processus en cours d’exécution dans un terminal fermé sera immédiatement arrêté.",
-          agentsAndTabs: "Cela archivera les agents{{agents}}et fermera les onglets{{tabs}}.",
-          terminals:
-            "Cela fermera le(s) terminal(s){{terminals}}. Tout processus en cours d’exécution dans un terminal fermé sera immédiatement arrêté.",
-          tabs: "Cela fermera les onglets{{tabs}}.",
-          agents: "Cela archivera les agents{{agents}}.",
-        },
       },
+    },
+    chat: {
+      empty: {
+        title: "Aucune discussion ouverte",
+        action: "Nouvelle discussion",
+      },
+    },
+    sidePanel: {
+      close: "Fermer le panneau latéral",
     },
     header: {
       actions: {
@@ -700,6 +686,8 @@ export const fr: TranslationResources = {
         copyPath: "Copier le chemin de l'espace de travail",
         copyBranchName: "Copier le nom de la branche",
         showSetup: "Afficher la configuration",
+        toggleTerminal: "Terminal",
+        toggleBrowser: "Navigateur",
       },
       toasts: {
         workspacePathUnavailable: "Le cheminWorkspacen'est pas encore disponible",
@@ -1798,10 +1786,17 @@ export const fr: TranslationResources = {
     backdrop: "Toile de fond du menu",
   },
   subagents: {
+    viewChild: "Voir",
+    loadFailed: "Impossible de charger cette tâche.",
+    connectToLoad: "Connectez-vous à cet hôte pour charger la tâche.",
+    tasksTitle: "Tâches",
+    empty: "Aucun sous-agent à afficher.",
+    pillLabelWorkingOne: "1 tâche en cours",
+    contextTokens: "{{tokens}} tokens · contexte",
     title: "Sous-agents",
     pillLabelOne: "1 sous-agent",
     pillLabelMany: "{{count}} sous-agents",
-    pillLabelWorking: "{{count}} en cours",
+    pillLabelWorking: "{{count}} tâches en cours",
     pillLabelFailed: "{{count}} en échec",
     pillLabelNeedsInputOne: "1 attend une réponse",
     pillLabelNeedsInputMany: "{{count}} attendent une réponse",
@@ -1882,6 +1877,18 @@ export const fr: TranslationResources = {
     output: "Sortir",
   },
   toolCallGroup: {
+    runningTools: {
+      one: "{{count}} outil en cours",
+      other: "{{count}} outils en cours",
+    },
+    failedTools: {
+      one: "{{count}} outil a échoué",
+      other: "{{count}} outils ont échoué",
+    },
+    canceledTools: {
+      one: "{{count}} outil annulé",
+      other: "{{count}} outils annulés",
+    },
     editedFiles: {
       one: "a modifié {{count}} fichier",
       other: "a modifié {{count}} fichiers",
@@ -1890,6 +1897,11 @@ export const fr: TranslationResources = {
       one: "a exécuté {{count}} commande",
       other: "a exécuté {{count}} commandes",
     },
+    createdFiles: {
+      one: "a créé un fichier",
+      other: "a créé {{count}} fichiers",
+    },
+    readFile: "a lu {{name}}",
     readFiles: {
       one: "a lu {{count}} fichier",
       other: "a lu {{count}} fichiers",
@@ -1897,6 +1909,10 @@ export const fr: TranslationResources = {
     searches: {
       one: "a effectué {{count}} recherche",
       other: "a effectué {{count}} recherches",
+    },
+    subagents: {
+      one: "a lancé un sous-agent",
+      other: "a lancé {{count}} sous-agents",
     },
     otherTools: {
       one: "a utilisé {{count}} autre outil",
@@ -1906,6 +1922,8 @@ export const fr: TranslationResources = {
       one: "a appelé Paseo {{count}} fois",
       other: "a appelé Paseo {{count}} fois",
     },
+    failedSuffix: "({{count}} en échec)",
+    separator: ", ",
     and: "et",
   },
   renameModal: {
@@ -1958,7 +1976,6 @@ export const fr: TranslationResources = {
     sections: {
       general: "Général",
       appearance: "Apparence",
-      layout: en.settings.sections.layout,
       editor: "Éditeur",
       shortcuts: "Raccourcis",
       integrations: "Intégrations",
@@ -1967,7 +1984,6 @@ export const fr: TranslationResources = {
       diagnostics: "Diagnostic",
       about: "À propos",
     },
-    layout: en.settings.layout,
     editor: {
       title: "Éditeur",
       vimKeybindings: "Raccourcis Vim",
@@ -2224,7 +2240,7 @@ export const fr: TranslationResources = {
       sections: {
         general: "Général",
         workspaces: "Projets et espaces de travail",
-        tabsPanes: "Onglets et volets",
+        chat: "Discussion",
         layout: "Disposition",
         agentInput: "EntréeAgent",
       },
@@ -2233,26 +2249,12 @@ export const fr: TranslationResources = {
         newWorkspace: "Nouvel espace de travail",
         newWorktree: "Nouvel arbre de travail",
         archiveWorkspace: "Archiver l’espace de travail",
-        newTab: "Nouvel onglet",
         closeCurrentTab: "Fermer l'onglet actuel",
         jumpToWorkspace: "Accéder à l'espace de travail",
-        jumpToTab: "Aller à l'onglet",
         previousWorkspace: "Espace de travail précédent",
         nextWorkspace: "Espace de travail suivant",
-        previousTab: "Onglet précédent",
-        nextTab: "Onglet suivant",
-        splitPaneRight: "Volet divisé à droite",
-        splitPaneDown: "Diviser le volet vers le bas",
-        focusPaneLeft: "Volet de mise au point à gauche",
-        focusPaneRight: "Volet de mise au point à droite",
-        focusPaneUp: "Volet de mise au point vers le haut",
-        focusPaneDown: "Volet de mise au point vers le bas",
-        moveTabLeft: "Déplacer l'onglet vers la gauche",
-        moveTabRight: "Déplacer l'onglet vers la droite",
-        moveTabUp: "Déplacer l'onglet vers le haut",
-        moveTabDown: "Déplacer l'onglet vers le bas",
-        closePane: "Fermer le volet",
         newTerminal: "Nouvelle borne",
+        closeSidePanel: "Fermer le panneau latéral",
         searchFiles: "Rechercher des fichiers",
         toggleCommandCenter: "Basculer le centre de commande",
         showKeyboardShortcuts: "Afficher les raccourcis clavier",

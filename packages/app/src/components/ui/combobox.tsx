@@ -35,13 +35,7 @@ import {
 } from "@gorhom/bottom-sheet";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { Check, File, Folder, Search } from "lucide-react-native";
-import {
-  flip,
-  offset as floatingOffset,
-  shift,
-  size as floatingSize,
-  useFloating,
-} from "@floating-ui/react-native";
+import { useFloating } from "@floating-ui/react-native";
 import { getNextActiveIndex } from "./combobox-keyboard";
 import {
   buildVisibleComboboxOptions,
@@ -70,6 +64,7 @@ import {
   useWebOverlayRegistration,
 } from "@/lib/overlay-root";
 import { buildDesktopFrameStyle } from "./combobox-frame-style";
+import { buildComboboxFloatingMiddleware } from "./combobox-floating-middleware";
 
 export { buildDesktopFrameStyle } from "./combobox-frame-style";
 
@@ -842,29 +837,6 @@ function maybePinDesktopOptionsToBottom(
   scrollDesktopOptionsToEnd(scrollRef);
 }
 
-interface FloatingMiddlewareInput {
-  collisionPadding: number;
-  isDesktopAboveSearch: boolean;
-  setAvailableSize: FloatingSizeSetters["setAvailableSize"];
-  setReferenceWidth: FloatingSizeSetters["setReferenceWidth"];
-}
-
-function buildFloatingMiddleware(input: FloatingMiddlewareInput) {
-  const { collisionPadding, isDesktopAboveSearch, setAvailableSize, setReferenceWidth } = input;
-  return [
-    floatingOffset(isWeb ? 5 : 4),
-    ...(isWeb ? [] : [flip({ padding: collisionPadding })]),
-    ...(isDesktopAboveSearch ? [] : [shift({ padding: collisionPadding })]),
-    floatingSize({
-      padding: collisionPadding,
-      apply({ availableWidth, availableHeight, rects }) {
-        updateAvailableSize(setAvailableSize, availableWidth, availableHeight);
-        updateReferenceWidth(setReferenceWidth, rects.reference.width);
-      },
-    }),
-  ];
-}
-
 function isDesktopKey(key: string): key is DesktopKey {
   return key === "ArrowDown" || key === "ArrowUp" || key === "Enter" || key === "Escape";
 }
@@ -1356,13 +1328,17 @@ export function Combobox({
 
   const middleware = useMemo(
     () =>
-      buildFloatingMiddleware({
+      buildComboboxFloatingMiddleware({
         collisionPadding,
+        isWeb,
+        desktopPlacement,
         isDesktopAboveSearch,
-        setAvailableSize,
-        setReferenceWidth,
+        onSize({ availableWidth, availableHeight, referenceWidth: measuredWidth }) {
+          updateAvailableSize(setAvailableSize, availableWidth, availableHeight);
+          updateReferenceWidth(setReferenceWidth, measuredWidth);
+        },
       }),
-    [collisionPadding, isDesktopAboveSearch],
+    [collisionPadding, desktopPlacement, isDesktopAboveSearch],
   );
 
   const { refs, floatingStyles, update } = useFloating({

@@ -17,6 +17,7 @@ export interface WebSocketRuntimeCounters {
   relayExternalSocketAttached: number;
   originRejected: number;
   hostRejected: number;
+  oversizedFrameDropped: number;
 }
 
 export interface WebSocketRuntimeMetricsSnapshot {
@@ -232,6 +233,7 @@ function createRuntimeCounters(): WebSocketRuntimeCounters {
     relayExternalSocketAttached: 0,
     originRejected: 0,
     hostRejected: 0,
+    oversizedFrameDropped: 0,
   };
 }
 

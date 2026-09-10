@@ -65,8 +65,6 @@ export const en = {
       agents: "Agents",
       newAgent: "New agent",
       open: "Open {{name}}",
-      openInSidePane: "Open {{name}} in side pane",
-      openInFocusedPane: "Open {{name}} in focused pane",
       addProject: "Add project",
       home: "Home",
       groupByProject: "Group by project",
@@ -104,6 +102,8 @@ export const en = {
       sendMessage: "Send message",
       queue: "Queue",
       send: "Send",
+      holdQueue: "Queue",
+      holdQueueMessage: "Queue message without sending",
     },
     cancel: {
       cancelingAgent: "Canceling agent",
@@ -132,6 +132,9 @@ export const en = {
       dropFilesHere: "Drop files here",
       editQueuedMessage: "Edit queued message",
       sendQueuedMessageNow: "Send queued message now",
+      removeQueuedMessage: "Remove queued message",
+      heldQueuedMessage: "Held",
+      sendAllHeldMessages: "Send all",
       openImage: "Open image attachment",
       removeImage: "Remove image attachment",
       removeFile: "Remove file attachment",
@@ -157,6 +160,7 @@ export const en = {
     clientCommands: {
       archiveAgent: "Archive the current agent",
       freshDraft: "Archive this agent and start a fresh draft",
+      planMode: "Switch plan mode on or off for this agent",
     },
     github: {
       searching: "Searching...",
@@ -427,7 +431,6 @@ export const en = {
     fileActions: {
       openFile: "Open file",
       openIn: "Open in {{target}}",
-      openToSide: "Open to the side",
       copyPath: "Copy path",
       copyRelativePath: "Copy relative path",
       revealIn: "Reveal in {{target}}",
@@ -473,6 +476,10 @@ export const en = {
         refreshing: "Refreshing files",
         hideHiddenFiles: "Hide hidden files",
         showHiddenFiles: "Show hidden files",
+        parentFolder: "Parent folder",
+        homeFolder: "Home folder",
+        deviceRoot: "Device root",
+        workingFolder: "Working folder",
       },
       empty: {
         noFiles: "No files",
@@ -598,12 +605,6 @@ export const en = {
         copyTerminalId: "Copy terminal id",
         copyFilePath: "Copy file path",
         rename: "Rename",
-        closeAbove: "Close tabs above",
-        closeBelow: "Close tabs below",
-        closeLeft: "Close to the left",
-        closeRight: "Close to the right",
-        closeOthers: "Close other tabs",
-        moveToMain: "Move to main panel",
         reloadAgent: "Reload agent",
         reloadAgentTooltip: "Reload agent to update skills, MCPs or login status.",
         close: "Close",
@@ -611,18 +612,12 @@ export const en = {
         renameAgent: "Rename agent",
       },
       actions: {
-        newTab: "New tab",
         newAgent: "New agent",
         newTerminal: "New terminal",
         preparingTerminal: "Preparing terminal tab",
         preparingTerminalTooltip: "Preparing terminal...",
         newBrowser: "New browser",
-        maximizePane: "Maximize pane",
-        restorePane: "Restore pane",
-        closePane: "Close pane",
         exitFocusMode: "Exit focus mode",
-        splitRight: "Split pane right",
-        splitDown: "Split pane down",
         changes: "Changes",
         files: "Files",
         pullRequest: "Pull request",
@@ -657,29 +652,21 @@ export const en = {
         unsavedMessage:
           "This tab has changes that have not been saved. Closing it will discard the draft.",
         closeWithoutSaving: "Close without saving",
-        closePaneTitle: "Close pane?",
-        bulkUnsaved: "{{count}} tab(s) have unsaved changes. Closing will discard those drafts.",
         closeTerminalTitle: "Close terminal?",
         closeTerminalMessage: "Any running process in this terminal will be stopped immediately.",
         archiveRunningAgentTitle: "Archive running agent?",
         archiveRunningAgentMessage:
           "This agent is still running. Archiving it will stop the agent and close the tab.",
-        closeTabsLeftTitle: "Close tabs to the left?",
-        closeTabsRightTitle: "Close tabs to the right?",
-        closeOtherTabsTitle: "Close other tabs?",
-        bulk: {
-          all: "This will archive {{agents}} agent(s), close {{terminals}} terminal(s), and close {{tabs}} tab(s). Any running process in a closed terminal will be stopped immediately.",
-          agentsAndTerminals:
-            "This will archive {{agents}} agent(s) and close {{terminals}} terminal(s). Any running process in a closed terminal will be stopped immediately.",
-          terminalsAndTabs:
-            "This will close {{terminals}} terminal(s) and close {{tabs}} tab(s). Any running process in a closed terminal will be stopped immediately.",
-          agentsAndTabs: "This will archive {{agents}} agent(s) and close {{tabs}} tab(s).",
-          terminals:
-            "This will close {{terminals}} terminal(s). Any running process in a closed terminal will be stopped immediately.",
-          tabs: "This will close {{tabs}} tab(s).",
-          agents: "This will archive {{agents}} agent(s).",
-        },
       },
+    },
+    chat: {
+      empty: {
+        title: "No chat open",
+        action: "New chat",
+      },
+    },
+    sidePanel: {
+      close: "Close side panel",
     },
     header: {
       actions: {
@@ -691,6 +678,8 @@ export const en = {
         copyPath: "Copy workspace path",
         copyBranchName: "Copy branch name",
         showSetup: "Show setup",
+        toggleTerminal: "Terminal",
+        toggleBrowser: "Browser",
       },
       toasts: {
         workspacePathUnavailable: "Workspace path is not available yet",
@@ -1758,10 +1747,17 @@ export const en = {
     backdrop: "Menu backdrop",
   },
   subagents: {
+    viewChild: "View",
+    loadFailed: "Could not load this task.",
+    connectToLoad: "Connect to this host to load the task.",
+    tasksTitle: "Tasks",
+    empty: "No subagents to show.",
+    pillLabelWorkingOne: "1 running task",
+    contextTokens: "{{tokens}} tokens · context",
     title: "Subagents",
     pillLabelOne: "1 subagent",
     pillLabelMany: "{{count}} subagents",
-    pillLabelWorking: "{{count}} working",
+    pillLabelWorking: "{{count}} running tasks",
     pillLabelFailed: "{{count}} failed",
     pillLabelNeedsInputOne: "1 needs input",
     pillLabelNeedsInputMany: "{{count}} need input",
@@ -1841,6 +1837,18 @@ export const en = {
     output: "Output",
   },
   toolCallGroup: {
+    runningTools: {
+      one: "{{count}} tool running",
+      other: "{{count}} tools running",
+    },
+    failedTools: {
+      one: "{{count}} tool failed",
+      other: "{{count}} tools failed",
+    },
+    canceledTools: {
+      one: "{{count}} tool canceled",
+      other: "{{count}} tools canceled",
+    },
     editedFiles: {
       one: "edited {{count}} file",
       other: "edited {{count}} files",
@@ -1849,6 +1857,11 @@ export const en = {
       one: "ran {{count}} command",
       other: "ran {{count}} commands",
     },
+    createdFiles: {
+      one: "created a file",
+      other: "created {{count}} files",
+    },
+    readFile: "read {{name}}",
     readFiles: {
       one: "read {{count}} file",
       other: "read {{count}} files",
@@ -1857,14 +1870,20 @@ export const en = {
       one: "searched {{count}} time",
       other: "searched {{count}} times",
     },
+    subagents: {
+      one: "launched a subagent",
+      other: "launched {{count}} subagents",
+    },
     otherTools: {
-      one: "used {{count}} other tool",
-      other: "used {{count}} other tools",
+      one: "used {{count}} tool",
+      other: "used {{count}} tools",
     },
     paseoCalls: {
       one: "called Paseo {{count}} time",
       other: "called Paseo {{count}} times",
     },
+    failedSuffix: "({{count}} failed)",
+    separator: ", ",
     and: "and",
   },
   renameModal: {
@@ -1917,7 +1936,6 @@ export const en = {
     sections: {
       general: "General",
       appearance: "Appearance",
-      layout: "Layout",
       editor: "Editor",
       shortcuts: "Shortcuts",
       integrations: "Integrations",
@@ -1925,42 +1943,6 @@ export const en = {
       permissions: "Permissions",
       diagnostics: "Diagnostics",
       about: "About",
-    },
-    layout: {
-      openInSidePane: {
-        title: "Open location",
-        destinations: {
-          main: "Main panel",
-          side: "On the side",
-          explorer: "Explorer sidebar",
-        },
-        sources: {
-          explorerFiles: {
-            label: "Selecting a file in Explorer",
-            description: "Open files selected in the Explorer sidebar beside your work",
-          },
-          diffs: {
-            label: "Opening a diff",
-            description: "Open diffs from Explorer and agent conversations beside your work",
-          },
-          chatFiles: {
-            label: "Opening a file from an agent chat",
-            description: "Open file links and tool-call files beside the conversation",
-          },
-          diffFiles: {
-            label: "Opening a file from Changes",
-            description: "Open source files selected from a diff beside it",
-          },
-          subagents: {
-            label: "Opening a subagent",
-            description: "Open subagents beside their parent agent",
-          },
-          pullRequests: {
-            label: "Opening a pull request from Changes",
-            description: "Open pull request details beside Changes",
-          },
-        },
-      },
     },
     editor: {
       title: "Editor",
@@ -2273,7 +2255,7 @@ export const en = {
       sections: {
         general: "General",
         workspaces: "Projects & Workspaces",
-        tabsPanes: "Tabs & Panes",
+        chat: "Chat",
         layout: "Layout",
         agentInput: "Agent Input",
       },
@@ -2282,26 +2264,12 @@ export const en = {
         newWorkspace: "New workspace",
         newWorktree: "New worktree",
         archiveWorkspace: "Archive workspace",
-        newTab: "New tab",
         closeCurrentTab: "Close current tab",
         jumpToWorkspace: "Jump to workspace",
-        jumpToTab: "Jump to tab",
         previousWorkspace: "Previous workspace",
         nextWorkspace: "Next workspace",
-        previousTab: "Previous tab",
-        nextTab: "Next tab",
-        splitPaneRight: "Split pane right",
-        splitPaneDown: "Split pane down",
-        focusPaneLeft: "Focus pane left",
-        focusPaneRight: "Focus pane right",
-        focusPaneUp: "Focus pane up",
-        focusPaneDown: "Focus pane down",
-        moveTabLeft: "Move tab left",
-        moveTabRight: "Move tab right",
-        moveTabUp: "Move tab up",
-        moveTabDown: "Move tab down",
-        closePane: "Close pane",
         newTerminal: "New terminal",
+        closeSidePanel: "Close side panel",
         searchFiles: "Search files",
         toggleCommandCenter: "Toggle command center",
         showKeyboardShortcuts: "Show keyboard shortcuts",

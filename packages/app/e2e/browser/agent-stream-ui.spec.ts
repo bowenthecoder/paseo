@@ -24,6 +24,7 @@ import {
   seedMockAgentWorkspace,
   seedRunningMockAgentWorkspace,
 } from "../support/helpers/mock-agent";
+import { enableDetailedToolCalls } from "../support/helpers/tool-call-detail";
 
 const SCROLL_AWAY_MIN_SCROLLABLE_DISTANCE = 360;
 
@@ -235,6 +236,7 @@ test.describe("Agent stream UI", () => {
 
   test("keeps tool calls clickable beside the scroll-to-bottom button", async ({ page }) => {
     test.setTimeout(60_000);
+    await enableDetailedToolCalls(page);
     const agent = await seedMockAgentWorkspace({
       repoPrefix: "stream-scroll-button-hit-area-",
       title: "Scroll button hit area",

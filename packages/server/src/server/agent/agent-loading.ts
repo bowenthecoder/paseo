@@ -33,6 +33,7 @@ export interface EnsureAgentLoadedDeps {
   agentStorage: AgentStorage;
   validProviders?: Iterable<AgentProvider>;
   broadcastTimeline?: boolean;
+  requirePersistence?: boolean;
   logger: Logger;
 }
 
@@ -86,6 +87,10 @@ export async function ensureAgentLoaded(
     laterInflight.options.broadcastTimeline ||= deps.broadcastTimeline === true;
     return laterInflight.promise;
   }
+  const afterClose = deps.agentManager.getAgent(agentId);
+  if (afterClose) {
+    return afterClose;
+  }
 
   const pendingOptions = {
     broadcastTimeline: deps.broadcastTimeline === true,
@@ -102,6 +107,9 @@ export async function ensureAgentLoaded(
     }
 
     const handle = toAgentPersistenceHandle(validProviders, record.persistence);
+    if (deps.requirePersistence && !handle) {
+      throw new Error(`Agent ${agentId} has no resumable persistence handle`);
+    }
 
     let snapshot: ManagedAgent;
     if (handle) {
