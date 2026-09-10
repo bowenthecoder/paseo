@@ -2242,7 +2242,16 @@ export class AgentManager {
     const firstPrompt = getFirstUserMessageTextFromRows(await this.getTimelineRows(record.id));
     if (!firstPrompt) return false;
     const { provisionalTitle } = resolveCreateAgentTitles({ initialPrompt: firstPrompt });
-    return provisionalTitle !== null && provisionalTitle === record.title.trim();
+    // Before automatic naming, placeholders used the normalized first line, capped at 60
+    // characters. Compare that exact historical format as well as today's shorter placeholder.
+    const legacyTitle = firstPrompt
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.length > 0)
+      ?.replace(/\s+/g, " ")
+      .slice(0, 60)
+      .trim();
+    return record.title.trim() === provisionalTitle || record.title.trim() === legacyTitle;
   }
 
   /**
