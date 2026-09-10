@@ -99,6 +99,12 @@ test.describe("real background command", () => {
       await expect(rows).toHaveCount(0, { timeout: 30_000 });
       const finish = await handle.client.waitForFinish(handle.agentId, 120_000);
       expect(finish.status).toBe("idle");
+      await expect(
+        page
+          .getByTestId("tool-call-group")
+          .filter({ visible: true })
+          .filter({ hasText: /\b(?:tools?|commands?) running\b/i }),
+      ).toHaveCount(0, { timeout: 30_000 });
     } finally {
       await cleanupRewindFlow({ handle, cwd });
     }
@@ -152,6 +158,12 @@ test.describe("real subagent fan-out", () => {
         await shot("done");
         const finish = await handle.client.waitForFinish(handle.agentId, 120_000);
         expect(finish.status).toBe("idle");
+        await expect(
+          page
+            .getByTestId("tool-call-group")
+            .filter({ visible: true })
+            .filter({ hasText: /\b(?:tools?|commands?) running\b/i }),
+        ).toHaveCount(0, { timeout: 30_000 });
 
         await openSubagentsTrack(page);
         await expect(rows).toHaveCount(FANOUT);

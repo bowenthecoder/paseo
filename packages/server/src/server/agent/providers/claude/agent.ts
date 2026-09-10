@@ -4164,6 +4164,9 @@ class ClaudeAgentSession implements AgentSession {
   private buildSubagentToolCallCard(
     declaration: Extract<SubagentObservation, { kind: "declared" }>,
   ): AgentStreamEvent | null {
+    // Background shell commands also declare temporary task rows. They are not subagents:
+    // synthesizing a running Task card for them leaves it stuck after their row is removed.
+    if (!this.taskProtocolSource.isDeclared(declaration.id)) return null;
     const toolCall = mapClaudeRunningToolCall({
       name: "Task",
       callId: declaration.id,
