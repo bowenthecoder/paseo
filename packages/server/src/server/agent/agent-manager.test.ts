@@ -11243,6 +11243,95 @@ test("legacy names that are only the raw first prompt get generated names, typed
   }
 });
 
+test("cold startup backfills persisted legacy titles through the normal loader", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-cold-title-"));
+  const storage = new AgentStorage(join(workdir, "agents"), logger);
+  const prompt = "Investigate order sync failures now";
+  class HistorySession extends TestAgentSession {
+    override async *streamHistory(): AsyncGenerator<AgentStreamEvent> {
+      yield { type: "timeline", provider: "codex", item: { type: "user_message", text: prompt } };
+    }
+  }
+  class HistoryClient extends TestAgentClient {
+    override async resumeSession(
+      _handle: AgentPersistenceHandle,
+      config?: Partial<AgentSessionConfig>,
+    ) {
+      this.resumeOverrides.push(config);
+      return new HistorySession({ provider: "codex", cwd: workdir });
+    }
+  }
+  const client = new HistoryClient();
+  let manager = new AgentManager({ clients: { codex: client }, registry: storage, logger });
+  const records: StoredAgentRecord[] = [];
+  try {
+    for (const title of [prompt, "Sync bug", prompt, prompt, prompt, prompt]) {
+      const agent = await manager.createAgent(
+        { provider: "codex", cwd: workdir, title },
+        undefined,
+        { workspaceId: undefined },
+      );
+      await manager.closeAgent(agent.id);
+      records.push((await storage.get(agent.id))!);
+    }
+    for (const [index, record] of records.entries()) {
+      await storage.upsert({
+        ...record,
+        titleSource: index === 2 ? "manual" : undefined,
+        titleGenerationAttempted: undefined,
+        ...(index === 3 ? { archivedAt: new Date().toISOString() } : {}),
+        ...(index === 4 ? { persistence: null } : {}),
+        ...(index === 5
+          ? { persistence: { provider: "missing-provider", sessionId: "old-session" } }
+          : {}),
+      });
+    }
+    manager = new AgentManager({ clients: { codex: client }, registry: storage, logger });
+    const calls: string[] = [];
+    manager.setAgentTitleGenerationCallback(({ agentId }) => {
+      calls.push(agentId);
+    });
+    const load = vi.fn(async (agentId: string) => {
+      await ensureUnarchivedAgentLoaded(agentId, {
+        agentManager: manager,
+        agentStorage: storage,
+        broadcastTimeline: false,
+        requirePersistence: true,
+        logger,
+      });
+    });
+    expect(manager.listAgents()).toEqual([]);
+    await expect(manager.backfillLegacyTitles(load)).resolves.toBe(1);
+    expect(calls).toEqual([records[0]!.id]);
+    expect(load.mock.calls.map(([id]) => id).sort()).toEqual(
+      [records[0]!.id, records[1]!.id, records[5]!.id].sort(),
+    );
+    expect(client.createdConfigs).toHaveLength(6);
+    expect((await storage.get(records[5]!.id))?.persistence).toEqual({
+      provider: "missing-provider",
+      sessionId: "old-session",
+    });
+    expect((await storage.get(records[5]!.id))?.titleSource).toBeUndefined();
+    await expect(manager.backfillLegacyTitles(load)).resolves.toBe(0);
+    await manager.setGeneratedTitle(records[0]!.id, prompt, "Order sync investigation");
+    expect((await storage.get(records[0]!.id))?.title).toBe("Order sync investigation");
+    expect((await storage.get(records[1]!.id))?.title).toBe("Sync bug");
+    expect((await storage.get(records[2]!.id))?.titleSource).toBe("manual");
+    // A same-text manual rename wins over an already scheduled result.
+    await manager.setTitle(records[0]!.id, "Order sync investigation");
+    await manager.setGeneratedTitle(
+      records[0]!.id,
+      "Order sync investigation",
+      "Late automatic name",
+    );
+    expect((await storage.get(records[0]!.id))?.title).toBe("Order sync investigation");
+    expect((await storage.get(records[0]!.id))?.titleSource).toBe("manual");
+  } finally {
+    await Promise.all(manager.listAgents().map((agent) => manager.closeAgent(agent.id)));
+    rmSync(workdir, { recursive: true, force: true });
+  }
+});
+
 test("title scheduling ignores injected and rename prompts and preserves explicit and legacy names", async () => {
   const workdir = mkdtempSync(join(tmpdir(), "agent-manager-title-eligibility-"));
   const storage = new AgentStorage(join(workdir, "agents"), logger);

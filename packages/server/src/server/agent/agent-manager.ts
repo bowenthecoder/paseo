@@ -2395,7 +2395,7 @@ export class AgentManager {
    * Names chats that predate automatic naming and still show their raw first prompt. Runs
    * once after startup, one chat at a time, and never touches names people typed.
    */
-  async backfillLegacyTitles(): Promise<number> {
+  async backfillLegacyTitles(loadTimeline?: (agentId: string) => Promise<void>): Promise<number> {
     const generate = this.onAgentTitleGeneration;
     const registry = this.registry;
     if (!generate || !registry) return 0;
@@ -2404,6 +2404,17 @@ export class AgentManager {
       if (listed.archivedAt || listed.titleGenerationAttempted || listed.titleSource !== undefined)
         continue;
       if (!listed.title) continue;
+      // Cold startup has registry entries but no resident sessions. Use the shared loader
+      // outside the mutation lane; never recreate a sessionless record just to name it.
+      if (!this.agents.has(listed.id)) {
+        if (!loadTimeline || !listed.persistence?.sessionId) continue;
+        try {
+          await loadTimeline(listed.id);
+        } catch (error) {
+          this.logger.warn({ err: error, agentId: listed.id }, "Failed to load chat name history");
+          continue;
+        }
+      }
       const input = await this.runLifecycleMutation(
         listed.id,
         async (): Promise<AgentTitleGenerationInput | null> => {
