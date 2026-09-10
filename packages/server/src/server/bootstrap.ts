@@ -1,3 +1,4 @@
+import { ensureUnarchivedAgentLoaded } from "./agent/agent-loading.js";
 import express from "express";
 import { createServer as createHTTPServer, type IncomingMessage, type ServerResponse } from "http";
 import { constants, existsSync, unlinkSync } from "fs";
@@ -1078,9 +1079,6 @@ export async function createPaseoDaemon(
       },
     });
   });
-  void agentManager.backfillLegacyTitles().catch((error) => {
-    logger.warn({ err: error }, "Legacy chat name backfill failed");
-  });
 
   setupAutoArchiveOnMerge({
     paseoHome: config.paseoHome,
@@ -1720,6 +1718,20 @@ export async function createPaseoDaemon(
               relayRuntime?.setEnabled(value === true);
             });
             await hubRelationships.start();
+            // Resume legacy naming candidates only after native tools, MCP and plugins are ready.
+            void agentManager
+              .backfillLegacyTitles(async (agentId) => {
+                await ensureUnarchivedAgentLoaded(agentId, {
+                  agentManager,
+                  agentStorage,
+                  broadcastTimeline: false,
+                  requirePersistence: true,
+                  logger,
+                });
+              })
+              .catch((error) => {
+                logger.warn({ err: error }, "Legacy chat name backfill failed");
+              });
           };
 
           logAndResolve().then(resolve, reject);

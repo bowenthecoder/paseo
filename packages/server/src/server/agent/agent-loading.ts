@@ -33,6 +33,7 @@ export interface EnsureAgentLoadedDeps {
   agentStorage: AgentStorage;
   validProviders?: Iterable<AgentProvider>;
   broadcastTimeline?: boolean;
+  requirePersistence?: boolean;
   logger: Logger;
 }
 
@@ -106,6 +107,9 @@ export async function ensureAgentLoaded(
     }
 
     const handle = toAgentPersistenceHandle(validProviders, record.persistence);
+    if (deps.requirePersistence && !handle) {
+      throw new Error(`Agent ${agentId} has no resumable persistence handle`);
+    }
 
     let snapshot: ManagedAgent;
     if (handle) {
