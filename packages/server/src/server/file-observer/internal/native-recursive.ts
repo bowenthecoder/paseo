@@ -27,7 +27,7 @@ interface Inventory {
 
 interface NativeRecursiveWatcher {
   close(): void;
-  on(event: "error", listener: (error: Error) => void): void;
+  on(event: "error", listener: (error: Error) => void): unknown;
 }
 
 export interface WatchNativeRecursiveRoot {
@@ -43,9 +43,9 @@ const watchNativeRecursiveRoot: WatchNativeRecursiveRoot = (root, listener) =>
 export function createNativeRecursiveBackend(
   host: ObservationHost,
   paths: ObserverPaths,
-  watchRoot: WatchNativeRecursiveRoot = watchNativeRecursiveRoot,
+  observe: WatchNativeRecursiveRoot = watchNativeRecursiveRoot,
 ): ObservationBackend {
-  return new NativeRecursiveBackend(host, paths, watchRoot);
+  return new NativeRecursiveBackend(host, paths, observe);
 }
 
 class NativeRecursiveBackend implements ObservationBackend {
@@ -78,7 +78,7 @@ class NativeRecursiveBackend implements ObservationBackend {
   constructor(
     private readonly host: ObservationHost,
     private readonly paths: ObserverPaths,
-    private readonly watchNativeRoot: WatchNativeRecursiveRoot,
+    private readonly observe: WatchNativeRecursiveRoot,
   ) {}
 
   async start(): Promise<void> {
@@ -131,7 +131,7 @@ class NativeRecursiveBackend implements ObservationBackend {
   }
 
   private watchRoot(): void {
-    const watcher = this.watchNativeRoot(this.host.root, (eventType, filename) => {
+    const watcher = this.observe(this.host.root, (eventType, filename) => {
       if (!this.host.isActive()) return;
       this.host.metrics.nativeEventCount += 1;
       if (!filename) {
@@ -154,7 +154,13 @@ class NativeRecursiveBackend implements ObservationBackend {
       this.host.metrics.nativeRenameEventCount += 1;
       const knownDirectory = this.directories.has(path);
       this.classify(path, (isDirectory) => {
-        if (!isDirectory) return;
+        if (!isDirectory) {
+          // Remember files as soon as we announce them. A coalesced delete must
+          // still be found by the next audit, even before the first directory scan.
+          this.files.add(path);
+          this.entries.get(scope)?.files.add(path);
+          return;
+        }
         if (knownDirectory) this.requestAudit(path, true);
         else this.requestAudit(scope);
       });

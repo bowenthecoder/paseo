@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/floating-panel-portal";
 import { RetainedPanel } from "@/components/retained-panel";
 import { ImportSessionSheet } from "@/components/import-session-sheet";
+import { useNavigateToImportedAgent } from "@/hooks/use-import-session";
 import { useToast } from "@/contexts/toast-context";
 import { getOrCreateClientId } from "@/utils/client-id";
 import { selectIsAgentListOpen, usePanelStore } from "@/stores/panel-store";
@@ -1881,6 +1882,9 @@ function WorkspaceScreenContent({
     },
     [focusWorkspaceTab, persistenceKey],
   );
+  // A "Show all" import can land in another workspace entirely; that
+  // agent has no tab here, so it opens its own workspace instead.
+  const navigateToImportedAgent = useNavigateToImportedAgent(normalizedServerId);
   const handleImportedAgent = useCallback(
     (agentId: string) => {
       if (!persistenceKey) {
@@ -3164,6 +3168,7 @@ function WorkspaceScreenContent({
           workspaceId={normalizedWorkspaceId}
           onClose={closeImportSheet}
           onImportedAgent={handleImportedAgent}
+          onImported={navigateToImportedAgent}
         />
         <WorkspaceTabRenameModal
           renamingTab={isRouteFocused ? renamingTab : null}

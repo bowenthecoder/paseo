@@ -89,15 +89,20 @@ function fixture(
     layout.purgeWorkspace(workspaceKey);
     useSessionStore.getState().clearSession(serverId);
   });
-  const replica = new AgentDirectoryReplica(serverId, () => undefined, {
-    isAgentExplicitlyOpen: (agentId) =>
-      Boolean(layouts.getState().pinnedAgentIdsByWorkspace[workspaceKey]?.has(agentId)) &&
-      layouts
-        .getState()
-        .getWorkspaceTabs(workspaceKey)
-        .some((tab) => tab.target.kind === "agent" && tab.target.agentId === agentId),
-    verifyAgentExists,
-  });
+  const replica = new AgentDirectoryReplica(
+    serverId,
+    () => undefined,
+    () => undefined,
+    {
+      isAgentExplicitlyOpen: (agentId) =>
+        Boolean(layouts.getState().pinnedAgentIdsByWorkspace[workspaceKey]?.has(agentId)) &&
+        layouts
+          .getState()
+          .getWorkspaceTabs(workspaceKey)
+          .some((tab) => tab.target.kind === "agent" && tab.target.agentId === agentId),
+      verifyAgentExists,
+    },
+  );
   replica.commitSnapshot([entry(agent("survivor")), entry(agent("archived"))], []);
   const survivorTab = layout.openTab({
     workspaceKey,

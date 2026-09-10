@@ -12,7 +12,7 @@ export async function selectSidebarProjectGrouping(
   await expect(page.getByTestId("sidebar-global-new-workspace")).toBeVisible({
     timeout: 30_000,
   });
-  const search = page.getByTestId("sidebar-command-center-search");
+  const search = page.getByTestId("sidebar-search");
   if (options.entry === "sidebar" || (await search.isVisible())) {
     // Compact layouts and focused terminals retain their own shortcuts. The
     // visible Search control works for both without moving terminal focus first.

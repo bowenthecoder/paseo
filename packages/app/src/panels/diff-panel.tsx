@@ -28,7 +28,6 @@ import {
 
 const ThemedFileDiff = withUnistyles(FileDiff);
 const ThemedGitCommitHorizontal = withUnistyles(GitCommitHorizontal);
-const WORKING_DIFF_MODE_SCOPE = "working_diff";
 
 function useDiffPanelPreferences() {
   const { settings } = useAppSettings();
@@ -153,11 +152,9 @@ function ChangesPanel() {
           cwd={cwd}
           enabled={isActive}
           presentation={presentation}
-          modeScope={isTree ? tabId : WORKING_DIFF_MODE_SCOPE}
           focusPath={target.kind === "working_diff" ? target.focusPath : undefined}
           focusRequestId={target.kind === "working_diff" ? target.focusRequestId : undefined}
           onSelectDiffFile={isTree ? handleSelectDiffFile : undefined}
-          selectedFileModeScope={isTree ? WORKING_DIFF_MODE_SCOPE : undefined}
           onOpenFile={handleOpenFile}
           onAddToChat={canAddToChat ? addFile : undefined}
           state={changesState}

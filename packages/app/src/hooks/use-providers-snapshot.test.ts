@@ -3,9 +3,13 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { ProviderSnapshotEntry } from "@getpaseo/protocol/agent-types";
-import { compactProviderSnapshot } from "@getpaseo/protocol/provider-snapshot-codec";
+import {
+  compactProviderSnapshot,
+  expandProviderSnapshot,
+} from "@getpaseo/protocol/provider-snapshot-codec";
 import type { CachedProviderSnapshot, ProviderSnapshotCache } from "@/data/provider-snapshot-cache";
 import { draftAgentCommandsQueryKey } from "@/hooks/agent-commands-query";
+import { resolveProviderIconName } from "@/components/provider-icon-name";
 import { applyProvidersSnapshotUpdate, type ProvidersSnapshotUpdate } from "@/data/push-router";
 import {
   fetchProvidersSnapshot,
@@ -81,12 +85,28 @@ function codexEntry(
 const readyCodexModel = { provider: "codex", id: "gpt-5.4", label: "GPT-5.4" } as const;
 const serverId = "server-1";
 
-function createCache(initial: CachedProviderSnapshot | null = null): ProviderSnapshotCache & {
+function createCache(
+  initial: CachedProviderSnapshot | null = null,
+  bodyResident = true,
+): ProviderSnapshotCache & {
   writes: Parameters<ProviderSnapshotCache["write"]>[0][];
 } {
   const writes: Parameters<ProviderSnapshotCache["write"]>[0][] = [];
   return {
     writes,
+    async readHash(_serverId, hash) {
+      return bodyResident && initial?.hash === hash ? initial : null;
+    },
+    async materialize(_serverId, snapshot) {
+      if (initial && initial.hash === snapshot.snapshotHash)
+        return { ...snapshot, entries: initial.entries };
+      return {
+        ...snapshot,
+        entries: snapshot.compactSnapshot
+          ? expandProviderSnapshot(snapshot.compactSnapshot)
+          : snapshot.entries,
+      };
+    },
     async read() {
       return initial;
     },
@@ -97,7 +117,7 @@ function createCache(initial: CachedProviderSnapshot | null = null): ProviderSna
 }
 
 describe("providersSnapshotQueryKey", () => {
-  it("uses separate keys for home and workspace scopes", () => {
+  it("uses separate keys for home and workspace scopes", async () => {
     expect(providersSnapshotQueryKey(serverId)).toEqual(["providersSnapshot", serverId, "home"]);
     expect(providersSnapshotQueryKey(serverId, "/repo-a")).toEqual([
       "providersSnapshot",
@@ -109,6 +129,24 @@ describe("providersSnapshotQueryKey", () => {
 });
 
 describe("fetchProvidersSnapshot", () => {
+  it("registers provider icons from the applied snapshot", async () => {
+    const svg = '<svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z" /></svg>';
+    const client = createClient({
+      snapshots: [
+        providersSnapshot([
+          { provider: "snapshot-icon-provider", status: "ready", enabled: true, iconSvg: svg },
+        ]),
+      ],
+    });
+
+    await fetchProvidersSnapshot({ client, serverId, cwd: null, cache: createCache() });
+
+    expect(resolveProviderIconName("snapshot-icon-provider", serverId)).toEqual({
+      kind: "svg",
+      svg,
+    });
+  });
+
   it("sends no cwd for the home scope", async () => {
     const client = createClient({ snapshots: [providersSnapshot([])] });
 
@@ -130,16 +168,19 @@ describe("fetchProvidersSnapshot", () => {
     expect(client.getCalls).toEqual([{ cwd: "/repo-a" }]);
   });
 
-  it("reuses a cached snapshot when the daemon reports its hash unchanged", async () => {
+  it("reuses a not-modified response even if its body was evicted during the request", async () => {
     const entries = [codexEntry("ready", [readyCodexModel])];
     const compactSnapshot = compactProviderSnapshot(entries);
-    const cache = createCache({
-      version: 1,
-      hash: "snapshot-hash",
-      generatedAt: "2026-01-01T00:00:00.000Z",
-      compactSnapshot,
-      entries,
-    });
+    const cache = createCache(
+      {
+        version: 2,
+        hash: "snapshot-hash",
+        generatedAt: "2026-01-01T00:00:00.000Z",
+        compactSnapshot,
+        entries,
+      },
+      false,
+    );
     const client = createClient({
       snapshots: [
         {
@@ -161,7 +202,7 @@ describe("fetchProvidersSnapshot", () => {
 
     expect(client.getCalls).toEqual([{ cwd: "/repo-a", ifNoneMatch: "snapshot-hash" }]);
     expect(snapshot.entries).toBe(entries);
-    expect(cache.writes).toEqual([]);
+    expect(cache.writes).toHaveLength(1);
   });
 
   it("persists a changed compact snapshot for the next launch", async () => {
@@ -182,7 +223,7 @@ describe("fetchProvidersSnapshot", () => {
 
     await fetchProvidersSnapshot({ client, serverId, cwd: "/repo-a", cache });
 
-    expect(cache.writes).toEqual([
+    expect(cache.writes.map(({ signal: _signal, ...write }) => write)).toEqual([
       {
         serverId,
         cwd: "/repo-a",
@@ -354,7 +395,12 @@ describe("applyProvidersSnapshotUpdate", () => {
     });
     await Promise.resolve();
 
-    await applyProvidersSnapshotUpdate({ serverId, queryClient, message: updateMessage([]) });
+    await applyProvidersSnapshotUpdate({
+      client: createClient(),
+      serverId,
+      queryClient,
+      message: updateMessage([]),
+    });
     await pendingRead;
 
     expect(queryClient.getQueryData(queryKey)).toMatchObject({ entries: [] });
@@ -376,8 +422,20 @@ describe("applyProvidersSnapshotUpdate", () => {
     removed.payload.compactSnapshot = compactProviderSnapshot([]);
 
     await Promise.all([
-      applyProvidersSnapshotUpdate({ serverId, queryClient, message: installed, cache }),
-      applyProvidersSnapshotUpdate({ serverId, queryClient, message: removed, cache }),
+      applyProvidersSnapshotUpdate({
+        client: createClient(),
+        serverId,
+        queryClient,
+        message: installed,
+        cache,
+      }),
+      applyProvidersSnapshotUpdate({
+        client: createClient(),
+        serverId,
+        queryClient,
+        message: removed,
+        cache,
+      }),
       pendingRead,
     ]);
 
@@ -401,6 +459,8 @@ describe("applyProvidersSnapshotUpdate", () => {
       });
       const cache: ProviderSnapshotCache = {
         read: async () => null,
+        readHash: async () => null,
+        materialize: async (_serverId, snapshot) => snapshot,
         write: async () => {
           markWriteStarted();
           await writeBlocked;
@@ -426,6 +486,7 @@ describe("applyProvidersSnapshotUpdate", () => {
 
       await writeStarted;
       await applyProvidersSnapshotUpdate({
+        client: createClient(),
         serverId,
         queryClient,
         message: updateMessage([]),
@@ -476,7 +537,13 @@ describe("applyProvidersSnapshotUpdate", () => {
     const message = updateMessage([]);
     message.payload.compactSnapshot = compactProviderSnapshot([]);
     message.payload.snapshotHash = "after-removal";
-    await applyProvidersSnapshotUpdate({ serverId, queryClient, message, cache });
+    await applyProvidersSnapshotUpdate({
+      client: createClient(),
+      serverId,
+      queryClient,
+      message,
+      cache,
+    });
     resolveSnapshot({
       ...providersSnapshot(entries),
       snapshotHash: "before-removal",
@@ -491,6 +558,7 @@ describe("applyProvidersSnapshotUpdate", () => {
 
   it("routes updates to the home query cache when the message carries no cwd", async () => {
     await applyProvidersSnapshotUpdate({
+      client: createClient(),
       serverId,
       queryClient,
       message: updateMessage([codexEntry("ready", [readyCodexModel])]),
@@ -507,12 +575,13 @@ describe("applyProvidersSnapshotUpdate", () => {
     queryClient.setQueryData(providersSnapshotQueryKey(serverId, "/repo-b"), providersSnapshot([]));
 
     await applyProvidersSnapshotUpdate({
+      client: createClient(),
       serverId,
       queryClient,
       message: updateMessage([codexEntry("ready", [readyCodexModel])], "/repo-a"),
     });
 
-    expect(queryClient.getQueryData(providersSnapshotQueryKey(serverId, "/repo-a"))).toEqual({
+    expect(queryClient.getQueryData(providersSnapshotQueryKey(serverId, "/repo-a"))).toMatchObject({
       entries: [codexEntry("ready", [readyCodexModel])],
       generatedAt: "2026-01-01T00:00:01.000Z",
       requestId: "providers_snapshot_update",
@@ -530,9 +599,15 @@ describe("applyProvidersSnapshotUpdate", () => {
     message.payload.compactSnapshot = compactSnapshot;
     message.payload.snapshotHash = "push-hash";
 
-    await applyProvidersSnapshotUpdate({ serverId, queryClient, message, cache });
+    await applyProvidersSnapshotUpdate({
+      client: createClient(),
+      serverId,
+      queryClient,
+      message,
+      cache,
+    });
 
-    expect(cache.writes).toEqual([
+    expect(cache.writes.map(({ signal: _signal, ...write }) => write)).toEqual([
       {
         serverId,
         cwd: "/repo-a",
@@ -552,12 +627,15 @@ describe("applyProvidersSnapshotUpdate", () => {
     );
 
     await applyProvidersSnapshotUpdate({
+      client: createClient(),
       serverId,
       queryClient,
       message: updateMessage([codexEntry("ready", [readyCodexModel])], daemonCwd),
     });
 
-    expect(queryClient.getQueryData(providersSnapshotQueryKey(serverId, workspaceCwd))).toEqual({
+    expect(
+      queryClient.getQueryData(providersSnapshotQueryKey(serverId, workspaceCwd)),
+    ).toMatchObject({
       entries: [codexEntry("ready", [readyCodexModel])],
       generatedAt: "2026-01-01T00:00:01.000Z",
       requestId: "providers_snapshot_update",
@@ -572,6 +650,7 @@ describe("applyProvidersSnapshotUpdate", () => {
     queryClient.setQueryData(commandsKey, [{ name: "compact", description: "", argumentHint: "" }]);
 
     await applyProvidersSnapshotUpdate({
+      client: createClient(),
       serverId,
       queryClient,
       message: updateMessage([codexEntry("ready", [readyCodexModel])], "/repo-a"),
@@ -582,7 +661,7 @@ describe("applyProvidersSnapshotUpdate", () => {
 });
 
 describe("selectorOpenRefetchDecision", () => {
-  it("refetches stale entries when no provider is selected", () => {
+  it("refetches stale entries when no provider is selected", async () => {
     expect(
       selectorOpenRefetchDecision({
         entries: [codexEntry("ready", [readyCodexModel])],
@@ -591,13 +670,13 @@ describe("selectorOpenRefetchDecision", () => {
     ).toBe("refetch-stale");
   });
 
-  it("forces a refetch when the selected provider has no entry", () => {
+  it("forces a refetch when the selected provider has no entry", async () => {
     expect(selectorOpenRefetchDecision({ entries: [], selectedProvider: "codex" })).toBe(
       "refetch-always",
     );
   });
 
-  it("forces a refetch when the selected provider is still loading", () => {
+  it("forces a refetch when the selected provider is still loading", async () => {
     expect(
       selectorOpenRefetchDecision({
         entries: [codexEntry("loading")],
@@ -606,7 +685,7 @@ describe("selectorOpenRefetchDecision", () => {
     ).toBe("refetch-always");
   });
 
-  it("keeps a stale-only refetch when the selected provider is ready with no models", () => {
+  it("keeps a stale-only refetch when the selected provider is ready with no models", async () => {
     expect(
       selectorOpenRefetchDecision({
         entries: [codexEntry("ready", [])],
@@ -615,7 +694,7 @@ describe("selectorOpenRefetchDecision", () => {
     ).toBe("refetch-stale");
   });
 
-  it("keeps a stale-only refetch when the selected provider is ready with models", () => {
+  it("keeps a stale-only refetch when the selected provider is ready with models", async () => {
     expect(
       selectorOpenRefetchDecision({
         entries: [codexEntry("ready", [readyCodexModel])],

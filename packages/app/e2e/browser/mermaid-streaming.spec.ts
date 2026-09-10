@@ -36,6 +36,7 @@ test("keeps a Mermaid diagram rendered while its message streams, completes, and
   page,
 }) => {
   test.setTimeout(120_000);
+  let diagramTurnCompleted!: Promise<void>;
 
   const agent = await seedMockAgentWorkspace({
     repoPrefix: "mermaid-streaming-",
@@ -49,6 +50,7 @@ test("keeps a Mermaid diagram rendered while its message streams, completes, and
     await test.step("Open the conversation and request a diagram", async () => {
       await openAgentRoute(page, agent);
       await requestDiagram(agent);
+      diagramTurnCompleted = waitForDiagramTurnToComplete(agent);
     });
 
     const runtime =
@@ -60,13 +62,13 @@ test("keeps a Mermaid diagram rendered while its message streams, completes, and
           .locator("iframe")
           .elementHandle();
         if (!iframe) throw new Error("The rendered diagram has no iframe runtime");
-        await expectDiagramRemainsRenderedWhileStreaming(page);
+        await expectDiagramRemainsRenderedWhileStreaming(page, diagramTurnCompleted);
         expect(await iframe.evaluate((element) => element.isConnected)).toBe(true);
         return iframe;
       });
 
     await test.step("The completed diagram shows the final streamed content", async () => {
-      await waitForDiagramTurnToComplete(agent);
+      await diagramTurnCompleted;
       await expectCompletedDiagram(page, ["Start", "Done", "Release"]);
       expect(
         await page

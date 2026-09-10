@@ -20,7 +20,7 @@ import {
   connectWorkspaceSetupClient,
   createWorkspaceThroughDaemon,
   expectSetupPanel,
-  returnHomeFromWorkspace,
+  leaveWorkspaceViaHistory,
   openWorkspaceScriptsMenu,
   startWorkspaceScriptFromMenu,
   closeWorkspaceScriptsMenu,
@@ -192,7 +192,7 @@ test.describe("Workspace setup streaming", () => {
 
       await closeSetupTab(page, workspace.id);
       const workspaceUrl = page.url();
-      await returnHomeFromWorkspace(page);
+      await leaveWorkspaceViaHistory(page);
       // Preserve the app session when revisiting, as sidebar navigation did before
       // empty folders stopped creating automatic chat rows.
       await page.goBack();

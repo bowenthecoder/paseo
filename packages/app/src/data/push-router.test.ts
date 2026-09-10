@@ -97,6 +97,9 @@ function createFakeClient(config: { rejectCheckoutDiffSubscribe?: boolean } = {}
 
   return {
     client: {
+      async getProvidersSnapshot() {
+        throw new Error("Unexpected snapshot pull");
+      },
       on,
       async subscribeCheckoutDiff(cwd, compare, requestOptions) {
         subscribeCheckoutDiffCalls.push({
@@ -208,11 +211,13 @@ describe("server data push router", () => {
     unmount();
     fake.emit(providerUpdate("2026-01-01T00:00:01.000Z"));
 
-    expect(queryClient.getQueryData(providersSnapshotQueryKey(serverId))).toEqual({
-      entries: [{ provider: "codex", status: "ready", enabled: true, models: [] }],
-      generatedAt: "2026-01-01T00:00:00.000Z",
-      requestId: "providers_snapshot_update",
-    });
+    await expect
+      .poll(() => queryClient.getQueryData(providersSnapshotQueryKey(serverId)))
+      .toEqual({
+        entries: [{ provider: "codex", status: "ready", enabled: true, models: [] }],
+        generatedAt: "2026-01-01T00:00:00.000Z",
+        requestId: "providers_snapshot_update",
+      });
   });
 
   it("subscribes active checkout diff queries and writes matching diff events", () => {

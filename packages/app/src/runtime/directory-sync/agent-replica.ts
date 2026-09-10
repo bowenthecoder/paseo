@@ -4,16 +4,12 @@ import { clearArchiveAgentPending } from "@/hooks/use-archive-agent";
 import { queryClient } from "@/data/query-client";
 import { useSessionStore, type Agent } from "@/stores/session-store";
 import { normalizeAgentSnapshot, projectAgentSnapshot } from "@/utils/agent-snapshots";
-import {
-  applyAgentDirectoryDelta,
-  type AgentDirectoryDelta,
-  removeAgentDirectoryReplica,
-  replaceAgentPendingPermissions,
-  replaceFetchedAgentDirectory,
-  upsertAgentReplica,
-} from "@/utils/agent-directory-sync";
+import { type AgentDirectoryDelta } from "@/utils/agent-directory-sync";
 import { reconcileAgentDirectory } from "@/utils/agent-directory-reconciliation";
 import { applyLegacyDaemonWorkspaceOwnership } from "@/workspace/legacy-daemon-workspaces";
+import type { DirectoryReplicaMutation } from "@/runtime/replica-cache";
+import type { TurnLivenessTransition } from "@/timeline/turn-liveness";
+import { AgentStoreProjection } from "./internal/agent-store";
 
 function projectAgentDirectoryEntry(agent: Agent): FetchAgentsEntry | null {
   return agent.projectPlacement
@@ -43,15 +39,23 @@ export class AgentDirectoryReplica {
       needsRecheck: boolean;
     }
   >();
+  private readonly storeProjection: AgentStoreProjection;
 
   constructor(
     private readonly serverId: string,
     private readonly onStoppedRunning: (agentId: string) => void,
+    private readonly persist: (mutations: readonly DirectoryReplicaMutation[]) => void,
     private readonly openArchivedAgentPolicy?: OpenArchivedAgentPolicy,
-  ) {}
+  ) {
+    this.storeProjection = new AgentStoreProjection(serverId);
+  }
 
   captureTimeline(agentId: string): AgentLifecycleToken {
     return { agentId, version: this.lifecycleVersions.get(agentId) ?? 0 };
+  }
+
+  snapshot(): Map<string, Agent> {
+    return this.storeProjection.snapshot();
   }
 
   captureCache(agentId: string): AgentLifecycleToken {
@@ -60,12 +64,11 @@ export class AgentDirectoryReplica {
   }
 
   commitCached(agents: Map<string, Agent>): void {
+    const merged = this.storeProjection.commitCached(agents);
     this.members.clear();
-    for (const [agentId, agent] of agents) {
+    for (const agentId of merged.keys()) {
       this.members.add(agentId);
-      useSessionStore.getState().setAgentLastActivity(agentId, agent.lastActivityAt);
     }
-    useSessionStore.getState().setAgents(this.serverId, agents);
   }
 
   commitCachedAgent(token: AgentLifecycleToken, agent: Agent): boolean {
@@ -73,13 +76,8 @@ export class AgentDirectoryReplica {
     if (token.version !== (this.lifecycleVersions.get(token.agentId) ?? 0)) return false;
     if (this.members.has(agent.id)) return false;
     this.members.add(agent.id);
-    useSessionStore.getState().setAgents(this.serverId, (current) => {
-      if (current.has(agent.id)) return current;
-      const next = new Map(current);
-      next.set(agent.id, agent);
-      return next;
-    });
-    useSessionStore.getState().setAgentLastActivity(agent.id, agent.lastActivityAt);
+    this.storeProjection.accept(agent);
+    this.storeProjection.publishActivity(agent);
     return true;
   }
 
@@ -87,8 +85,7 @@ export class AgentDirectoryReplica {
     if (token.version !== (this.lifecycleVersions.get(token.agentId) ?? 0)) {
       return false;
     }
-    const session = useSessionStore.getState().sessions[this.serverId];
-    const existing = session?.agents.get(token.agentId) ?? session?.agentDetails.get(token.agentId);
+    const existing = this.storeProjection.get(token.agentId);
     const timelineAgent = applyLegacyDaemonWorkspaceOwnership({
       serverId: this.serverId,
       agent: normalizeAgentSnapshot(payload, this.serverId),
@@ -98,19 +95,20 @@ export class AgentDirectoryReplica {
       projectPlacement: timelineAgent.projectPlacement ?? existing?.projectPlacement,
     };
     // A History timeline is detail demand, not membership in the active directory.
-    const accepted = normalized.archivedAt
-      ? normalized
-      : upsertAgentReplica(this.serverId, normalized);
+    const accepted = normalized.archivedAt ? normalized : this.storeProjection.accept(normalized);
     if (accepted.archivedAt) {
       this.storeArchivedDetail(accepted);
       this.members.delete(accepted.id);
     } else {
       this.members.add(accepted.id);
     }
-    replaceAgentPendingPermissions(this.serverId, accepted);
-    useSessionStore.getState().setAgentLastActivity(accepted.id, accepted.lastActivityAt);
+    this.storeProjection.replacePendingPermissions(accepted);
+    this.storeProjection.publishActivity(accepted);
+    // storeArchivedDetail already checkpointed the archived agent leaving the directory.
     if (accepted.archivedAt) {
       clearArchiveAgentPending({ queryClient, serverId: this.serverId, agentId: accepted.id });
+    } else {
+      this.persist([this.agentUpsert(accepted)]);
     }
     return true;
   }
@@ -122,19 +120,32 @@ export class AgentDirectoryReplica {
       this.removeDirectoryMember(delta.agentId);
       return;
     }
-    const result = applyAgentDirectoryDelta({ serverId: this.serverId, delta });
+    const result = this.storeProjection.applyDelta(delta);
     this.members.add(delta.agent.id);
     if (!before) this.advance(delta.agent.id);
     if (result.stoppedRunning) this.onStoppedRunning(result.agentId);
+    this.persist(
+      result.agent
+        ? [this.agentUpsert(result.agent)]
+        : [{ kind: "agent", type: "delete", id: result.agentId }],
+    );
+  }
+
+  accept(agent: Agent): Agent {
+    const accepted = this.storeProjection.accept(agent);
+    this.members.add(accepted.id);
+    this.persist([this.agentUpsert(accepted)]);
+    return accepted;
   }
 
   commitSnapshot(
     entries: FetchAgentsEntry[],
     deltas: readonly AgentDirectoryDelta[],
+    persist = true,
   ): Map<string, Agent> {
-    const previous = useSessionStore.getState().sessions[this.serverId]?.agents ?? new Map();
-    const reconciled = reconcileAgentDirectory({ previous, snapshot: entries, deltas });
-    const nextIds = new Set(reconciled.entries.map((entry) => entry.agent.id));
+    const previous = this.storeProjection.snapshot();
+    const reconciled = reconcileAgentDirectory({ snapshot: entries, deltas });
+    const nextIds = new Set(reconciled.map((entry) => entry.agent.id));
     const retainedIds = new Set<string>();
     const missingIds = new Set([
       ...previous.keys(),
@@ -168,11 +179,20 @@ export class AgentDirectoryReplica {
     this.members.clear();
     this.pendingCacheReads.clear();
     for (const agentId of nextIds) this.members.add(agentId);
-    const { agents } = replaceFetchedAgentDirectory({
-      serverId: this.serverId,
-      entries: reconciled.entries,
-    });
-    for (const agentId of reconciled.stoppedRunningAgentIds) this.onStoppedRunning(agentId);
+    const agents = this.storeProjection.replaceFetched(reconciled);
+    for (const [agentId, previousAgent] of previous) {
+      if (previousAgent.turn.phase === "open" && agents.get(agentId)?.turn.phase === "idle") {
+        this.onStoppedRunning(agentId);
+      }
+    }
+    if (persist) {
+      this.persist([
+        ...Array.from(previous.keys())
+          .filter((agentId) => !agents.has(agentId) && !retainedIds.has(agentId))
+          .map((id): DirectoryReplicaMutation => ({ kind: "agent", type: "delete", id })),
+        ...Array.from(agents.values(), (value) => this.agentUpsert(value)),
+      ]);
+    }
     return agents;
   }
 
@@ -181,7 +201,7 @@ export class AgentDirectoryReplica {
     removals: readonly { id: string }[],
     deltas: readonly AgentDirectoryDelta[],
   ): Map<string, Agent> {
-    const previous = useSessionStore.getState().sessions[this.serverId]?.agents ?? new Map();
+    const previous = this.storeProjection.snapshot();
     const merged = new Map<string, FetchAgentsEntry>();
     for (const agent of previous.values()) {
       const entry = projectAgentDirectoryEntry(agent);
@@ -192,25 +212,57 @@ export class AgentDirectoryReplica {
       kind: "remove",
       agentId: id,
     }));
-    return this.commitSnapshot(Array.from(merged.values()), [...removalsAsDeltas, ...deltas]);
+    const agents = this.commitSnapshot(
+      Array.from(merged.values()),
+      [...removalsAsDeltas, ...deltas],
+      false,
+    );
+    const touchedIds = new Set([
+      ...entries.map((entry) => entry.agent.id),
+      ...removals.map(({ id }) => id),
+      ...deltas.map((delta) => (delta.kind === "remove" ? delta.agentId : delta.agent.id)),
+    ]);
+    this.persist(
+      Array.from(touchedIds, (id): DirectoryReplicaMutation => {
+        const value = agents.get(id);
+        return value ? this.agentUpsert(value) : { kind: "agent", type: "delete", id };
+      }),
+    );
+    return agents;
   }
 
   archive(agentId: string, archivedAt: string): void {
     this.advance(agentId);
-    useSessionStore.getState().setAgents(this.serverId, (current) => {
-      const agent = current.get(agentId);
-      if (!agent) return current;
-      const next = new Map(current);
-      next.set(agentId, { ...agent, archivedAt: new Date(archivedAt) });
-      return next;
-    });
+    const archived = this.storeProjection.archive(agentId, archivedAt);
+    if (archived) this.persist([this.agentUpsert(archived)]);
     clearArchiveAgentPending({ queryClient, serverId: this.serverId, agentId });
   }
 
   remove(agentId: string): void {
     this.members.delete(agentId);
     this.advance(agentId);
-    removeAgentDirectoryReplica(this.serverId, agentId);
+    this.storeProjection.remove(agentId);
+    this.persist([{ kind: "agent", type: "delete", id: agentId }]);
+  }
+
+  applyTurnLiveness(
+    agentId: string,
+    transition: TurnLivenessTransition | readonly TurnLivenessTransition[],
+  ): void {
+    const wasRunning = this.storeProjection.get(agentId)?.turn.phase === "open";
+    const accepted = this.storeProjection.applyTurn(agentId, transition);
+    if (!accepted) return;
+    this.persist([this.agentUpsert(accepted)]);
+    if (wasRunning && accepted.turn.phase === "idle") this.onStoppedRunning(agentId);
+  }
+
+  private agentUpsert(agent: Agent): DirectoryReplicaMutation {
+    return {
+      kind: "agent",
+      type: "upsert",
+      id: agent.id,
+      value: agent,
+    };
   }
 
   private storeArchivedDetail(agent: Agent): void {
@@ -226,12 +278,13 @@ export class AgentDirectoryReplica {
       next.delete(agent.id);
       return next;
     });
+    // The checkpoint mirrors the active directory, which no longer holds this agent.
+    this.persist([{ kind: "agent", type: "delete", id: agent.id }]);
   }
 
   private retainOpenedArchivedDetail(agentId: string): boolean {
     if (!this.openArchivedAgentPolicy?.isAgentExplicitlyOpen(agentId)) return false;
-    const session = useSessionStore.getState().sessions[this.serverId];
-    const agent = session?.agents.get(agentId) ?? session?.agentDetails.get(agentId);
+    const agent = this.storeProjection.get(agentId);
     if (!agent?.archivedAt) return false;
     this.storeArchivedDetail(agent);
     clearArchiveAgentPending({ queryClient, serverId: this.serverId, agentId });
@@ -246,7 +299,8 @@ export class AgentDirectoryReplica {
       return;
     }
     this.advance(agentId);
-    removeAgentDirectoryReplica(this.serverId, agentId);
+    this.storeProjection.remove(agentId);
+    this.persist([{ kind: "agent", type: "delete", id: agentId }]);
   }
 
   private verifyOpenedArchivedAgent(agentId: string): void {

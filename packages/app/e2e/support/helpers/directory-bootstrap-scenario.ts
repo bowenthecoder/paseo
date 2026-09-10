@@ -38,6 +38,10 @@ async function createRunningMockAgent(
   return { id: agent.id, title };
 }
 
+async function openCommandCenter(page: Page): Promise<void> {
+  await page.getByTestId("sidebar-search").click();
+}
+
 export class DirectoryBootstrapScenario {
   private readonly workspaces: SeededWorkspace[] = [];
   private disconnectedWorkspace: SeededWorkspace | null = null;
