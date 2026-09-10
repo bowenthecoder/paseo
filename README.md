@@ -5,10 +5,23 @@ This branch is documentation only. The runnable source of each live Mac build is
 | What | GitHub | SHA |
 |---|---|---|
 | Old live app (9 Sep 2026, before the Enter duplicate-chat fix) | branch `bowen/live-mac-428478a45`, tag `live-mac-428478a45` | `428478a4538a208a47eef218a1e0552603aa58a4` |
-| Enter-fix app (10 Sep 2026) | branch `bowen/live-enter-fix-428478a45`, tag `live-mac-enter-fix-91980629c` | `91980629c14355743636f46528251d8b3dd4b9ee` |
+| Enter-fix app (now live, 10 Sep 2026) | branch `bowen/live-enter-fix-428478a45`, tag `live-mac-enter-fix-91980629c` | `91980629c14355743636f46528251d8b3dd4b9ee` |
 | Subscriptions plugin at the 9 Sep live cutover | `bowenthecoder/paseo-subscriptions` branch `bowen/live-mac-c13413463` | `c13413463be826b4afeb0927b00817180a871754` |
 
-The packaged `.app` is not stored on GitHub (about 430 MB, ad-hoc signed). Restore source from the branches above; a local binary rollback lives in `~/Applications/Paseo Backups/`.
+The packaged `.app` is not stored on GitHub (about 430 MB, ad-hoc signed). Restore source from the branches above. A local binary rollback of the pre-fix app is `~/Applications/Paseo Backups/20260910-enter-fix-before/`.
+
+Leftover `Paseo.app` copies on the Mac Desktop and older worktree packages were deleted on 10 September 2026 after this backup was pushed.
+
+## Current live (91980629c)
+
+- Version: Paseo 0.7.2 plus the Enter duplicate-chat fix
+- Path: `/Applications/Paseo.app`
+- Source: `91980629c14355743636f46528251d8b3dd4b9ee`
+- `app.asar` SHA-256: `dc35919fbb6cb0c4869b9e5c1a39c3b7a35aca613d06b8e1c1fcfd50fb31df9d`
+- Installed 10 September 2026 by swapping the UI only. The desktop-managed daemon on `127.0.0.1:6767` was left running (supervisor pid 67175).
+- Desktop notes after that swap: [live-mac/README.desktop.md](live-mac/README.desktop.md)
+
+Pressing Enter on a new draft previously could open two chats. The live renderer now converts the draft tab in place (`convertDraftToAgent`), treats a `"sent"` pending create as still pending so reconcile cannot open a second tab, and uses a submit lock so a double Enter cannot start two creates.
 
 ## Old live package (428478a45)
 
@@ -19,8 +32,6 @@ The packaged `.app` is not stored on GitHub (about 430 MB, ad-hoc signed). Resto
 - Notes from that night: [live-mac/README.428478a45.md](live-mac/README.428478a45.md)
 - Features: [live-mac/FINAL-FEATURES.md](live-mac/FINAL-FEATURES.md)
 - Manifest: [live-mac/checkpoint-manifest.json](live-mac/checkpoint-manifest.json)
-
-Known bug in that build: pressing Enter on a new draft could open two chats. Fixed in `91980629c`.
 
 ## Restore the old app source
 

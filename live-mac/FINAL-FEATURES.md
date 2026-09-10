@@ -1,6 +1,8 @@
 # Paseo final integration — 9 September 2026
 
-App `428478a45` and subscriptions plugin `c13413463` are **installed and verified live** at `/Applications/Paseo.app`. The exact package, hashes and evidence are in `checkpoints/428478a45/`.
+**10 September 2026 update.** `/Applications/Paseo.app` is now `91980629c` (the 9 September live source plus the Enter duplicate-chat fix). The 9 September package `428478a45` is no longer installed. Source and the README from that night are on GitHub: https://github.com/bowenthecoder/paseo/blob/live-mac-backup/README.md
+
+App `428478a45` and subscriptions plugin `c13413463` were **installed and verified live** at `/Applications/Paseo.app` on 9 September. Hashes and evidence remain in [checkpoints/428478a45](checkpoints/428478a45/); the packaged `.app` was removed from this Desktop after the GitHub backup.
 
 All 18 CI jobs passed. The corrected package passed 190 agent-manager tests, the loader regression, real Claude two-launch naming verification, packaged smoke, lint and typechecks. Live verification confirmed all 10 active chats, 63 stored records, 47 workspaces, three groups, one nonempty draft and 53 layouts were preserved. Nine eligible legacy titles were generated successfully. Provider bindings, plugin settings, installed hashes and code signature passed verification.
 
