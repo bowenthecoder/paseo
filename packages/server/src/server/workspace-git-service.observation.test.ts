@@ -859,12 +859,15 @@ describe("WorkspaceGitService checkout observation", () => {
 
   test("an unmatched remote-ref event buffered after the fetch snapshot is refreshed", async () => {
     const watcher = createWatcherHarness();
+    // A local remote exercises fetch/ref observation without an unrelated forge
+    // CLI probe holding the initial snapshot open under fake timers.
+    const remoteUrl = path.join(REPO_CWD, "origin.git");
     const fetchSnapshotRead = createDeferred<void>();
     const releaseFetch = createDeferred<void>();
     const getCheckoutSnapshotFacts = vi.fn(async (cwd: string) => ({
       ...createCheckoutFacts(cwd),
       currentBranch: "feature",
-      remoteUrl: "https://example.com/repo.git",
+      remoteUrl,
       resolvedBaseRef: "main",
       comparisonBaseRef: "origin/main",
     }));
@@ -875,7 +878,7 @@ describe("WorkspaceGitService checkout observation", () => {
           currentBranch: "feature",
           baseRef: "main",
           hasRemote: true,
-          remoteUrl: "https://example.com/repo.git",
+          remoteUrl,
         }),
       ),
       hasOriginRemote: vi.fn(async () => true),
