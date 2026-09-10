@@ -1,0 +1,29 @@
+{
+  "sourceCommit": "428478a4538a208a47eef218a1e0552603aa58a4",
+  "pluginCommit": "c13413463be826b4afeb0927b00817180a871754",
+  "asarSha256": "d5d44936eafa26e9efb749432d7394e56b3d0fb9ba8d2fd3ace2f006901f1ff5",
+  "ci": {
+    "runId": 34424683253,
+    "status": "completed",
+    "conclusion": "success",
+    "headSha": "428478a4538a208a47eef218a1e0552603aa58a4",
+    "jobsPassed": 18,
+    "url": "https://github.com/bowenthecoder/paseo/actions/runs/34424683253"
+  },
+  "validation": {
+    "packagedSmoke": "passed",
+    "packagedStress": "passed",
+    "codexTwelveChildren": "passed",
+    "claudeTwelveChildren": "passed",
+    "claudeBackgroundCommand": "passed",
+    "packagedNativeProviders": "passed",
+    "completedToolStatusVisualReview": "passed",
+    "profileStateMigration": "passed",
+    "coldStartupLegacyNaming": "passed",
+    "agentManagerRegression": "passed",
+    "nativeProviderCodeUnchanged": "passed",
+    "installedLiveVerification": "passed",
+    "liveLegacyNaming": "passed"
+  },
+  "publication": "live_verified"
+}
