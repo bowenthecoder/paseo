@@ -28,7 +28,7 @@ const cases: FanoutCase[] = [
     provider: "claude",
     providerConfig: { model: "sonnet" },
     prompt: [
-      `Launch ${FANOUT} background subagents with Claude Code's native Agent tool: call the tool ${FANOUT} times in one go, each with run_in_background true, subagent_type "general-purpose", name "fanout_child_N" and the prompt "Run the shell command sleep 25, then reply with exactly FANOUT_CHILD_N and nothing else", for N from 1 to ${FANOUT}.`,
+      `Launch ${FANOUT} background subagents with Claude Code's native Agent tool: call the tool ${FANOUT} times in one go, each with run_in_background true, subagent_type "general-purpose", name "fanout_child_N" and the prompt "Use Bash to run exactly sleep 25 in the foreground with timeout 60000 and run_in_background false. Wait for the command to finish, then reply with exactly FANOUT_CHILD_N and nothing else", for N from 1 to ${FANOUT}.`,
       "Do not wait, poll, sleep or read any files yourself. As soon as all launches are made, end your turn with exactly FANOUT_LAUNCHED and nothing else.",
       `Later, when the notifications for all ${FANOUT} children have arrived, reply with exactly FANOUT_DONE and nothing else. Do not use Paseo tools.`,
     ].join(" "),
