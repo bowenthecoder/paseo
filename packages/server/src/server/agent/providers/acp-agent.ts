@@ -15,6 +15,7 @@ import {
   toolNameFromACPTitle,
   type PlanApprovalExtResponse,
 } from "./acp-plan-approval.js";
+import { museContributorCostUsd } from "./muse-contributor-cost.js";
 import type { ProcessTerminator } from "../../../utils/tree-kill.js";
 import type {
   ReadableStream as NodeReadableStream,
@@ -734,6 +735,12 @@ export function mapACPUsage(usage: Usage | null | undefined): AgentUsage | undef
     outputTokens: usage.outputTokens ?? undefined,
     cachedInputTokens: usage.cachedReadTokens ?? undefined,
   };
+}
+
+function withMuseContributorCost(provider: string, usage: AgentUsage): AgentUsage {
+  if (provider !== "muse") return usage;
+  const totalCostUsd = museContributorCostUsd(usage);
+  return totalCostUsd == null ? usage : { ...usage, totalCostUsd };
 }
 
 export function resolveACPModeSelection({
@@ -3251,7 +3258,10 @@ export class ACPAgentSession implements AgentSession, ACPClient {
   }
 
   private handlePromptResponse(response: PromptResponse, turnId: string): void {
-    this.currentTurnUsage = { ...this.currentTurnUsage, ...mapACPUsage(response.usage) };
+    this.currentTurnUsage = withMuseContributorCost(this.provider, {
+      ...this.currentTurnUsage,
+      ...mapACPUsage(response.usage),
+    });
 
     switch (response.stopReason) {
       case "cancelled":
