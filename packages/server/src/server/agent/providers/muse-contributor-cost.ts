@@ -7,6 +7,7 @@ export interface MuseContributorUsage {
   inputTokens?: number;
   cachedInputTokens?: number;
   outputTokens?: number;
+  totalCostUsd?: number;
 }
 
 /**
@@ -21,12 +22,21 @@ export function museContributorCostUsd(parts: MuseContributorUsage): number | un
   const cached = finiteOrZero(parts.cachedInputTokens);
   const output = finiteOrZero(parts.outputTokens);
   const uncached = Math.max(0, input - cached);
-  return (
+  const raw =
     (uncached * MUSE_CONTRIBUTOR_INPUT_PER_MILLION +
       cached * MUSE_CONTRIBUTOR_CACHED_INPUT_PER_MILLION +
       output * MUSE_CONTRIBUTOR_OUTPUT_PER_MILLION) /
-    1_000_000
-  );
+    1_000_000;
+  return Math.round(raw * 1e10) / 1e10;
+}
+
+export function withMuseContributorCost<T extends MuseContributorUsage>(
+  provider: string,
+  usage: T,
+): T {
+  if (provider !== "muse") return usage;
+  const totalCostUsd = museContributorCostUsd(usage);
+  return totalCostUsd == null ? usage : { ...usage, totalCostUsd };
 }
 
 function finiteOrZero(value: number | undefined): number {

@@ -40,18 +40,48 @@ function formatCreateConfigParentSource(parent: AgentCreateConfigParent): string
   return `caller (provider '${parent.provider}')`;
 }
 
+const UNATTENDED_MODE_ALIASES = new Set([
+  "bypassApprovals",
+  "bypassPermissions",
+  "yolo",
+  "full-access",
+  "never",
+]);
+
+const PLAN_MODE_ALIASES = new Set(["plan", "readOnly", "read-only"]);
+
+function fallbackModeForUnknownRequest(
+  requestedMode: string,
+  input: ResolveCreateAgentModeInput,
+): string | undefined {
+  const { availableModes } = input;
+  if (UNATTENDED_MODE_ALIASES.has(requestedMode)) {
+    if (input.targetUnattendedMode !== undefined) {
+      return input.targetUnattendedMode;
+    }
+    // Muse CLI ACP used bypassApprovals; OpenCode ACP's working mode is `build`
+    // and is not marked isUnattended (Auto Accept carries that instead).
+    return availableModes?.find((mode) => mode !== "plan");
+  }
+  if (PLAN_MODE_ALIASES.has(requestedMode) && availableModes?.includes("plan")) {
+    return "plan";
+  }
+  return undefined;
+}
+
 export function resolveAndValidateCreateAgentMode(
   input: ResolveCreateAgentModeInput,
 ): string | undefined {
   const { requestedMode, targetProvider, parent, availableModes } = input;
 
   if (requestedMode !== undefined) {
-    if (availableModes !== undefined && !availableModes.includes(requestedMode)) {
-      throw new Error(
-        `Invalid mode '${requestedMode}' for provider '${targetProvider}'. Available modes: ${listModes(availableModes)}`,
-      );
+    if (availableModes === undefined || availableModes.includes(requestedMode)) {
+      return requestedMode;
     }
-    return requestedMode;
+    // Provider backends can change their mode catalog (Muse CLI ACP → OpenCode
+    // ACP) while the app still submits a saved mode. Fall back instead of
+    // failing the new chat.
+    return fallbackModeForUnknownRequest(requestedMode, input);
   }
 
   if (!parent) {

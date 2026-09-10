@@ -66,6 +66,24 @@ describe("GenericACPAgentClient", () => {
     ]);
   });
 
+  test("uses the registered provider id instead of the ACP transport family", () => {
+    mockState.superConstructorOptions = [];
+    const _client = new GenericACPAgentClient({
+      logger: createTestLogger(),
+      command: ["paseo-muse", "acp"],
+      providerId: "muse",
+      label: "Muse",
+    });
+    void _client;
+
+    expect(mockState.superConstructorOptions[0]).toEqual(
+      expect.objectContaining({
+        provider: "muse",
+        defaultCommand: ["paseo-muse", "acp"],
+      }),
+    );
+  });
+
   test("uses provider params to report MCP support", () => {
     const _client = new GenericACPAgentClient({
       logger: createTestLogger(),

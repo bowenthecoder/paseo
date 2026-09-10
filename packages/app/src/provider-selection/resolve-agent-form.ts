@@ -189,21 +189,26 @@ export function resolveThinkingOptionId(args: {
 
 const normalizeSelectedModeId = normalizeSelectedModelId;
 
+function modeIsKnown(modeId: string, modes: { id: string }[]): boolean {
+  return modes.length === 0 || modes.some((mode) => mode.id === modeId);
+}
+
 function resolvePreferredModeId(input: {
   initialModeId?: string | null;
   preferredModeId?: string | null;
   providerDef: AgentProviderDefinition | undefined;
 }): string {
-  // Saved modes are user intent. Provider create config validates unknown modes
-  // at submission time, so background form resolution should not erase them.
+  // While the snapshot is still loading, modes is empty — keep the saved id.
+  // Once the catalog is known, drop leftover ids from a previous backend
+  // (Muse CLI ACP used bypassApprovals; OpenCode ACP only has build/plan).
+  const modes = input.providerDef?.modes ?? [];
   const initialModeId = normalizeSelectedModeId(input.initialModeId);
-  if (initialModeId) return initialModeId;
+  if (initialModeId && modeIsKnown(initialModeId, modes)) return initialModeId;
 
   const preferredModeId = normalizeSelectedModeId(input.preferredModeId);
-  if (preferredModeId) return preferredModeId;
+  if (preferredModeId && modeIsKnown(preferredModeId, modes)) return preferredModeId;
 
   const defaultModeId = input.providerDef?.defaultModeId;
-  const modes = input.providerDef?.modes ?? [];
   if (defaultModeId && (modes.length === 0 || modes.some((mode) => mode.id === defaultModeId))) {
     return defaultModeId;
   }

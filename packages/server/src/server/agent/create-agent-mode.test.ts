@@ -21,18 +21,49 @@ describe("resolveAndValidateCreateAgentMode", () => {
     expect(resolved).toBe("plan");
   });
 
-  it("throws when the requested mode is invalid for the target provider", () => {
-    expect(() =>
-      resolveAndValidateCreateAgentMode({
-        requestedMode: "bypassPermissions",
-        targetProvider: "opencode",
-        parent: null,
-        unattended: false,
-        availableModes: OPENCODE_MODES,
-      }),
-    ).toThrow(
-      "Invalid mode 'bypassPermissions' for provider 'opencode'. Available modes: build, plan",
-    );
+  it("maps a leftover unattended mode onto the working mode when the target has no unattended flag", () => {
+    const resolved = resolveAndValidateCreateAgentMode({
+      requestedMode: "bypassApprovals",
+      targetProvider: "muse",
+      parent: null,
+      unattended: false,
+      availableModes: OPENCODE_MODES,
+    });
+    expect(resolved).toBe("build");
+  });
+
+  it("falls back to the provider default for an unknown mode that is not a leftover alias", () => {
+    const resolved = resolveAndValidateCreateAgentMode({
+      requestedMode: "not-a-real-mode",
+      targetProvider: "muse",
+      parent: null,
+      unattended: false,
+      availableModes: OPENCODE_MODES,
+    });
+    expect(resolved).toBeUndefined();
+  });
+
+  it("maps a leftover unattended mode onto the target provider's unattended mode", () => {
+    const resolved = resolveAndValidateCreateAgentMode({
+      requestedMode: "bypassApprovals",
+      targetProvider: "muse",
+      parent: null,
+      unattended: false,
+      availableModes: OPENCODE_MODES,
+      targetUnattendedMode: "build",
+    });
+    expect(resolved).toBe("build");
+  });
+
+  it("maps leftover plan aliases onto plan when the target has that mode", () => {
+    const resolved = resolveAndValidateCreateAgentMode({
+      requestedMode: "readOnly",
+      targetProvider: "muse",
+      parent: null,
+      unattended: false,
+      availableModes: OPENCODE_MODES,
+    });
+    expect(resolved).toBe("plan");
   });
 
   it("returns undefined (provider default) when no mode and no caller", () => {

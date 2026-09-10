@@ -2070,6 +2070,28 @@ describe("ACPAgentClient config features", () => {
     ).toEqual({ modeId: undefined, featureValues: { auto_accept: true } });
   });
 
+  test("maps a leftover Muse CLI mode onto OpenCode ACP build", () => {
+    const client = new ACPAgentClient({
+      provider: "muse",
+      logger: createTestLogger(),
+      defaultCommand: ["paseo-muse", "acp"],
+    });
+
+    expect(
+      client.resolveCreateConfig({
+        provider: "muse",
+        requestedMode: "bypassApprovals",
+        featureValues: undefined,
+        parent: null,
+        unattended: false,
+        availableModes: [
+          { id: "build", label: "Build" },
+          { id: "plan", label: "Plan" },
+        ],
+      }),
+    ).toEqual({ modeId: "build", featureValues: undefined });
+  });
+
   test("treats Auto Accept as an unattended ACP configuration", () => {
     const client = new ACPAgentClient({
       provider: "generic-acp",

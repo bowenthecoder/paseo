@@ -608,7 +608,7 @@ describe("resolveFormState", () => {
     expect(resolved.modeId).toBe("full-access");
   });
 
-  it("preserves a saved mode that is not in the current mode list", () => {
+  it("drops a saved mode that is not in the ready mode catalog", () => {
     const resolved = resolveFormState(
       undefined,
       {
@@ -623,7 +623,64 @@ describe("resolveFormState", () => {
     );
 
     expect(resolved.provider).toBe("codex");
-    expect(resolved.modeId).toBe("workspace-write");
+    expect(resolved.modeId).toBe("auto");
+  });
+
+  it("drops a leftover Muse CLI mode once OpenCode ACP modes are known", () => {
+    const museProviderMap = makeProviderMap({
+      id: "muse",
+      label: "Muse",
+      description: "Muse Spark via Straitly",
+      defaultModeId: "build",
+      modes: [
+        { id: "build", label: "Build", icon: "Hammer", colorTier: "moderate" },
+        { id: "plan", label: "Plan", icon: "ShieldCheck", colorTier: "planning" },
+      ],
+    });
+
+    const resolved = resolveFormState(
+      undefined,
+      {
+        provider: "muse",
+        providerPreferences: { muse: { mode: "bypassApprovals" } },
+      },
+      [
+        {
+          provider: "muse",
+          id: "straitly/meta-llama/muse-spark-1.3-contributor",
+          label: "Muse 1.3",
+        },
+      ],
+      INITIAL_USER_MODIFIED,
+      makeState({ provider: "muse", modeId: "bypassApprovals" }).form,
+      museProviderMap,
+    );
+
+    expect(resolved.modeId).toBe("build");
+  });
+
+  it("keeps a leftover saved mode while the provider mode list is still empty", () => {
+    const museProviderMap = makeProviderMap({
+      id: "muse",
+      label: "Muse",
+      description: "Muse Spark via Straitly",
+      defaultModeId: "build",
+      modes: [],
+    });
+
+    const resolved = resolveFormState(
+      undefined,
+      {
+        provider: "muse",
+        providerPreferences: { muse: { mode: "bypassApprovals" } },
+      },
+      null,
+      INITIAL_USER_MODIFIED,
+      makeState({ provider: "muse", modeId: "bypassApprovals" }).form,
+      museProviderMap,
+    );
+
+    expect(resolved.modeId).toBe("bypassApprovals");
   });
 
   it("falls back when the provider cannot advertise its preferred default mode", () => {

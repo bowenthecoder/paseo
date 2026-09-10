@@ -71,7 +71,7 @@ export class GenericACPAgentClient extends ACPAgentClient {
   constructor(options: GenericACPAgentClientOptions) {
     const providerParams = parseGenericACPProviderParams(options.providerParams);
     super({
-      provider: "acp",
+      provider: options.providerId ?? "acp",
       logger: options.logger,
       runtimeSettings: {
         env: options.env,

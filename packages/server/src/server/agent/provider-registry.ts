@@ -50,6 +50,7 @@ import { PiRpcAgentClient } from "./providers/pi/agent.js";
 import { TraeACPAgentClient } from "./providers/trae-acp-agent.js";
 import { MockLoadTestAgentClient } from "./providers/mock-load-test-agent.js";
 import { MockSlowProviderClient } from "./providers/mock-slow-provider.js";
+import { withMuseContributorCost } from "./providers/muse-contributor-cost.js";
 import { ClaudeProviderOptionsSchema } from "./providers/claude/options.js";
 import { CodexProviderOptionsSchema } from "./providers/codex/options.js";
 import { OpenCodeProviderOptionsSchema } from "./providers/opencode/options.js";
@@ -354,10 +355,11 @@ function mapRuntimeInfo(provider: AgentProvider, runtimeInfo: AgentRuntimeInfo):
 }
 
 function mapStreamEvent(provider: AgentProvider, event: AgentStreamEvent): AgentStreamEvent {
-  return {
-    ...event,
-    provider,
-  };
+  const mapped = { ...event, provider };
+  if (!("usage" in mapped) || mapped.usage == null) {
+    return mapped;
+  }
+  return { ...mapped, usage: withMuseContributorCost(provider, mapped.usage) };
 }
 
 function mapModel(
