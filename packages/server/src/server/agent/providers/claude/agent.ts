@@ -4178,6 +4178,9 @@ class ClaudeAgentSession implements AgentSession {
     // The launching sidechain already owns and renders this tool call. Mirroring it into the
     // managed parent's transcript would flatten both the card and the child relationship.
     if (declaration.parentSubagentId) return null;
+    // Background shell commands also declare temporary task rows. They are not subagents:
+    // synthesizing a running Task card for them leaves it stuck after their row is removed.
+    if (!this.taskProtocolSource.isDeclared(declaration.id)) return null;
     const toolCall = mapClaudeRunningToolCall({
       name: "Task",
       callId: declaration.id,
